@@ -45,3 +45,7 @@ pnpm-debug.log*
 # Database
 *.db
 *.sqlite
+
+# Large Excel files (templates/data)
+**/assets/*.xlsx
+**/assets/*.xls
