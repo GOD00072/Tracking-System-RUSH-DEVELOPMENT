@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Ship, Menu, X } from 'lucide-react';
 import { useState } from 'react';
+import UserProfile from '../UserProfile';
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -9,71 +10,82 @@ const Navbar = () => {
     { name: 'หน้าแรก', path: '/' },
     { name: 'กระบวนการ', path: '/process' },
     { name: 'ติดตามเรือ', path: '/ship-tracking' },
-    { name: 'ติดตามเครื่องบิน', path: '/air-tracking' },
+    { name: 'ติดตามบิน', path: '/air-tracking' },
     { name: 'ตารางเรือ', path: '/schedule' },
-    { name: 'คำนวณค่าขนส่ง', path: '/calculator' },
+    { name: 'คำนวณ', path: '/calculator' },
     { name: 'ผลงาน', path: '/portfolio' },
     { name: 'รีวิว', path: '/review' },
-    { name: 'สถิติ', path: '/statistics' },
-    { name: 'เกี่ยวกับเรา', path: '/about' },
+    { name: 'เกี่ยวกับ', path: '/about' },
     { name: 'ติดต่อ', path: '/contact' },
   ];
 
   return (
     <nav className="bg-white shadow-md sticky top-0 z-50 border-b-4 border-primary-500">
-      <div className="container-custom">
-        <div className="flex justify-between items-center h-20">
-          {/* Logo */}
-          <Link to="/" className="flex items-center space-x-3 group">
-            <img
-              src="/pakkuneko-logo.png"
-              alt="PakkuNeko Logo"
-              className="h-16 w-16 rounded-full object-cover transition-transform group-hover:scale-105"
-            />
-            <div>
-              <span className="text-2xl font-bold bg-gradient-to-r from-primary-500 to-primary-700 bg-clip-text text-transparent" style={{ fontFamily: 'Noto Sans JP' }}>แพ็คคุเนโกะ</span>
-              <p className="text-xs text-gray-500">PakkuNeko</p>
-            </div>
-          </Link>
+      <div className="flex flex-wrap items-center justify-between w-full px-4 mx-auto">
+        {/* Logo */}
+        <Link to="/" className="flex items-center">
+          <img
+            src="/pakkuneko-logo.png"
+            alt="PakkuNeko Logo"
+            className="h-6 sm:h-9 w-auto rounded-full object-cover mr-3"
+          />
+          <span className="self-center font-extrabold text-xl whitespace-nowrap text-gray-800">
+            แพ็คคุเนโกะ
+          </span>
+        </Link>
 
-          {/* Desktop Navigation */}
-          <div className="hidden lg:flex items-center space-x-1">
-            {navLinks.map((link) => (
-              <Link
-                key={link.path}
-                to={link.path}
-                className="px-4 py-2 rounded-lg text-gray-700 hover:bg-primary-50 hover:text-primary-600 transition-all font-medium text-sm relative group"
-              >
-                {link.name}
-                <span className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-0 h-0.5 bg-primary-500 group-hover:w-3/4 transition-all duration-300"></span>
-              </Link>
-            ))}
+        {/* Right Side - Login & Mobile Menu */}
+        <div className="flex items-center lg:order-2">
+          {/* Desktop Login Button */}
+          <div className="h-full md:block flex justify-center items-center">
+            <div className="justify-center md:block hidden">
+              <div className="hidden lg:block">
+                <UserProfile />
+              </div>
+            </div>
           </div>
 
-          {/* Mobile Menu Button */}
-          <button
-            onClick={() => setIsOpen(!isOpen)}
-            className="lg:hidden p-2 rounded-lg hover:bg-gray-100"
-          >
-            {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
+          {/* Mobile Menu Toggle */}
+          <div className="lg:hidden block">
+            <button
+              onClick={() => setIsOpen(!isOpen)}
+              className="justify-center whitespace-nowrap font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary-600 h-10 inline-flex items-center p-2 ml-1 text-sm text-gray-200 rounded-lg hover:bg-primary-700 focus:outline-none"
+              type="button"
+              aria-controls="mobile-menu-2"
+              aria-expanded={isOpen}
+            >
+              <span className="sr-only">Open main menu</span>
+              {isOpen ? (
+                <X className="w-6 h-6" fill="white" />
+              ) : (
+                <Menu className="w-6 h-6" fill="white" />
+              )}
+            </button>
+          </div>
         </div>
 
-        {/* Mobile Navigation */}
-        {isOpen && (
-          <div className="lg:hidden py-4 border-t">
+        {/* Desktop Navigation */}
+        <div className={`items-center ${isOpen ? 'flex' : 'hidden'} justify-between w-full lg:flex lg:w-auto lg:order-1`} id="mobile-menu-2">
+          <ul className="flex flex-col mt-4 font-medium lg:flex-row lg:space-x-8 lg:mt-0">
             {navLinks.map((link) => (
-              <Link
-                key={link.path}
-                to={link.path}
-                className="block py-2 text-gray-700 hover:text-primary-500 transition-colors"
-                onClick={() => setIsOpen(false)}
-              >
-                {link.name}
-              </Link>
+              <li key={link.path}>
+                <Link
+                  to={link.path}
+                  className="block font-bold py-2 pl-3 pr-4 lg:p-0 text-gray-700 hover:text-primary-600"
+                  onClick={() => setIsOpen(false)}
+                >
+                  {link.name}
+                </Link>
+              </li>
             ))}
-          </div>
-        )}
+            {/* Mobile Login */}
+            <li className="lg:hidden">
+              <div className="py-2 pl-3 pr-4">
+                <UserProfile />
+              </div>
+            </li>
+          </ul>
+        </div>
       </div>
     </nav>
   );

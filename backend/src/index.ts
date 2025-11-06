@@ -4,9 +4,17 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
+import session from 'express-session';
+import cookieParser from 'cookie-parser';
+import prisma from './lib/prisma';
+import passport from './config/passport';
 
 // Routes
+console.log('[INDEX] Importing auth router...');
+import authRouter from './routes/auth';
+console.log('[INDEX] Auth router imported:', typeof authRouter);
 import ordersRouter from './routes/orders';
+import customersRouter from './routes/customers';
 import shipmentsRouter from './routes/shipments';
 import schedulesRouter from './routes/schedules';
 import reviewsRouter from './routes/reviews';
@@ -15,6 +23,14 @@ import statisticsRouter from './routes/statistics';
 import contactRouter from './routes/contact';
 import settingsRouter from './routes/settings';
 import airTrackingRouter from './routes/airTracking';
+import orderItemsRouter from './routes/orderItems';
+import systemSettingsRouter from './routes/systemSettings';
+
+// Admin Routes
+import adminOrdersRouter from './routes/admin/orders';
+
+// Webhook Routes
+import lineWebhookRouter from './routes/webhook/line';
 
 dotenv.config();
 
@@ -28,8 +44,35 @@ app.use(cors({
   credentials: true,
 }));
 app.use(morgan('dev'));
-app.use(express.json());
+
+// Regular JSON parsing for all routes EXCEPT LINE webhook
+app.use((req, res, next) => {
+  if (req.path === '/webhook/line') {
+    // Skip body parsing for LINE webhook - it will handle it internally
+    return next();
+  }
+  express.json()(req, res, next);
+});
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
+
+// Session configuration
+app.use(
+  session({
+    secret: process.env.JWT_SECRET || 'dev-secret-key',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: process.env.NODE_ENV === 'production',
+      httpOnly: true,
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    },
+  })
+);
+
+// Initialize Passport
+app.use(passport.initialize());
+app.use(passport.session());
 
 // Rate limiting
 const limiter = rateLimit({
@@ -39,12 +82,31 @@ const limiter = rateLimit({
 app.use(limiter);
 
 // Health check
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+app.get('/health', async (req, res) => {
+  try {
+    // Check database connection
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      database: 'connected'
+    });
+  } catch (error) {
+    res.status(503).json({
+      status: 'error',
+      timestamp: new Date().toISOString(),
+      database: 'disconnected',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
 });
 
 // API Routes
+console.log('[INDEX] Registering auth routes at /auth');
+app.use('/auth', authRouter);
+console.log('[INDEX] Auth routes registered');
 app.use('/api/v1/orders', ordersRouter);
+app.use('/api/v1/customers', customersRouter);
 app.use('/api/v1/shipments', shipmentsRouter);
 app.use('/api/v1/schedules', schedulesRouter);
 app.use('/api/v1/reviews', reviewsRouter);
@@ -53,6 +115,14 @@ app.use('/api/v1/statistics', statisticsRouter);
 app.use('/api/v1/contact', contactRouter);
 app.use('/api/v1/settings', settingsRouter);
 app.use('/api/v1/air-tracking', airTrackingRouter);
+app.use('/api/v1/order-items', orderItemsRouter);
+app.use('/api/v1/system-settings', systemSettingsRouter);
+
+// Admin API Routes
+app.use('/api/v1/admin/orders', adminOrdersRouter);
+
+// Webhook Routes
+app.use('/webhook/line', lineWebhookRouter);
 
 // 404 handler
 app.use((req, res) => {
@@ -77,10 +147,29 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   });
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📝 Environment: ${process.env.NODE_ENV}`);
   console.log(`🌐 CORS origins: ${process.env.ALLOWED_ORIGINS}`);
+
+  // Test database connection
+  try {
+    await prisma.$connect();
+    console.log('✅ Database connected successfully');
+  } catch (error) {
+    console.error('❌ Database connection failed:', error);
+  }
+});
+
+// Graceful shutdown
+process.on('SIGINT', async () => {
+  await prisma.$disconnect();
+  process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+  await prisma.$disconnect();
+  process.exit(0);
 });
 
 export default app;
