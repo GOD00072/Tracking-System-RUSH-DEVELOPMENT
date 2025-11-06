@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Save } from 'lucide-react';
+import { Save, MessageCircle, CheckCircle, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { useCalculatorSettings, useUpdateCalculatorSettings } from '../../hooks/useCalculatorSettings';
 import { pageTransition, staggerContainer, staggerItem, buttonTap } from '../../lib/animations';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import api from '../../lib/api';
 
 const AdminSettingsPage = () => {
   const { data: settings, isLoading } = useCalculatorSettings();
@@ -36,6 +37,17 @@ const AdminSettingsPage = () => {
     email: '',
   });
 
+  const [lineSettings, setLineSettings] = useState({
+    enabled: false,
+    channel_access_token: '',
+    channel_secret: '',
+    webhook_url: '',
+    auto_notify_shipping_update: true,
+    notify_on_status: ['shipped', 'in_transit', 'delivered'],
+  });
+
+  const [lineLoading, setLineLoading] = useState(false);
+
   // Load settings from API
   useEffect(() => {
     if (settings) {
@@ -57,6 +69,22 @@ const AdminSettingsPage = () => {
       setCompanyInfo(settings.company_info);
     }
   }, [settings]);
+
+  // Load LINE settings
+  useEffect(() => {
+    fetchLineSettings();
+  }, []);
+
+  const fetchLineSettings = async () => {
+    try {
+      const response = await api.get('/settings/line');
+      if (response.data.success) {
+        setLineSettings(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error loading LINE settings:', error);
+    }
+  };
 
   const handleSave = async () => {
     try {
@@ -84,6 +112,33 @@ const AdminSettingsPage = () => {
     } catch (error) {
       toast.error('เกิดข้อผิดพลาดในการบันทึก');
     }
+  };
+
+  const handleSaveLine = async () => {
+    setLineLoading(true);
+    try {
+      const response = await api.put('/settings/line', lineSettings);
+      if (response.data.success) {
+        toast.success('บันทึกการตั้งค่า LINE สำเร็จ');
+        await fetchLineSettings();
+      }
+    } catch (error) {
+      toast.error('เกิดข้อผิดพลาดในการบันทึกการตั้งค่า LINE');
+    } finally {
+      setLineLoading(false);
+    }
+  };
+
+  const toggleLineEnabled = () => {
+    setLineSettings({ ...lineSettings, enabled: !lineSettings.enabled });
+  };
+
+  const toggleStatusNotification = (status: string) => {
+    const currentStatuses = lineSettings.notify_on_status || [];
+    const newStatuses = currentStatuses.includes(status)
+      ? currentStatuses.filter((s) => s !== status)
+      : [...currentStatuses, status];
+    setLineSettings({ ...lineSettings, notify_on_status: newStatuses });
   };
 
   if (isLoading) {
@@ -286,6 +341,176 @@ const AdminSettingsPage = () => {
                     placeholder="info@shiptracking.com"
                   />
                 </div>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* LINE OA Integration */}
+          <motion.div className="card" variants={staggerItem}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <MessageCircle className="w-6 h-6 text-green-600" />
+                <h2 className="text-xl font-bold">LINE OA Integration</h2>
+              </div>
+              <div className="flex items-center gap-2">
+                {lineSettings.enabled ? (
+                  <span className="flex items-center gap-1 text-sm text-green-600">
+                    <CheckCircle className="w-4 h-4" />
+                    เปิดใช้งาน
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 text-sm text-gray-500">
+                    <XCircle className="w-4 h-4" />
+                    ปิดใช้งาน
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {/* Enable/Disable Toggle */}
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                <div>
+                  <p className="font-medium">เปิดใช้งาน LINE Notifications</p>
+                  <p className="text-sm text-gray-600 mt-1">
+                    ส่งการแจ้งเตือนการอัปเดทการจัดส่งผ่าน LINE OA
+                  </p>
+                </div>
+                <button
+                  onClick={toggleLineEnabled}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    lineSettings.enabled ? 'bg-green-600' : 'bg-gray-300'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      lineSettings.enabled ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* LINE Credentials */}
+              <div>
+                <label className="block font-medium mb-2">Channel Access Token</label>
+                <input
+                  type="password"
+                  value={lineSettings.channel_access_token}
+                  onChange={(e) =>
+                    setLineSettings({ ...lineSettings, channel_access_token: e.target.value })
+                  }
+                  className="input-field font-mono text-sm"
+                  placeholder="Your LINE Channel Access Token"
+                  disabled={!lineSettings.enabled}
+                />
+              </div>
+
+              <div>
+                <label className="block font-medium mb-2">Channel Secret</label>
+                <input
+                  type="password"
+                  value={lineSettings.channel_secret}
+                  onChange={(e) =>
+                    setLineSettings({ ...lineSettings, channel_secret: e.target.value })
+                  }
+                  className="input-field font-mono text-sm"
+                  placeholder="Your LINE Channel Secret"
+                  disabled={!lineSettings.enabled}
+                />
+              </div>
+
+              <div>
+                <label className="block font-medium mb-2">Webhook URL</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={lineSettings.webhook_url || `${window.location.origin}/webhook/line`}
+                    onChange={(e) =>
+                      setLineSettings({ ...lineSettings, webhook_url: e.target.value })
+                    }
+                    className="input-field font-mono text-sm"
+                    placeholder="https://your-domain.com/webhook/line"
+                    disabled={!lineSettings.enabled}
+                  />
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(
+                        lineSettings.webhook_url || `${window.location.origin}/webhook/line`
+                      );
+                      toast.success('คัดลอก URL แล้ว');
+                    }}
+                    className="btn-secondary whitespace-nowrap"
+                  >
+                    คัดลอก
+                  </button>
+                </div>
+                <p className="text-sm text-gray-600 mt-1">
+                  ใช้ URL นี้ใน LINE Developers Console
+                </p>
+              </div>
+
+              {/* Auto Notify Settings */}
+              <div className="border-t pt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="font-medium">แจ้งเตือนอัตโนมัติเมื่อสถานะเปลี่ยน</p>
+                  <button
+                    onClick={() =>
+                      setLineSettings({
+                        ...lineSettings,
+                        auto_notify_shipping_update: !lineSettings.auto_notify_shipping_update,
+                      })
+                    }
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      lineSettings.auto_notify_shipping_update ? 'bg-green-600' : 'bg-gray-300'
+                    }`}
+                    disabled={!lineSettings.enabled}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        lineSettings.auto_notify_shipping_update ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-sm text-gray-600 mb-2">เลือกสถานะที่ต้องการแจ้งเตือน:</p>
+                  {[
+                    { value: 'pending', label: 'รอดำเนินการ' },
+                    { value: 'processing', label: 'กำลังดำเนินการ' },
+                    { value: 'shipped', label: 'จัดส่งแล้ว' },
+                    { value: 'in_transit', label: 'อยู่ระหว่างการขนส่ง' },
+                    { value: 'delivered', label: 'จัดส่งสำเร็จ' },
+                  ].map((status) => (
+                    <label
+                      key={status.value}
+                      className="flex items-center gap-2 p-2 rounded hover:bg-gray-50"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={lineSettings.notify_on_status?.includes(status.value)}
+                        onChange={() => toggleStatusNotification(status.value)}
+                        disabled={!lineSettings.enabled || !lineSettings.auto_notify_shipping_update}
+                        className="w-4 h-4 text-primary-600 rounded"
+                      />
+                      <span className="text-sm">{status.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Save Button */}
+              <div className="flex justify-end pt-4 border-t">
+                <motion.button
+                  onClick={handleSaveLine}
+                  disabled={lineLoading || !lineSettings.enabled}
+                  className="btn-primary flex items-center gap-2"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={buttonTap}
+                >
+                  <Save className="w-4 h-4" />
+                  {lineLoading ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่า LINE'}
+                </motion.button>
               </div>
             </div>
           </motion.div>

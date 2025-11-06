@@ -1,0 +1,34 @@
+# Node modules
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Environment
+.env
+.env.local
+
+# Build
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Database
+*.db
+*.sqlite
+prisma/migrations/
+
+# Logs
+logs/
+*.log

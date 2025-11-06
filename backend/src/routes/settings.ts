@@ -1,9 +1,11 @@
 import express from 'express';
+import prisma from '../lib/prisma';
+import { authenticateAdmin } from '../middleware/auth';
 
 const router = express.Router();
 
-// In-memory storage (replace with database later)
-let calculatorSettings = {
+// Default settings
+const defaultCalculatorSettings = {
   exchange_rates: {
     member: 0.250,
     vip: 0.240,
@@ -29,49 +31,160 @@ let calculatorSettings = {
   },
 };
 
+const defaultLineSettings = {
+  enabled: false,
+  channel_access_token: '',
+  channel_secret: '',
+  webhook_url: '',
+  auto_notify_shipping_update: true,
+  notify_on_status: ['shipped', 'in_transit', 'delivered'],
+};
+
+// Helper function to get setting
+async function getSetting(key: string, defaultValue: any) {
+  const setting = await prisma.systemSetting.findUnique({
+    where: { key },
+  });
+  return setting ? setting.value : defaultValue;
+}
+
+// Helper function to update setting
+async function updateSetting(key: string, value: any, category?: string) {
+  return await prisma.systemSetting.upsert({
+    where: { key },
+    update: { value, category },
+    create: { key, value, category },
+  });
+}
+
 // GET /api/v1/settings/calculator
-router.get('/calculator', (req, res) => {
-  res.json({
-    success: true,
-    data: calculatorSettings,
-  });
-});
-
-// PUT /api/v1/settings/calculator
-router.put('/calculator', (req, res) => {
-  const updates = req.body;
-
-  // Update settings
-  calculatorSettings = {
-    ...calculatorSettings,
-    ...updates,
-  };
-
-  res.json({
-    success: true,
-    data: calculatorSettings,
-    message: 'Settings updated successfully',
-  });
-});
-
-// PUT /api/v1/settings/calculator/:key
-router.put('/calculator/:key', (req, res) => {
-  const { key } = req.params;
-  const { value } = req.body;
-
-  if (calculatorSettings.hasOwnProperty(key)) {
-    (calculatorSettings as any)[key] = value;
+router.get('/calculator', async (req, res) => {
+  try {
+    const settings = await getSetting('calculator', defaultCalculatorSettings);
     res.json({
       success: true,
-      data: calculatorSettings,
-      message: `${key} updated successfully`,
+      data: settings,
     });
-  } else {
-    res.status(404).json({
+  } catch (error) {
+    console.error('Error fetching calculator settings:', error);
+    res.status(500).json({
       success: false,
       error: {
-        code: 'NOT_FOUND',
-        message: 'Setting key not found',
+        code: 'FETCH_ERROR',
+        message: 'Failed to fetch settings',
+      },
+    });
+  }
+});
+
+// PUT /api/v1/settings/calculator (Admin only)
+router.put('/calculator', authenticateAdmin, async (req, res) => {
+  try {
+    const updates = req.body;
+    await updateSetting('calculator', updates, 'calculator');
+
+    res.json({
+      success: true,
+      data: updates,
+      message: 'Settings updated successfully',
+    });
+  } catch (error) {
+    console.error('Error updating calculator settings:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'UPDATE_ERROR',
+        message: 'Failed to update settings',
+      },
+    });
+  }
+});
+
+// GET /api/v1/settings/line (Admin only)
+router.get('/line', authenticateAdmin, async (req, res) => {
+  try {
+    const settings = await getSetting('line_oa', defaultLineSettings);
+    res.json({
+      success: true,
+      data: settings,
+    });
+  } catch (error) {
+    console.error('Error fetching LINE settings:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'FETCH_ERROR',
+        message: 'Failed to fetch LINE settings',
+      },
+    });
+  }
+});
+
+// PUT /api/v1/settings/line (Admin only)
+router.put('/line', authenticateAdmin, async (req, res) => {
+  try {
+    const updates = req.body;
+
+    // Don't store sensitive data in plain text (for now, just update)
+    // TODO: Encrypt channel_access_token and channel_secret
+    await updateSetting('line_oa', updates, 'line');
+
+    res.json({
+      success: true,
+      data: updates,
+      message: 'LINE settings updated successfully',
+    });
+  } catch (error) {
+    console.error('Error updating LINE settings:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'UPDATE_ERROR',
+        message: 'Failed to update LINE settings',
+      },
+    });
+  }
+});
+
+// Test LINE connection (Admin only)
+router.post('/line/test', authenticateAdmin, async (req, res) => {
+  try {
+    const settings = await getSetting('line_oa', defaultLineSettings);
+
+    if (!settings.enabled || !settings.channel_access_token) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'LINE_NOT_CONFIGURED',
+          message: 'LINE OA is not configured or disabled',
+        },
+      });
+    }
+
+    // Test LINE API connection
+    const testUserId = req.body.userId;
+    if (!testUserId) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'MISSING_USER_ID',
+          message: 'Please provide a LINE User ID to test',
+        },
+      });
+    }
+
+    // Send test message (will implement in LINE service)
+    res.json({
+      success: true,
+      message: 'LINE connection test will be implemented with LINE messaging service',
+    });
+  } catch (error) {
+    console.error('Error testing LINE connection:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'TEST_ERROR',
+        message: 'Failed to test LINE connection',
       },
     });
   }
