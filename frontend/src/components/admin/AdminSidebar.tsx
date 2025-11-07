@@ -11,7 +11,9 @@ import {
   MessageSquare,
   BarChart3,
   LogOut,
-  Upload
+  Upload,
+  Search,
+  Cookie
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { toast } from 'sonner';
@@ -32,6 +34,8 @@ const AdminSidebar = () => {
     { icon: Calculator, label: 'ตั้งค่าราคา', path: '/admin/pricing' },
     { icon: MessageSquare, label: 'ข้อความติดต่อ', path: '/admin/messages' },
     { icon: BarChart3, label: 'สถิติ', path: '/admin/statistics' },
+    { icon: Search, label: 'SEO', path: '/admin/seo' },
+    { icon: Cookie, label: 'คุกกี้', path: '/admin/cookies' },
     { icon: Settings, label: 'ตั้งค่าระบบ', path: '/admin/settings' },
   ];
 

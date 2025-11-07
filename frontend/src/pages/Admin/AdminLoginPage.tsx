@@ -15,25 +15,40 @@ const AdminLoginPage = () => {
     e.preventDefault();
     setLoading(true);
 
-    // Demo login (replace with API call)
-    setTimeout(() => {
-      if (email === 'admin@shiptracking.com' && password === 'admin123') {
+    try {
+      const response = await fetch('http://localhost:5000/auth/admin/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include', // Important: Include cookies
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Login successful
         login(
           {
-            id: '1',
-            email: email,
-            full_name: 'Admin User',
-            role: 'admin',
+            id: data.data.user.id,
+            email: data.data.user.email,
+            full_name: data.data.user.fullName,
+            role: data.data.user.role,
           },
-          'demo-token'
+          data.data.token
         );
         toast.success('เข้าสู่ระบบสำเร็จ');
         navigate('/admin/dashboard');
       } else {
-        toast.error('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
+        toast.error(data.error?.message || 'เข้าสู่ระบบไม่สำเร็จ');
       }
+    } catch (error) {
+      console.error('Login error:', error);
+      toast.error('เกิดข้อผิดพลาดในการเข้าสู่ระบบ');
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   };
 
   return (
