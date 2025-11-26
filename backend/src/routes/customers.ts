@@ -148,7 +148,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/v1/customers/:id - Get single customer
+// GET /api/v1/customers/:id - Get single customer with full order history
 router.get('/:id', async (req, res) => {
   try {
     const customer = await prisma.customer.findUnique({
@@ -159,9 +159,48 @@ router.get('/:id', async (req, res) => {
           orderBy: {
             createdAt: 'desc',
           },
+          include: {
+            orderItems: {
+              select: {
+                id: true,
+                productCode: true,
+                customerName: true,
+                priceYen: true,
+                priceBaht: true,
+                itemStatus: true,
+                statusStep: true,
+              },
+            },
+            _count: {
+              select: { orderItems: true },
+            },
+          },
         },
       },
     });
+
+    // Calculate customer statistics
+    if (customer) {
+      const orderStats = await prisma.orderItem.aggregate({
+        where: {
+          order: {
+            customerId: customer.id,
+          },
+        },
+        _sum: {
+          priceYen: true,
+          priceBaht: true,
+        },
+        _count: true,
+      });
+
+      (customer as any).stats = {
+        totalOrders: customer.orders.length,
+        totalItems: orderStats._count,
+        totalYen: orderStats._sum.priceYen || 0,
+        totalBaht: orderStats._sum.priceBaht || 0,
+      };
+    }
 
     if (!customer) {
       return res.status(404).json({
@@ -246,6 +285,25 @@ router.patch('/:id', async (req, res) => {
     if (req.body.address !== undefined) updateData.address = req.body.address;
     if (req.body.notes !== undefined) updateData.notes = req.body.notes;
     if (req.body.airtableId !== undefined) updateData.airtableId = req.body.airtableId;
+
+    // 🆕 Customer tier system fields
+    if (req.body.tier !== undefined) {
+      updateData.tier = req.body.tier;
+      // Auto-set vipSince when upgrading to VIP or premium
+      if ((req.body.tier === 'vip' || req.body.tier === 'premium') && !req.body.vipSince) {
+        const customer = await prisma.customer.findUnique({
+          where: { id: req.params.id },
+          select: { tier: true, vipSince: true },
+        });
+        // Only set vipSince if upgrading from regular
+        if (customer && customer.tier === 'regular' && !customer.vipSince) {
+          updateData.vipSince = new Date();
+        }
+      }
+    }
+    if (req.body.discount !== undefined) updateData.discount = req.body.discount ? parseFloat(req.body.discount) : null;
+    if (req.body.totalSpent !== undefined) updateData.totalSpent = req.body.totalSpent ? parseFloat(req.body.totalSpent) : 0;
+    if (req.body.vipSince !== undefined) updateData.vipSince = req.body.vipSince ? new Date(req.body.vipSince) : null;
 
     const customer = await prisma.customer.update({
       where: { id: req.params.id },

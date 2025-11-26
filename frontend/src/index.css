@@ -4,12 +4,12 @@
 
 @layer base {
   * {
-    font-family: 'Noto Sans JP', sans-serif;
+    font-family: 'Sarabun', sans-serif;
   }
 
   body {
     @apply bg-gray-50 text-gray-900;
-    font-family: 'Noto Sans JP', sans-serif;
+    font-family: 'Sarabun', sans-serif;
   }
 }
 

@@ -14,6 +14,8 @@ export type OrderItem = {
   productUrl?: string;
   priceYen?: number;
   priceBaht?: number;
+  weight?: number;
+  shippingCost?: number;
   itemStatus?: string;
   paymentStatus?: string;
   shippingRound?: string;
@@ -89,6 +91,7 @@ export const useCreateOrderItem = () => {
     },
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['order-items', variables.orderId] });
+      queryClient.invalidateQueries({ queryKey: ['order', variables.orderId] }); // Refresh order totals
       queryClient.invalidateQueries({ queryKey: ['order-items-list'] });
       toast.success('เพิ่มรายการสินค้าสำเร็จ');
     },
@@ -112,6 +115,7 @@ export const useUpdateOrderItem = () => {
       const orderId = data.data?.orderId;
       if (orderId) {
         queryClient.invalidateQueries({ queryKey: ['order-items', orderId] });
+        queryClient.invalidateQueries({ queryKey: ['order', orderId] }); // Refresh order totals
       }
       queryClient.invalidateQueries({ queryKey: ['order-items-list'] });
       toast.success('อัปเดตรายการสินค้าสำเร็จ');
@@ -135,6 +139,7 @@ export const useDeleteOrderItem = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['order-items'] });
       queryClient.invalidateQueries({ queryKey: ['order-items-list'] });
+      queryClient.invalidateQueries({ queryKey: ['order'] }); // Refresh all orders to update totals
       toast.success('ลบรายการสินค้าสำเร็จ');
     },
     onError: (error: any) => {

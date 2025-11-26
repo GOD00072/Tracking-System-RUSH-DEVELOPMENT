@@ -157,6 +157,7 @@ router.get('/', authenticateToken, async (req: AuthRequest, res) => {
               companyName: true,
               contactPerson: true,
               phone: true,
+              tier: true,
             },
           },
           shipments: {
@@ -166,6 +167,9 @@ router.get('/', authenticateToken, async (req: AuthRequest, res) => {
               currentStatus: true,
               currentLocation: true,
             },
+          },
+          _count: {
+            select: { orderItems: true },
           },
         },
         orderBy: {

@@ -25,6 +25,12 @@ import settingsRouter from './routes/settings';
 import airTrackingRouter from './routes/airTracking';
 import orderItemsRouter from './routes/orderItems';
 import systemSettingsRouter from './routes/systemSettings';
+import trackingRouter from './routes/tracking';
+import invoiceRouter from './routes/invoice';
+// 🆕 New routes for enhanced features
+import paymentsRouter from './routes/payments';
+import uploadRouter from './routes/upload';
+import path from 'path';
 
 // Admin Routes
 import adminOrdersRouter from './routes/admin/orders';
@@ -37,8 +43,17 @@ dotenv.config();
 const app: Application = express();
 const PORT = process.env.PORT || 5000;
 
+// Static file serving for uploads - BEFORE helmet to avoid CORS issues
+app.use('/uploads', (req, res, next) => {
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  next();
+}, express.static(path.join(__dirname, '../uploads')));
+
 // Middleware
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+}));
 app.use(cors({
   origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
   credentials: true,
@@ -74,10 +89,11 @@ app.use(
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Rate limiting
+// Rate limiting (relaxed for development)
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 500, // limit each IP to 500 requests per minute
+  message: { success: false, error: { code: 'RATE_LIMIT', message: 'Too many requests' } },
 });
 app.use(limiter);
 
@@ -117,6 +133,11 @@ app.use('/api/v1/settings', settingsRouter);
 app.use('/api/v1/air-tracking', airTrackingRouter);
 app.use('/api/v1/order-items', orderItemsRouter);
 app.use('/api/v1/system-settings', systemSettingsRouter);
+app.use('/api/v1/tracking', trackingRouter); // Public tracking portal
+app.use('/api/v1/invoice', invoiceRouter);
+// 🆕 New routes for enhanced features
+app.use('/api/v1/payments', paymentsRouter);
+app.use('/api/v1/upload', uploadRouter);
 
 // Admin API Routes
 app.use('/api/v1/admin/orders', adminOrdersRouter);

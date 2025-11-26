@@ -49,3 +49,6 @@ pnpm-debug.log*
 # Large Excel files (templates/data)
 **/assets/*.xlsx
 **/assets/*.xls
+
+# Uploads
+backend/uploads/

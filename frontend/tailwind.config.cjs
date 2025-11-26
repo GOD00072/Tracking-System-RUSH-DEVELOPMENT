@@ -6,6 +6,9 @@ module.exports = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['Sarabun', 'sans-serif'],
+      },
       colors: {
         primary: {
           50: '#FEF4ED',

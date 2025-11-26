@@ -21,6 +21,7 @@ import StatisticsPage from './pages/Statistics/StatisticsPage';
 import AboutPage from './pages/About/AboutPage';
 import ContactPage from './pages/Contact/ContactPage';
 import NotFoundPage from './pages/NotFoundPage';
+import TrackingPortal from './pages/TrackingPortal';
 
 // Admin Pages
 import AdminLoginPage from './pages/Admin/AdminLoginPage';
@@ -55,6 +56,9 @@ function App() {
             <Route path="contact" element={<ContactPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Route>
+
+          {/* Customer Tracking Portal (No Layout) */}
+          <Route path="/tracking" element={<TrackingPortal />} />
 
           {/* Admin Login (No Layout) */}
           <Route path="/admin/login" element={<AdminLoginPage />} />

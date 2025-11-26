@@ -192,6 +192,92 @@ export class LineService {
   isConfigured(): boolean {
     return this.client !== null && this.config !== null;
   }
+
+  async sendPaymentReminder(
+    userId: string,
+    customerName: string,
+    orderNumber: string,
+    totalAmount: number,
+    paidAmount: number,
+    dueDate?: Date,
+    bankInfo?: { bankName: string; accountName: string; accountNumber: string }
+  ): Promise<boolean> {
+    try {
+      if (!this.client) {
+        const initialized = await this.initialize();
+        if (!initialized) {
+          console.error('[LINE Service] Cannot send reminder: service not initialized');
+          return false;
+        }
+      }
+
+      const remainingAmount = totalAmount - paidAmount;
+
+      let message = `💳 แจ้งเตือนการชำระเงิน\n\n`;
+      message += `สวัสดีคุณ ${customerName}\n\n`;
+      message += `📋 เลขที่ออเดอร์: ${orderNumber}\n`;
+      message += `💰 ยอดรวม: ฿${totalAmount.toLocaleString()}\n`;
+
+      if (paidAmount > 0) {
+        message += `✅ ชำระแล้ว: ฿${paidAmount.toLocaleString()}\n`;
+      }
+
+      message += `⚠️ ยอดค้างชำระ: ฿${remainingAmount.toLocaleString()}\n`;
+
+      if (dueDate) {
+        message += `📅 กำหนดชำระ: ${dueDate.toLocaleDateString('th-TH')}\n`;
+      }
+
+      if (bankInfo) {
+        message += `\n🏦 ข้อมูลการโอนเงิน:\n`;
+        message += `ธนาคาร: ${bankInfo.bankName}\n`;
+        message += `ชื่อบัญชี: ${bankInfo.accountName}\n`;
+        message += `เลขบัญชี: ${bankInfo.accountNumber}\n`;
+      }
+
+      message += `\nหากชำระเงินแล้วกรุณาแจ้งกลับ\nขอบคุณครับ/ค่ะ 🙏`;
+
+      const textMessage: TextMessage = {
+        type: 'text',
+        text: message,
+      };
+
+      await this.client!.pushMessage(userId, textMessage);
+
+      // Log notification
+      await prisma.notification.create({
+        data: {
+          type: 'line',
+          subject: `Payment Reminder - ${orderNumber}`,
+          message: message,
+          status: 'sent',
+          sentAt: new Date(),
+        },
+      });
+
+      console.log(`[LINE Service] Payment reminder sent to ${userId}`);
+      return true;
+    } catch (error) {
+      console.error('[LINE Service] Error sending payment reminder:', error);
+
+      // Log failed notification
+      try {
+        await prisma.notification.create({
+          data: {
+            type: 'line',
+            subject: `Payment Reminder Failed - ${orderNumber}`,
+            message: `Failed to send payment reminder`,
+            status: 'failed',
+            errorMessage: error instanceof Error ? error.message : 'Unknown error',
+          },
+        });
+      } catch (logError) {
+        console.error('[LINE Service] Error logging failed notification:', logError);
+      }
+
+      return false;
+    }
+  }
 }
 
 // Export singleton instance
