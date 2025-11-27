@@ -1,7 +1,11 @@
 import express from 'express';
 import prisma from '../lib/prisma';
+import { authenticateAdmin } from '../middleware/auth';
 
 const router = express.Router();
+
+// All customer routes require admin authentication
+router.use(authenticateAdmin);
 
 // GET /api/v1/customers/search-line-users - Search for users with LINE User IDs
 router.get('/search-line-users', async (req, res) => {

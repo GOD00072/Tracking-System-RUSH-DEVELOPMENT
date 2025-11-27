@@ -1,9 +1,11 @@
 import express from 'express';
 import prisma from '../lib/prisma';
+import { authenticateAdmin } from '../middleware/auth';
 
 const router = express.Router();
 
-// GET /api/v1/reviews - Get all reviews
+// All review routes require admin authentication (except public approved reviews)
+// GET /api/v1/reviews - Get all reviews (admin only for unapproved)
 router.get('/', async (req, res) => {
   try {
     const page = parseInt(req.query.page as string) || 1;
@@ -99,8 +101,8 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST /api/v1/reviews - Create review
-router.post('/', async (req, res) => {
+// POST /api/v1/reviews - Create review (admin only)
+router.post('/', authenticateAdmin, async (req, res) => {
   try {
     console.log('Request body:', JSON.stringify(req.body, null, 2));
 
@@ -154,8 +156,8 @@ router.post('/', async (req, res) => {
   }
 });
 
-// PATCH /api/v1/reviews/:id - Update review
-router.patch('/:id', async (req, res) => {
+// PATCH /api/v1/reviews/:id - Update review (admin only)
+router.patch('/:id', authenticateAdmin, async (req, res) => {
   try {
     const updateData: any = {
       updatedAt: new Date(),
@@ -193,8 +195,8 @@ router.patch('/:id', async (req, res) => {
   }
 });
 
-// DELETE /api/v1/reviews/:id - Delete review
-router.delete('/:id', async (req, res) => {
+// DELETE /api/v1/reviews/:id - Delete review (admin only)
+router.delete('/:id', authenticateAdmin, async (req, res) => {
   try {
     await prisma.review.delete({
       where: { id: req.params.id },
