@@ -478,8 +478,9 @@ router.patch('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
         const statusKey = statusStepToKey[newStatusStep] || 'order_received';
 
         // Build items array for Flex Message
+        // Use productCode if available, otherwise use productName/customerName (not UUID)
         const itemsForFlex = [{
-          productCode: item.productCode || item.id,
+          productCode: item.productCode || item.productName || item.customerName || 'สินค้า',
           productName: item.productName || item.customerName || undefined,
         }];
 
@@ -686,7 +687,7 @@ router.post('/bulk-status', authenticateAdmin, async (req: AuthRequest, res) => 
             });
           }
           customerNotifications.get(lineId)!.items.push({
-            productCode: item.productCode || item.id,
+            productCode: item.productCode || item.productName || item.customerName || 'สินค้า',
             productName: item.productName || item.customerName || undefined,
           });
         }
