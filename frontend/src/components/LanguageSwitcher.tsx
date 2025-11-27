@@ -82,13 +82,13 @@ const LanguageSwitcher = ({ variant = 'default' }: LanguageSwitcherProps) => {
 
   if (variant === 'compact') {
     return (
-      <div className="relative" ref={dropdownRef}>
+      <div className="relative flex-shrink-0" ref={dropdownRef}>
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors text-sm"
+          className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors text-sm"
         >
           <span>{currentLanguage.flag}</span>
-          <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+          <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
         </button>
 
         <AnimatePresence>
@@ -97,7 +97,7 @@ const LanguageSwitcher = ({ variant = 'default' }: LanguageSwitcherProps) => {
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="absolute right-0 mt-2 w-36 bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden z-50"
+              className="absolute left-0 bottom-full mb-2 w-32 bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden z-50"
             >
               {languages.map((lang) => (
                 <button
