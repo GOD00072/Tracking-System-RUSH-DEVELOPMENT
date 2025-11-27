@@ -30,6 +30,7 @@ import invoiceRouter from './routes/invoice';
 // 🆕 New routes for enhanced features
 import paymentsRouter from './routes/payments';
 import uploadRouter from './routes/upload';
+import notificationsRouter from './routes/notifications';
 import path from 'path';
 
 // Admin Routes
@@ -141,6 +142,7 @@ app.use('/api/v1/tracking', trackingRouter); // Public tracking portal
 app.use('/api/v1/invoice', invoiceRouter);
 app.use('/api/v1/payments', paymentsRouter);
 app.use('/api/v1/upload', uploadRouter);
+app.use('/api/v1/notifications', notificationsRouter);
 
 // Admin API Routes
 app.use('/api/v1/admin/orders', adminOrdersRouter);

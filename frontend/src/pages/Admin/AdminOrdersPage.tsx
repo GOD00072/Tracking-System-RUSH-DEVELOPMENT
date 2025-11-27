@@ -1,9 +1,11 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit, Trash2, Eye, Package, Search, X, User, Phone, Building2 } from 'lucide-react';
+import { Plus, Edit, Trash2, Eye, Package, Search, X, User, Phone, Building2, Bell, CreditCard } from 'lucide-react';
 import { useAdminOrders, useAdminCreateOrder, useAdminUpdateOrder, useAdminDeleteOrder } from '../../hooks/useAdminOrders';
 import { useCustomers } from '../../hooks/useCustomers';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import NotifyStatusModal from '../../components/Admin/NotifyStatusModal';
+import NotifyPaymentModal from '../../components/Admin/NotifyPaymentModal';
 
 // Country options for Origin/Destination
 const COUNTRIES = [
@@ -31,6 +33,11 @@ const AdminOrdersPage = () => {
   const [showCustomerSearch, setShowCustomerSearch] = useState(false);
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [editingOrder, setEditingOrder] = useState<any>(null);
+
+  // Notification modal states
+  const [notifyStatusOrder, setNotifyStatusOrder] = useState<{ id: string; orderNumber: string } | null>(null);
+  const [notifyPaymentOrder, setNotifyPaymentOrder] = useState<{ id: string; orderNumber: string } | null>(null);
+
   const [formData, setFormData] = useState({
     orderNumber: '',
     customerId: '',
@@ -291,27 +298,41 @@ const AdminOrdersPage = () => {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
                       <button
                         onClick={() => navigate(`/admin/orders/${order.id}`)}
-                        className="text-green-600 hover:text-green-900"
+                        className="p-1.5 text-green-600 hover:text-green-900 hover:bg-green-50 rounded"
                         title="ดูรายละเอียดและรายการสินค้า"
                       >
-                        <Eye className="w-5 h-5" />
+                        <Eye className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleEdit(order)}
-                        className="text-blue-600 hover:text-blue-900"
-                        title="Edit"
+                        className="p-1.5 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded"
+                        title="แก้ไข"
                       >
-                        <Edit className="w-5 h-5" />
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setNotifyStatusOrder({ id: order.id, orderNumber: order.orderNumber })}
+                        className="p-1.5 text-purple-600 hover:text-purple-900 hover:bg-purple-50 rounded"
+                        title="แจ้งเตือนสถานะ"
+                      >
+                        <Bell className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setNotifyPaymentOrder({ id: order.id, orderNumber: order.orderNumber })}
+                        className="p-1.5 text-amber-600 hover:text-amber-900 hover:bg-amber-50 rounded"
+                        title="แจ้งเตือนชำระเงิน"
+                      >
+                        <CreditCard className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleDelete(order.id)}
-                        className="text-red-600 hover:text-red-900"
-                        title="Delete"
+                        className="p-1.5 text-red-600 hover:text-red-900 hover:bg-red-50 rounded"
+                        title="ลบ"
                       >
-                        <Trash2 className="w-5 h-5" />
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   </td>
@@ -652,6 +673,26 @@ const AdminOrdersPage = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Notify Status Modal */}
+      {notifyStatusOrder && (
+        <NotifyStatusModal
+          isOpen={!!notifyStatusOrder}
+          onClose={() => setNotifyStatusOrder(null)}
+          orderId={notifyStatusOrder.id}
+          orderNumber={notifyStatusOrder.orderNumber}
+        />
+      )}
+
+      {/* Notify Payment Modal */}
+      {notifyPaymentOrder && (
+        <NotifyPaymentModal
+          isOpen={!!notifyPaymentOrder}
+          onClose={() => setNotifyPaymentOrder(null)}
+          orderId={notifyPaymentOrder.id}
+          orderNumber={notifyPaymentOrder.orderNumber}
+        />
       )}
     </div>
   );
