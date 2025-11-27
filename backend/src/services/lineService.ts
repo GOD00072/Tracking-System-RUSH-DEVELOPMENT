@@ -112,7 +112,7 @@ export class LineService {
       const statusText = statusMessages[status] || status;
 
       // Build message
-      let message = `🚢 การอัปเดทการจัดส่ง\n\n`;
+      let message = `[PakkuNeko] การอัปเดทการจัดส่ง\n\n`;
       message += `เลขที่คำสั่งซื้อ: ${orderNumber}\n`;
       message += `สถานะ: ${statusText}\n`;
 
@@ -124,7 +124,7 @@ export class LineService {
         message += `สถานที่ปัจจุบัน: ${currentLocation}\n`;
       }
 
-      message += `\nขอบคุณที่ใช้บริการ 🙏`;
+      message += `\nขอบคุณที่ใช้บริการ`;
 
       const textMessage: TextMessage = {
         type: 'text',
@@ -241,23 +241,22 @@ export class LineService {
         }
       }
 
-      // Status configuration with colors and icons
-      const statusConfig: Record<string, { label: string; color: string; icon: string; bgColor: string }> = {
-        order_received: { label: 'รับออเดอร์แล้ว', color: '#6B7280', icon: '📋', bgColor: '#F3F4F6' },
-        first_payment: { label: 'ชำระเงินงวดแรก', color: '#10B981', icon: '💳', bgColor: '#D1FAE5' },
-        ordered_from_japan: { label: 'สั่งซื้อจากญี่ปุ่นแล้ว', color: '#3B82F6', icon: '🛒', bgColor: '#DBEAFE' },
-        arrived_jp_warehouse: { label: 'ถึงโกดังญี่ปุ่น', color: '#8B5CF6', icon: '🏭', bgColor: '#EDE9FE' },
-        shipped_from_japan: { label: 'ส่งออกจากญี่ปุ่น', color: '#F59E0B', icon: '✈️', bgColor: '#FEF3C7' },
-        arrived_thailand: { label: 'ถึงไทยแล้ว', color: '#EC4899', icon: '🇹🇭', bgColor: '#FCE7F3' },
-        out_for_delivery: { label: 'กำลังจัดส่ง', color: '#F97316', icon: '🚚', bgColor: '#FFEDD5' },
-        delivered: { label: 'จัดส่งสำเร็จ', color: '#059669', icon: '✅', bgColor: '#D1FAE5' },
-        cancelled: { label: 'ยกเลิก', color: '#EF4444', icon: '❌', bgColor: '#FEE2E2' },
+      // Status configuration with colors (professional - no emojis)
+      const statusConfig: Record<string, { label: string; color: string; bgColor: string }> = {
+        order_received: { label: 'รับออเดอร์แล้ว', color: '#6B7280', bgColor: '#F3F4F6' },
+        first_payment: { label: 'ชำระเงินงวดแรก', color: '#10B981', bgColor: '#D1FAE5' },
+        ordered_from_japan: { label: 'สั่งซื้อจากญี่ปุ่นแล้ว', color: '#3B82F6', bgColor: '#DBEAFE' },
+        arrived_jp_warehouse: { label: 'ถึงโกดังญี่ปุ่น', color: '#8B5CF6', bgColor: '#EDE9FE' },
+        shipped_from_japan: { label: 'ส่งออกจากญี่ปุ่น', color: '#F59E0B', bgColor: '#FEF3C7' },
+        arrived_thailand: { label: 'ถึงไทยแล้ว', color: '#EC4899', bgColor: '#FCE7F3' },
+        out_for_delivery: { label: 'กำลังจัดส่ง', color: '#F97316', bgColor: '#FFEDD5' },
+        delivered: { label: 'จัดส่งสำเร็จ', color: '#059669', bgColor: '#D1FAE5' },
+        cancelled: { label: 'ยกเลิก', color: '#EF4444', bgColor: '#FEE2E2' },
       };
 
       const config = statusConfig[newStatus] || {
         label: newStatus,
         color: '#6B7280',
-        icon: '📦',
         bgColor: '#F3F4F6'
       };
 
@@ -543,7 +542,7 @@ export class LineService {
             }] : []),
             {
               type: 'text',
-              text: '🐱 PakkuNeko - ฝากซื้อฝากส่งจากญี่ปุ่น',
+              text: 'PakkuNeko - ฝากซื้อฝากส่งจากญี่ปุ่น',
               size: 'xxs',
               color: '#FFFFFF44',
               align: 'center',
@@ -557,7 +556,7 @@ export class LineService {
 
       const flexMessage: FlexMessage = {
         type: 'flex',
-        altText: `📦 อัปเดตสถานะ: ${config.label} (${items.length} รายการ)`,
+        altText: `[PakkuNeko] อัปเดตสถานะ: ${config.label} (${items.length} รายการ)`,
         contents: flexContents
       };
 
@@ -707,17 +706,10 @@ export class LineService {
                       contents: [
                         {
                           type: 'text',
-                          text: '💳',
-                          size: 'md',
-                          flex: 0
-                        },
-                        {
-                          type: 'text',
                           text: 'แจ้งเตือนการชำระเงิน',
                           size: 'sm',
                           weight: 'bold',
                           color: '#FFFFFF',
-                          margin: 'sm',
                           flex: 0,
                           wrap: false
                         }
@@ -752,7 +744,7 @@ export class LineService {
               contents: [
                 {
                   type: 'text',
-                  text: `สวัสดีคุณ ${customerName} 👋`,
+                  text: `สวัสดีคุณ ${customerName}`,
                   size: 'md',
                   weight: 'bold',
                   color: '#1A1A2E',
@@ -851,7 +843,7 @@ export class LineService {
                   type: 'box',
                   layout: 'horizontal',
                   contents: [
-                    { type: 'text', text: '✓ ชำระแล้ว', size: 'sm', color: '#10B981' },
+                    { type: 'text', text: 'ชำระแล้ว', size: 'sm', color: '#10B981' },
                     { type: 'text', text: `฿${paidAmount.toLocaleString()}`, size: 'sm', color: '#10B981', align: 'end' }
                   ],
                   margin: 'sm'
@@ -865,7 +857,7 @@ export class LineService {
                   type: 'box',
                   layout: 'horizontal',
                   contents: [
-                    { type: 'text', text: '📅 กำหนดชำระ', size: 'sm', color: '#666666' },
+                    { type: 'text', text: 'กำหนดชำระ', size: 'sm', color: '#666666' },
                     { type: 'text', text: dueDateText, size: 'sm', color: '#EF4444', weight: 'bold', align: 'end' }
                   ],
                   margin: 'md'
@@ -885,7 +877,7 @@ export class LineService {
                   type: 'box',
                   layout: 'horizontal',
                   contents: [
-                    { type: 'text', text: '🏦', size: 'sm', flex: 0 },
+                    { type: 'text', text: 'ธนาคาร:', size: 'sm', flex: 0, color: '#666666' },
                     { type: 'text', text: 'ข้อมูลการโอนเงิน', size: 'sm', weight: 'bold', color: '#1A1A2E', margin: 'sm' }
                   ]
                 },
@@ -931,7 +923,7 @@ export class LineService {
               contents: [
                 {
                   type: 'text',
-                  text: '🐱 PakkuNeko - ฝากซื้อฝากส่งจากญี่ปุ่น',
+                  text: 'PakkuNeko - ฝากซื้อฝากส่งจากญี่ปุ่น',
                   size: 'xxs',
                   color: '#AAAAAA',
                   align: 'center'
@@ -948,7 +940,7 @@ export class LineService {
 
       const flexMessage: FlexMessage = {
         type: 'flex',
-        altText: `💳 แจ้งเตือนการชำระเงิน - ค้างชำระ ฿${remainingAmount.toLocaleString()}`,
+        altText: `[PakkuNeko] แจ้งเตือนการชำระเงิน - ค้างชำระ ฿${remainingAmount.toLocaleString()}`,
         contents: flexContents
       };
 
@@ -993,29 +985,29 @@ export class LineService {
 
       const remainingAmount = totalAmount - paidAmount;
 
-      let message = `💳 แจ้งเตือนการชำระเงิน\n\n`;
+      let message = `[PakkuNeko] แจ้งเตือนการชำระเงิน\n\n`;
       message += `สวัสดีคุณ ${customerName}\n\n`;
-      message += `📋 เลขที่ออเดอร์: ${orderNumber}\n`;
-      message += `💰 ยอดรวม: ฿${totalAmount.toLocaleString()}\n`;
+      message += `เลขที่ออเดอร์: ${orderNumber}\n`;
+      message += `ยอดรวม: ฿${totalAmount.toLocaleString()}\n`;
 
       if (paidAmount > 0) {
-        message += `✅ ชำระแล้ว: ฿${paidAmount.toLocaleString()}\n`;
+        message += `ชำระแล้ว: ฿${paidAmount.toLocaleString()}\n`;
       }
 
-      message += `⚠️ ยอดค้างชำระ: ฿${remainingAmount.toLocaleString()}\n`;
+      message += `ยอดค้างชำระ: ฿${remainingAmount.toLocaleString()}\n`;
 
       if (dueDate) {
-        message += `📅 กำหนดชำระ: ${dueDate.toLocaleDateString('th-TH')}\n`;
+        message += `กำหนดชำระ: ${dueDate.toLocaleDateString('th-TH')}\n`;
       }
 
       if (bankInfo) {
-        message += `\n🏦 ข้อมูลการโอนเงิน:\n`;
+        message += `\nข้อมูลการโอนเงิน:\n`;
         message += `ธนาคาร: ${bankInfo.bankName}\n`;
         message += `ชื่อบัญชี: ${bankInfo.accountName}\n`;
         message += `เลขบัญชี: ${bankInfo.accountNumber}\n`;
       }
 
-      message += `\nหากชำระเงินแล้วกรุณาแจ้งกลับ\nขอบคุณครับ/ค่ะ 🙏`;
+      message += `\nหากชำระเงินแล้วกรุณาแจ้งกลับ\nขอบคุณครับ/ค่ะ`;
 
       const textMessage: TextMessage = {
         type: 'text',

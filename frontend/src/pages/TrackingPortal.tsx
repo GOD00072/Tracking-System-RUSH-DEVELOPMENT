@@ -1,21 +1,21 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Search, Package, MapPin, Truck, CheckCircle, Phone, ExternalLink, Sparkles, Shield, Lock } from 'lucide-react';
+import { Search, Package, MapPin, Truck, CheckCircle, Phone, ExternalLink, Sparkles, Shield, Lock, ClipboardList, CreditCard, ShoppingCart, Warehouse, Plane, Ship, PackageCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { pageTransition, staggerContainer, staggerItem } from '../lib/animations';
 import api from '../lib/api';
 
-// 8-step status timeline
+// 8-step status timeline with Lucide icons
 const STATUS_STEPS = [
-  { step: 1, name: 'รับออเดอร์', icon: '📋' },
-  { step: 2, name: 'ชำระเงินงวดแรก', icon: '💳' },
-  { step: 3, name: 'สั่งซื้อจากญี่ปุ่น', icon: '🛒' },
-  { step: 4, name: 'ของถึงโกดังญี่ปุ่น', icon: '📦' },
-  { step: 5, name: 'ส่งออกจากญี่ปุ่น', icon: '✈️' },
-  { step: 6, name: 'ของถึงไทย', icon: '🇹🇭' },
-  { step: 7, name: 'กำลังจัดส่ง', icon: '🚚' },
-  { step: 8, name: 'ส่งมอบสำเร็จ', icon: '✅' },
+  { step: 1, name: 'รับออเดอร์', Icon: ClipboardList },
+  { step: 2, name: 'ชำระเงินงวดแรก', Icon: CreditCard },
+  { step: 3, name: 'สั่งซื้อจากญี่ปุ่น', Icon: ShoppingCart },
+  { step: 4, name: 'ของถึงโกดังญี่ปุ่น', Icon: Warehouse },
+  { step: 5, name: 'ส่งออกจากญี่ปุ่น', Icon: Plane },
+  { step: 6, name: 'ของถึงไทย', Icon: Package },
+  { step: 7, name: 'กำลังจัดส่ง', Icon: Truck },
+  { step: 8, name: 'ส่งมอบสำเร็จ', Icon: PackageCheck },
 ];
 
 interface OrderItem {
@@ -207,38 +207,45 @@ const TrackingPortal = () => {
 
   const StatusTimeline = ({ currentStep }: { currentStep: number }) => (
     <div className="flex items-center justify-between w-full max-w-4xl mx-auto py-4">
-      {STATUS_STEPS.map((step, index) => (
-        <div key={step.step} className="flex flex-col items-center relative flex-1">
-          {/* Connector line */}
-          {index > 0 && (
+      {STATUS_STEPS.map((step, index) => {
+        const StepIcon = step.Icon;
+        return (
+          <div key={step.step} className="flex flex-col items-center relative flex-1">
+            {/* Connector line */}
+            {index > 0 && (
+              <div
+                className={`absolute top-5 right-1/2 w-full h-1 -z-10 ${
+                  currentStep >= step.step ? 'bg-green-500' : 'bg-gray-200'
+                }`}
+              />
+            )}
+            {/* Step circle */}
             <div
-              className={`absolute top-5 right-1/2 w-full h-1 -z-10 ${
-                currentStep >= step.step ? 'bg-green-500' : 'bg-gray-200'
+              className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
+                currentStep > step.step
+                  ? 'bg-green-500 text-white'
+                  : currentStep === step.step
+                  ? 'bg-primary-500 text-white ring-4 ring-primary-200'
+                  : 'bg-gray-200 text-gray-500'
               }`}
-            />
-          )}
-          {/* Step circle */}
-          <div
-            className={`w-10 h-10 rounded-full flex items-center justify-center text-lg transition-all ${
-              currentStep > step.step
-                ? 'bg-green-500 text-white'
-                : currentStep === step.step
-                ? 'bg-primary-500 text-white ring-4 ring-primary-200'
-                : 'bg-gray-200 text-gray-500'
-            }`}
-          >
-            {currentStep > step.step ? <CheckCircle className="w-6 h-6" /> : step.icon}
+            >
+              {currentStep > step.step ? (
+                <CheckCircle className="w-5 h-5" />
+              ) : (
+                <StepIcon className="w-5 h-5" />
+              )}
+            </div>
+            {/* Step label */}
+            <span
+              className={`mt-2 text-xs text-center ${
+                currentStep >= step.step ? 'text-gray-800 font-medium' : 'text-gray-400'
+              }`}
+            >
+              {step.name}
+            </span>
           </div>
-          {/* Step label */}
-          <span
-            className={`mt-2 text-xs text-center ${
-              currentStep >= step.step ? 'text-gray-800 font-medium' : 'text-gray-400'
-            }`}
-          >
-            {step.name}
-          </span>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 
@@ -533,9 +540,9 @@ const TrackingPortal = () => {
                       <div className="flex items-center gap-4">
                         <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center shadow-lg shadow-primary-500/25">
                           {order.shippingMethod === 'ทางอากาศ' ? (
-                            <span className="text-2xl">✈️</span>
+                            <Plane className="w-7 h-7 text-white" />
                           ) : (
-                            <span className="text-2xl">🚢</span>
+                            <Ship className="w-7 h-7 text-white" />
                           )}
                         </div>
                         <div className="text-left">
