@@ -85,6 +85,7 @@ router.get('/lookup', async (req, res) => {
             id: true,
             sequenceNumber: true,
             productCode: true,
+            productName: true,
             productUrl: true,
             productImages: true,
             priceYen: true,
@@ -115,6 +116,7 @@ router.get('/lookup', async (req, res) => {
       items: order.orderItems.map((item) => ({
         sequenceNumber: item.sequenceNumber,
         productCode: item.productCode,
+        productName: item.productName,
         productUrl: item.productUrl,
         productImage: Array.isArray(item.productImages) && item.productImages.length > 0 ? item.productImages[0] : null,
         priceYen: item.priceYen,
@@ -153,11 +155,22 @@ router.get('/lookup', async (req, res) => {
   }
 });
 
-// GET /api/v1/tracking/:orderNumber - Public order status by order number
-router.get('/:orderNumber', async (req, res) => {
+// POST /api/v1/tracking/verify - Verify phone and get order details
+router.post('/verify', async (req, res) => {
   try {
-    const { orderNumber } = req.params;
+    const { orderNumber, phoneLast4 } = req.body;
 
+    if (!orderNumber || !phoneLast4) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'INVALID_INPUT',
+          message: 'กรุณาระบุหมายเลขออเดอร์และเบอร์โทร 4 ตัวหลัง',
+        },
+      });
+    }
+
+    // Find order with customer phone
     const order = await prisma.order.findFirst({
       where: {
         orderNumber: {
@@ -177,6 +190,7 @@ router.get('/:orderNumber', async (req, res) => {
           select: {
             companyName: true,
             contactPerson: true,
+            phone: true,
           },
         },
         orderItems: {
@@ -184,6 +198,7 @@ router.get('/:orderNumber', async (req, res) => {
             id: true,
             sequenceNumber: true,
             productCode: true,
+            productName: true,
             productUrl: true,
             productImages: true,
             priceYen: true,
@@ -220,7 +235,22 @@ router.get('/:orderNumber', async (req, res) => {
       });
     }
 
-    // Transform data for public view
+    // Verify phone last 4 digits
+    const customerPhone = order.customer?.phone?.replace(/\D/g, '') || '';
+    if (customerPhone.length >= 4) {
+      const actualLast4 = customerPhone.slice(-4);
+      if (phoneLast4 !== actualLast4) {
+        return res.status(401).json({
+          success: false,
+          error: {
+            code: 'VERIFICATION_FAILED',
+            message: 'เบอร์โทร 4 ตัวหลังไม่ถูกต้อง',
+          },
+        });
+      }
+    }
+
+    // Verification passed - return order details
     const publicOrder = {
       orderNumber: order.orderNumber,
       status: order.status,
@@ -233,6 +263,7 @@ router.get('/:orderNumber', async (req, res) => {
       items: order.orderItems.map((item) => ({
         sequenceNumber: item.sequenceNumber,
         productCode: item.productCode,
+        productName: item.productName,
         productUrl: item.productUrl,
         productImage: Array.isArray(item.productImages) && item.productImages.length > 0 ? item.productImages[0] : null,
         allImages: Array.isArray(item.productImages) ? item.productImages : [],
@@ -256,6 +287,79 @@ router.get('/:orderNumber', async (req, res) => {
     res.json({
       success: true,
       data: publicOrder,
+    });
+  } catch (error: any) {
+    console.error('Error verifying order:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'VERIFICATION_ERROR',
+        message: 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง',
+      },
+    });
+  }
+});
+
+// GET /api/v1/tracking/:orderNumber - Check order and return masked phone for verification
+router.get('/:orderNumber', async (req, res) => {
+  try {
+    const { orderNumber } = req.params;
+
+    const order = await prisma.order.findFirst({
+      where: {
+        orderNumber: {
+          equals: orderNumber,
+          mode: 'insensitive',
+        },
+      },
+      select: {
+        id: true,
+        orderNumber: true,
+        status: true,
+        shippingMethod: true,
+        createdAt: true,
+        customer: {
+          select: {
+            companyName: true,
+            contactPerson: true,
+            phone: true,
+          },
+        },
+      },
+    });
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'ไม่พบออเดอร์หมายเลขนี้ในระบบ',
+        },
+      });
+    }
+
+    // Check if customer has phone for verification
+    const customerPhone = order.customer?.phone?.replace(/\D/g, '') || '';
+    const requiresVerification = customerPhone.length >= 4;
+
+    // Mask phone number (show first 3 and last 1 digit: 095-XXX-XX17)
+    let maskedPhone = '';
+    if (customerPhone.length >= 4) {
+      const first3 = customerPhone.slice(0, 3);
+      const last1 = customerPhone.slice(-1);
+      maskedPhone = `${first3}-XXX-XXX${last1}`;
+    }
+
+    res.json({
+      success: true,
+      data: {
+        orderNumber: order.orderNumber,
+        customerName: order.customer?.companyName || order.customer?.contactPerson || '-',
+        shippingMethod: order.shippingMethod === 'air' ? 'ทางอากาศ' : 'ทางเรือ',
+        createdAt: order.createdAt,
+        requiresVerification,
+        maskedPhone,
+      },
     });
   } catch (error: any) {
     console.error('Error fetching order:', error);

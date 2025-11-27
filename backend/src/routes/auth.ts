@@ -6,6 +6,9 @@ console.log('[AUTH ROUTES] Loading auth routes...');
 
 const router = express.Router();
 
+// Frontend URL for redirects
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5001';
+
 console.log('[AUTH ROUTES] Router created');
 
 // Admin Login (username/password)
@@ -120,7 +123,7 @@ console.log('[AUTH ROUTES] LINE route registered');
 router.get(
   '/line/callback',
   passport.authenticate('line', {
-    failureRedirect: 'http://localhost:5001?login=failed',
+    failureRedirect: `${FRONTEND_URL}?login=failed`,
     session: true,
   }),
   (req, res) => {
@@ -128,7 +131,7 @@ router.get(
       const user = req.user as any;
 
       if (!user) {
-        return res.redirect('http://localhost:5001?login=failed');
+        return res.redirect(`${FRONTEND_URL}?login=failed`);
       }
 
       // Generate JWT token
@@ -155,10 +158,10 @@ router.get(
       });
 
       // Redirect to frontend with token (for backward compatibility)
-      res.redirect(`http://localhost:5001?token=${token}&login=success`);
+      res.redirect(`${FRONTEND_URL}?token=${token}&login=success`);
     } catch (error) {
       console.error('Error in LINE callback:', error);
-      res.redirect('http://localhost:5001?login=failed');
+      res.redirect(`${FRONTEND_URL}?login=failed`);
     }
   }
 );

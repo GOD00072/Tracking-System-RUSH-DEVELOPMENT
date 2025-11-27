@@ -1,0 +1,373 @@
+{
+  "type": "bubble",
+  "size": "giga",
+  "hero": {
+    "type": "box",
+    "layout": "vertical",
+    "contents": [
+      {
+        "type": "image",
+        "url": "https://img5.pic.in.th/file/secure-sv1/bg-mountain.jpeg",
+        "size": "full",
+        "aspectRatio": "20:9",
+        "aspectMode": "cover",
+        "position": "absolute",
+        "offsetTop": "0px",
+        "offsetBottom": "0px",
+        "offsetStart": "0px",
+        "offsetEnd": "0px"
+      },
+      {
+        "type": "box",
+        "layout": "vertical",
+        "contents": [],
+        "position": "absolute",
+        "offsetTop": "0px",
+        "offsetBottom": "0px",
+        "offsetStart": "0px",
+        "offsetEnd": "0px",
+        "background": {
+          "type": "linearGradient",
+          "angle": "180deg",
+          "startColor": "#1A1A2E00",
+          "endColor": "#1A1A2ECC"
+        }
+      },
+      {
+        "type": "box",
+        "layout": "vertical",
+        "contents": [
+          {
+            "type": "image",
+            "url": "https://img5.pic.in.th/file/secure-sv1/pakkuneko-logo.jpeg",
+            "size": "xxs",
+            "aspectRatio": "1:1",
+            "aspectMode": "cover"
+          },
+          {
+            "type": "text",
+            "text": "PakkuNeko",
+            "size": "md",
+            "weight": "bold",
+            "color": "#FFFFFF",
+            "align": "center",
+            "margin": "sm"
+          },
+          {
+            "type": "text",
+            "text": "ฝากซื้อ ฝากส่งจากญี่ปุ่น",
+            "size": "xxs",
+            "color": "#FFFFFFCC",
+            "align": "center"
+          },
+          {
+            "type": "filler"
+          },
+          {
+            "type": "box",
+            "layout": "horizontal",
+            "contents": [
+              {
+                "type": "box",
+                "layout": "baseline",
+                "contents": [
+                  {
+                    "type": "text",
+                    "text": "💳",
+                    "size": "md",
+                    "flex": 0
+                  },
+                  {
+                    "type": "text",
+                    "text": "แจ้งเตือนการชำระเงิน",
+                    "size": "sm",
+                    "weight": "bold",
+                    "color": "#FFFFFF",
+                    "margin": "sm",
+                    "flex": 0,
+                    "wrap": false
+                  }
+                ],
+                "backgroundColor": "#F59E0B",
+                "cornerRadius": "20px",
+                "paddingAll": "10px",
+                "paddingStart": "15px",
+                "paddingEnd": "15px"
+              }
+            ],
+            "justifyContent": "center"
+          }
+        ],
+        "paddingAll": "15px",
+        "justifyContent": "space-between",
+        "alignItems": "center",
+        "height": "150px"
+      }
+    ],
+    "height": "150px",
+    "paddingAll": "0px"
+  },
+  "body": {
+    "type": "box",
+    "layout": "vertical",
+    "contents": [
+      {
+        "type": "box",
+        "layout": "horizontal",
+        "contents": [
+          {
+            "type": "text",
+            "text": "สวัสดีคุณ ลูกค้า 👋",
+            "size": "md",
+            "weight": "bold",
+            "color": "#1A1A2E",
+            "flex": 1
+          },
+          {
+            "type": "text",
+            "text": "#ORD-2024-001",
+            "size": "xs",
+            "color": "#888888",
+            "align": "end"
+          }
+        ]
+      },
+      {
+        "type": "separator",
+        "margin": "lg",
+        "color": "#E8E8E8"
+      },
+      {
+        "type": "box",
+        "layout": "vertical",
+        "contents": [
+          {
+            "type": "text",
+            "text": "ยอดค้างชำระ",
+            "size": "xs",
+            "color": "#888888",
+            "align": "center"
+          },
+          {
+            "type": "text",
+            "text": "฿5,000",
+            "size": "xxl",
+            "weight": "bold",
+            "color": "#F59E0B",
+            "align": "center",
+            "margin": "sm"
+          },
+          {
+            "type": "box",
+            "layout": "vertical",
+            "contents": [
+              {
+                "type": "box",
+                "layout": "horizontal",
+                "contents": [
+                  {
+                    "type": "box",
+                    "layout": "vertical",
+                    "contents": [],
+                    "backgroundColor": "#10B981",
+                    "height": "6px",
+                    "width": "50%"
+                  }
+                ],
+                "backgroundColor": "#E5E7EB",
+                "cornerRadius": "3px"
+              }
+            ],
+            "margin": "lg",
+            "paddingStart": "20px",
+            "paddingEnd": "20px"
+          },
+          {
+            "type": "text",
+            "text": "ชำระแล้ว 50%",
+            "size": "xxs",
+            "color": "#10B981",
+            "align": "center",
+            "margin": "sm"
+          }
+        ],
+        "margin": "lg",
+        "paddingAll": "15px",
+        "backgroundColor": "#FFFBEB",
+        "cornerRadius": "12px"
+      },
+      {
+        "type": "box",
+        "layout": "vertical",
+        "contents": [
+          {
+            "type": "box",
+            "layout": "horizontal",
+            "contents": [
+              {
+                "type": "text",
+                "text": "ยอดรวมทั้งหมด",
+                "size": "sm",
+                "color": "#666666"
+              },
+              {
+                "type": "text",
+                "text": "฿10,000",
+                "size": "sm",
+                "color": "#1A1A2E",
+                "weight": "bold",
+                "align": "end"
+              }
+            ]
+          },
+          {
+            "type": "box",
+            "layout": "horizontal",
+            "contents": [
+              {
+                "type": "text",
+                "text": "✓ ชำระแล้ว",
+                "size": "sm",
+                "color": "#10B981"
+              },
+              {
+                "type": "text",
+                "text": "฿5,000",
+                "size": "sm",
+                "color": "#10B981",
+                "align": "end"
+              }
+            ],
+            "margin": "sm"
+          },
+          {
+            "type": "separator",
+            "margin": "md",
+            "color": "#E8E8E8"
+          },
+          {
+            "type": "box",
+            "layout": "horizontal",
+            "contents": [
+              {
+                "type": "text",
+                "text": "📅 กำหนดชำระ",
+                "size": "sm",
+                "color": "#666666"
+              },
+              {
+                "type": "text",
+                "text": "30 พ.ย. 2567",
+                "size": "sm",
+                "color": "#EF4444",
+                "weight": "bold",
+                "align": "end"
+              }
+            ],
+            "margin": "md"
+          }
+        ],
+        "margin": "lg",
+        "paddingAll": "12px",
+        "backgroundColor": "#F8F9FA",
+        "cornerRadius": "8px"
+      },
+      {
+        "type": "box",
+        "layout": "vertical",
+        "contents": [
+          {
+            "type": "box",
+            "layout": "horizontal",
+            "contents": [
+              {
+                "type": "text",
+                "text": "🏦",
+                "size": "sm",
+                "flex": 0
+              },
+              {
+                "type": "text",
+                "text": "ข้อมูลการโอนเงิน",
+                "size": "sm",
+                "weight": "bold",
+                "color": "#1A1A2E",
+                "margin": "sm"
+              }
+            ]
+          },
+          {
+            "type": "box",
+            "layout": "vertical",
+            "contents": [
+              {
+                "type": "text",
+                "text": "ธนาคารกสิกรไทย",
+                "size": "md",
+                "weight": "bold",
+                "color": "#1A1A2E"
+              },
+              {
+                "type": "text",
+                "text": "บริษัท แพ็คคุเนโกะ จำกัด",
+                "size": "sm",
+                "color": "#666666",
+                "margin": "xs"
+              },
+              {
+                "type": "text",
+                "text": "123-4-56789-0",
+                "size": "lg",
+                "weight": "bold",
+                "color": "#4A6FA5",
+                "margin": "sm"
+              }
+            ],
+            "margin": "md",
+            "paddingAll": "10px",
+            "backgroundColor": "#FFFFFF",
+            "cornerRadius": "8px",
+            "borderColor": "#E8E8E8",
+            "borderWidth": "1px"
+          }
+        ],
+        "margin": "lg",
+        "paddingAll": "12px",
+        "backgroundColor": "#EEF2FF",
+        "cornerRadius": "8px"
+      }
+    ],
+    "paddingAll": "20px",
+    "backgroundColor": "#FFFFFF"
+  },
+  "footer": {
+    "type": "box",
+    "layout": "vertical",
+    "contents": [
+      {
+        "type": "text",
+        "text": "หากชำระเงินแล้ว กรุณาแจ้งกลับ",
+        "size": "xs",
+        "color": "#888888",
+        "align": "center"
+      },
+      {
+        "type": "box",
+        "layout": "horizontal",
+        "contents": [
+          {
+            "type": "text",
+            "text": "🐱 PakkuNeko - ฝากซื้อฝากส่งจากญี่ปุ่น",
+            "size": "xxs",
+            "color": "#AAAAAA",
+            "align": "center"
+          }
+        ],
+        "justifyContent": "center",
+        "margin": "md"
+      }
+    ],
+    "paddingAll": "15px",
+    "backgroundColor": "#FAFAFA"
+  }
+}

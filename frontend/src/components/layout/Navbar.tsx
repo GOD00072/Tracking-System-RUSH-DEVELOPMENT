@@ -12,8 +12,7 @@ const Navbar = () => {
   const navLinks = [
     { name: t('nav.home'), path: '/' },
     { name: t('nav.process'), path: '/process' },
-    { name: t('nav.shipTracking'), path: '/ship-tracking' },
-    { name: t('nav.airTracking'), path: '/air-tracking' },
+    { name: t('nav.tracking'), path: '/tracking' },
     { name: t('nav.schedule'), path: '/schedule' },
     { name: t('nav.calculator'), path: '/calculator' },
     { name: t('nav.portfolio'), path: '/portfolio' },
@@ -23,7 +22,7 @@ const Navbar = () => {
   ];
 
   return (
-    <nav className="bg-gradient-to-r from-white via-primary-50/30 to-white backdrop-blur-lg shadow-lg sticky top-0 z-50 border-b-2 border-primary-300/50">
+    <nav className="bg-white/80 backdrop-blur-lg shadow-lg sticky top-0 z-50 border-b-2 border-primary-300/50">
       <div className="flex items-center justify-between w-full px-4 py-2 mx-auto max-w-7xl">
         {/* Logo */}
         <Link to="/" className="flex items-center group transition-all duration-300 hover:scale-105 shrink-0">

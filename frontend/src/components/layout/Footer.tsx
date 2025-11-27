@@ -34,13 +34,8 @@ const Footer = () => {
                 </Link>
               </li>
               <li>
-                <Link to="/ship-tracking" className="text-gray-400 hover:text-primary-400 transition-colors flex items-center gap-2">
-                  <span className="text-primary-500">›</span> ติดตามเรือ
-                </Link>
-              </li>
-              <li>
-                <Link to="/air-tracking" className="text-gray-400 hover:text-primary-400 transition-colors flex items-center gap-2">
-                  <span className="text-primary-500">›</span> ติดตามเครื่องบิน
+                <Link to="/tracking" className="text-gray-400 hover:text-primary-400 transition-colors flex items-center gap-2">
+                  <span className="text-primary-500">›</span> ติดตามสถานะสินค้า
                 </Link>
               </li>
               <li>
@@ -129,7 +124,7 @@ const Footer = () => {
             <span className="text-gray-500"> ฝากซื้อและฝากส่งสินค้าจากญี่ปุ่นสู่ไทย</span>
           </p>
           <p className="text-gray-500 text-sm mt-2">
-            Developed with 🧡 for better shopping experience
+            Developed by binamon 🧡
           </p>
         </div>
       </div>

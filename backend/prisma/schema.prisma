@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")  // Used for migrations with Supabase connection pooling
 }
 
 model User {
@@ -92,6 +93,7 @@ model OrderItem {
   clickerName      String?             @map("clicker_name") @db.VarChar(255)
   customerName     String?             @map("customer_name") @db.VarChar(255)
   productCode      String?             @map("product_code") @db.VarChar(100)
+  productName      String?             @map("product_name") @db.VarChar(500)
   productUrl       String?             @map("product_url")
   priceYen         Decimal?            @map("price_yen") @db.Decimal(10, 2)
   priceBaht        Decimal?            @map("price_baht") @db.Decimal(10, 2)

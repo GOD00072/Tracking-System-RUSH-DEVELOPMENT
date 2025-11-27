@@ -1,4 +1,5 @@
 import { MessageCircle } from 'lucide-react';
+import { BACKEND_URL } from '../utils/apiConfig';
 
 interface LineLoginButtonProps {
   text?: string;
@@ -9,7 +10,7 @@ interface LineLoginButtonProps {
 const LineLoginButton = ({ text = 'Login with LINE', size = 'md', className = '' }: LineLoginButtonProps) => {
   const handleLogin = () => {
     // Redirect to backend LINE auth endpoint
-    window.location.href = 'http://localhost:5000/auth/line';
+    window.location.href = `${BACKEND_URL}/auth/line`;
   };
 
   const sizeClasses = {

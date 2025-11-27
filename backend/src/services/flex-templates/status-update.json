@@ -1,0 +1,311 @@
+{
+  "type": "bubble",
+  "size": "giga",
+  "hero": {
+    "type": "box",
+    "layout": "vertical",
+    "contents": [
+      {
+        "type": "image",
+        "url": "https://img5.pic.in.th/file/secure-sv1/bg-mountain.jpeg",
+        "size": "full",
+        "aspectRatio": "20:13",
+        "aspectMode": "cover",
+        "position": "absolute",
+        "offsetTop": "0px",
+        "offsetBottom": "0px",
+        "offsetStart": "0px",
+        "offsetEnd": "0px"
+      },
+      {
+        "type": "box",
+        "layout": "vertical",
+        "contents": [],
+        "position": "absolute",
+        "offsetTop": "0px",
+        "offsetBottom": "0px",
+        "offsetStart": "0px",
+        "offsetEnd": "0px",
+        "background": {
+          "type": "linearGradient",
+          "angle": "180deg",
+          "startColor": "#18181800",
+          "centerColor": "#18181866",
+          "endColor": "#181818FF"
+        }
+      },
+      {
+        "type": "box",
+        "layout": "vertical",
+        "contents": [
+          {
+            "type": "box",
+            "layout": "horizontal",
+            "contents": [
+              {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                  {
+                    "type": "image",
+                    "url": "https://img5.pic.in.th/file/secure-sv1/pakkuneko-logo.jpeg",
+                    "size": "full",
+                    "aspectRatio": "1:1",
+                    "aspectMode": "cover"
+                  }
+                ],
+                "width": "32px",
+                "height": "32px",
+                "cornerRadius": "8px"
+              },
+              {
+                "type": "text",
+                "text": "PAKKUNEKO",
+                "size": "xs",
+                "color": "#FFFFFF",
+                "weight": "bold",
+                "margin": "md",
+                "gravity": "center"
+              },
+              {
+                "type": "filler"
+              },
+              {
+                "type": "text",
+                "text": "JP → TH",
+                "size": "xxs",
+                "color": "#FFFFFF99",
+                "gravity": "center"
+              }
+            ],
+            "alignItems": "center"
+          },
+          {
+            "type": "filler"
+          },
+          {
+            "type": "box",
+            "layout": "vertical",
+            "contents": [
+              {
+                "type": "text",
+                "text": "ส่งออกจากญี่ปุ่น",
+                "size": "xxl",
+                "weight": "bold",
+                "color": "#FFFFFF"
+              },
+              {
+                "type": "box",
+                "layout": "baseline",
+                "contents": [
+                  {
+                    "type": "text",
+                    "text": "◉",
+                    "size": "xs",
+                    "color": "#F97316"
+                  },
+                  {
+                    "type": "text",
+                    "text": "กำลังเดินทาง",
+                    "size": "xs",
+                    "color": "#F97316",
+                    "margin": "sm"
+                  }
+                ],
+                "margin": "md"
+              }
+            ]
+          }
+        ],
+        "paddingAll": "20px",
+        "height": "180px"
+      }
+    ],
+    "height": "180px",
+    "paddingAll": "0px"
+  },
+  "body": {
+    "type": "box",
+    "layout": "vertical",
+    "contents": [
+      {
+        "type": "box",
+        "layout": "vertical",
+        "contents": [
+          {
+            "type": "text",
+            "text": "สวัสดีคุณลูกค้า",
+            "size": "md",
+            "color": "#FFFFFF",
+            "weight": "bold"
+          },
+          {
+            "type": "text",
+            "text": "สินค้าของคุณมีการอัปเดตสถานะใหม่",
+            "size": "sm",
+            "color": "#FFFFFF99",
+            "margin": "sm"
+          }
+        ]
+      },
+      {
+        "type": "box",
+        "layout": "horizontal",
+        "contents": [
+          {
+            "type": "box",
+            "layout": "vertical",
+            "contents": [
+              {
+                "type": "text",
+                "text": "ORDER",
+                "size": "xxs",
+                "color": "#FFFFFF66"
+              },
+              {
+                "type": "text",
+                "text": "ORD-2024-001",
+                "size": "sm",
+                "color": "#FFFFFF",
+                "weight": "bold",
+                "margin": "sm"
+              }
+            ],
+            "flex": 1
+          },
+          {
+            "type": "separator",
+            "color": "#FFFFFF22"
+          },
+          {
+            "type": "box",
+            "layout": "vertical",
+            "contents": [
+              {
+                "type": "text",
+                "text": "DATE",
+                "size": "xxs",
+                "color": "#FFFFFF66",
+                "align": "end"
+              },
+              {
+                "type": "text",
+                "text": "27.11.67 · 15:30",
+                "size": "sm",
+                "color": "#FFFFFF",
+                "align": "end",
+                "margin": "sm"
+              }
+            ],
+            "flex": 1
+          }
+        ],
+        "backgroundColor": "#FFFFFF11",
+        "cornerRadius": "12px",
+        "paddingAll": "15px",
+        "margin": "xl"
+      },
+      {
+        "type": "box",
+        "layout": "vertical",
+        "contents": [
+          {
+            "type": "text",
+            "text": "ITEMS UPDATED",
+            "size": "xxs",
+            "color": "#FFFFFF66"
+          },
+          {
+            "type": "box",
+            "layout": "horizontal",
+            "contents": [
+              {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                  {
+                    "type": "text",
+                    "text": "สินค้า A",
+                    "size": "xs",
+                    "color": "#FFFFFF",
+                    "align": "center"
+                  }
+                ],
+                "backgroundColor": "#F9731622",
+                "cornerRadius": "8px",
+                "paddingAll": "12px",
+                "flex": 1,
+                "borderColor": "#F9731666",
+                "borderWidth": "1px"
+              },
+              {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                  {
+                    "type": "text",
+                    "text": "สินค้า B",
+                    "size": "xs",
+                    "color": "#FFFFFF",
+                    "align": "center"
+                  }
+                ],
+                "backgroundColor": "#F9731622",
+                "cornerRadius": "8px",
+                "paddingAll": "12px",
+                "flex": 1,
+                "margin": "sm",
+                "borderColor": "#F9731666",
+                "borderWidth": "1px"
+              },
+              {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                  {
+                    "type": "text",
+                    "text": "สินค้า C",
+                    "size": "xs",
+                    "color": "#FFFFFF",
+                    "align": "center"
+                  }
+                ],
+                "backgroundColor": "#F9731622",
+                "cornerRadius": "8px",
+                "paddingAll": "12px",
+                "flex": 1,
+                "margin": "sm",
+                "borderColor": "#F9731666",
+                "borderWidth": "1px"
+              }
+            ],
+            "margin": "md"
+          }
+        ],
+        "margin": "lg"
+      },
+      {
+        "type": "button",
+        "action": {
+          "type": "uri",
+          "label": "📍 ติดตามพัสดุ",
+          "uri": "https://example.com/tracking"
+        },
+        "style": "primary",
+        "color": "#F97316",
+        "margin": "xl",
+        "height": "sm"
+      },
+      {
+        "type": "text",
+        "text": "🐱 PakkuNeko - ฝากซื้อฝากส่งจากญี่ปุ่น",
+        "size": "xxs",
+        "color": "#FFFFFF44",
+        "align": "center",
+        "margin": "lg"
+      }
+    ],
+    "paddingAll": "20px",
+    "backgroundColor": "#181818"
+  }
+}

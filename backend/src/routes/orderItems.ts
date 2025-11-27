@@ -119,6 +119,131 @@ router.get('/', authenticateAdmin, async (req: AuthRequest, res) => {
   }
 });
 
+// GET /api/v1/order-items/export - Export order items to JSON/CSV (MUST be before /:id route)
+router.get('/export', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const orderId = req.query.orderId as string;
+    const statusStep = req.query.statusStep as string;
+    const search = req.query.search as string;
+    const format = (req.query.format as string) || 'json';
+
+    const whereClause: any = {};
+
+    if (orderId) {
+      whereClause.orderId = orderId;
+    }
+
+    if (statusStep) {
+      whereClause.statusStep = parseInt(statusStep);
+    }
+
+    if (search) {
+      whereClause.OR = [
+        { productCode: { contains: search, mode: 'insensitive' } },
+        { customerName: { contains: search, mode: 'insensitive' } },
+        { trackingNumber: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const items = await prisma.orderItem.findMany({
+      where: whereClause,
+      include: {
+        order: {
+          select: {
+            orderNumber: true,
+            status: true,
+            customer: {
+              select: {
+                companyName: true,
+                contactPerson: true,
+                phone: true,
+                lineId: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { sequenceNumber: 'asc' },
+    });
+
+    // Status step names
+    const STATUS_STEP_NAMES: Record<number, string> = {
+      1: 'รับออเดอร์',
+      2: 'ชำระเงินงวดแรก',
+      3: 'สั่งซื้อจากญี่ปุ่น',
+      4: 'ของถึงโกดังญี่ปุ่น',
+      5: 'ส่งออกจากญี่ปุ่น',
+      6: 'ของถึงไทย',
+      7: 'กำลังจัดส่ง',
+      8: 'ส่งมอบสำเร็จ',
+    };
+
+    // Transform data for export
+    const exportData = items.map((item, index) => ({
+      no: index + 1,
+      sequenceNumber: item.sequenceNumber,
+      orderNumber: item.order?.orderNumber,
+      customerName: item.customerName || item.order?.customer?.companyName,
+      contactPerson: item.order?.customer?.contactPerson,
+      phone: item.order?.customer?.phone,
+      lineId: item.order?.customer?.lineId,
+      clickDate: item.clickDate ? new Date(item.clickDate).toLocaleDateString('th-TH') : '',
+      clickChannel: item.clickChannel,
+      clickerName: item.clickerName,
+      productCode: item.productCode,
+      productName: item.productName,
+      productUrl: item.productUrl,
+      priceYen: item.priceYen ? Number(item.priceYen) : 0,
+      priceBaht: item.priceBaht ? Number(item.priceBaht) : 0,
+      statusStep: item.statusStep,
+      statusName: STATUS_STEP_NAMES[item.statusStep || 1] || '',
+      itemStatus: item.itemStatus,
+      paymentStatus: item.paymentStatus,
+      shippingRound: item.shippingRound,
+      trackingNumber: item.trackingNumber,
+      trackingNumberJP: item.trackingNumberJP,
+      trackingNumberTH: item.trackingNumberTH,
+      storePage: item.storePage,
+      remarks: item.remarks,
+    }));
+
+    if (format === 'csv') {
+      // Generate CSV
+      const headers = Object.keys(exportData[0] || {}).join(',');
+      const rows = exportData.map((row) =>
+        Object.values(row)
+          .map((val) => `"${String(val || '').replace(/"/g, '""')}"`)
+          .join(',')
+      );
+      const csv = [headers, ...rows].join('\n');
+
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="order-items-${new Date().toISOString().slice(0, 10)}.csv"`);
+      res.send('\uFEFF' + csv); // BOM for Excel UTF-8
+    } else {
+      res.json({
+        success: true,
+        data: exportData,
+        meta: {
+          totalItems: exportData.length,
+          exportedAt: new Date().toISOString(),
+          filters: { orderId, statusStep, search },
+        },
+      });
+    }
+  } catch (error: any) {
+    console.error('Error exporting order items:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'EXPORT_ERROR',
+        message: 'Failed to export order items',
+        details: error.message,
+      },
+    });
+  }
+});
+
 // GET /api/v1/order-items/:id - Get single order item with status history and payments
 router.get('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
@@ -179,6 +304,7 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
     if (req.body.clickerName) itemData.clickerName = req.body.clickerName;
     if (req.body.customerName) itemData.customerName = req.body.customerName;
     if (req.body.productCode) itemData.productCode = req.body.productCode;
+    if (req.body.productName) itemData.productName = req.body.productName;
     if (req.body.productUrl) itemData.productUrl = req.body.productUrl;
     if (req.body.priceYen !== undefined) itemData.priceYen = parseFloat(req.body.priceYen);
     if (req.body.priceBaht !== undefined) itemData.priceBaht = parseFloat(req.body.priceBaht);
@@ -211,7 +337,7 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
     });
 
     // Recalculate order totals (weight, shipping)
-    await recalculateOrderTotals(orderId);
+    await recalculateOrderTotals(item.orderId);
 
     res.status(201).json({
       success: true,
@@ -245,6 +371,19 @@ const STATUS_STEP_NAMES: Record<number, string> = {
 // PATCH /api/v1/order-items/:id - Update order item
 router.patch('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
+    // Get current item to check if status actually changed
+    const currentItem = await prisma.orderItem.findUnique({
+      where: { id: req.params.id },
+      select: { statusStep: true, orderId: true },
+    });
+
+    if (!currentItem) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Order item not found' },
+      });
+    }
+
     const updateData: any = {
       updatedAt: new Date(),
     };
@@ -256,6 +395,7 @@ router.patch('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
     if (req.body.clickerName !== undefined) updateData.clickerName = req.body.clickerName;
     if (req.body.customerName !== undefined) updateData.customerName = req.body.customerName;
     if (req.body.productCode !== undefined) updateData.productCode = req.body.productCode;
+    if (req.body.productName !== undefined) updateData.productName = req.body.productName;
     if (req.body.productUrl !== undefined) updateData.productUrl = req.body.productUrl;
     if (req.body.priceYen !== undefined) updateData.priceYen = req.body.priceYen ? parseFloat(req.body.priceYen) : null;
     if (req.body.priceBaht !== undefined) updateData.priceBaht = req.body.priceBaht ? parseFloat(req.body.priceBaht) : null;
@@ -274,12 +414,18 @@ router.patch('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
     if (req.body.productImages !== undefined) updateData.productImages = req.body.productImages;
 
     // Handle status step change with history logging
+    // Only send notification if status ACTUALLY changed (not same as current)
     let statusChanged = false;
     let newStatusStep: number | undefined;
     if (req.body.statusStep !== undefined) {
       newStatusStep = parseInt(req.body.statusStep);
       updateData.statusStep = newStatusStep;
-      statusChanged = true;
+      // Check if status actually changed from current value
+      statusChanged = currentItem.statusStep !== newStatusStep;
+
+      if (statusChanged) {
+        console.log(`[OrderItems] Status changed from ${currentItem.statusStep} to ${newStatusStep}`);
+      }
     }
 
     const item = await prisma.orderItem.update({
@@ -312,38 +458,50 @@ router.patch('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
         },
       });
 
-      // Send LINE notification to customer if they have LINE ID
+      // Send LINE Flex notification to customer if they have LINE ID
       if (item.order?.customer?.lineId) {
         const customerLineId = item.order.customer.lineId;
-        const customerName = item.customerName || item.order.customer.companyName || 'ลูกค้า';
-        const statusName = STATUS_STEP_NAMES[newStatusStep] || `สถานะ ${newStatusStep}`;
+        const customerName = item.order.customer.companyName || item.order.customer.contactPerson || 'ลูกค้า';
         const orderNumber = item.order.orderNumber;
 
-        // Build notification message
-        let message = `📦 อัปเดตสถานะสินค้า\n\n`;
-        message += `👤 ลูกค้า: ${customerName}\n`;
-        message += `📋 เลขออเดอร์: ${orderNumber}\n`;
-        if (item.productCode) {
-          message += `🏷️ รหัสสินค้า: ${item.productCode}\n`;
-        }
-        message += `\n✅ สถานะใหม่: ${statusName}\n`;
+        // Map statusStep to status key for Flex Message
+        const statusStepToKey: Record<number, string> = {
+          1: 'order_received',
+          2: 'first_payment',
+          3: 'ordered_from_japan',
+          4: 'arrived_jp_warehouse',
+          5: 'shipped_from_japan',
+          6: 'arrived_thailand',
+          7: 'out_for_delivery',
+          8: 'delivered',
+        };
+        const statusKey = statusStepToKey[newStatusStep] || 'order_received';
 
-        // Add tracking info if available
-        if (item.trackingNumberJP && newStatusStep >= 4) {
-          message += `📮 เลข Tracking JP: ${item.trackingNumberJP}\n`;
-        }
-        if (item.trackingNumberTH && newStatusStep >= 6) {
-          message += `📮 เลข Tracking TH: ${item.trackingNumberTH}\n`;
-        }
+        // Build items array for Flex Message
+        const itemsForFlex = [{
+          productCode: item.productCode || item.id,
+          productName: item.productName || item.customerName || undefined,
+        }];
 
-        message += `\nขอบคุณที่ใช้บริการ 🙏`;
+        // Build tracking URL
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5001';
+        const trackingUrl = `${frontendUrl}/tracking/${orderNumber}`;
 
-        // Send LINE notification (non-blocking)
-        lineService.sendTextMessage(customerLineId, message).catch((err) => {
-          console.error('[OrderItems] LINE notification error:', err);
-        });
+        // Send LINE Flex Message notification (non-blocking)
+        lineService
+          .sendStatusUpdateFlexMessage(
+            customerLineId,
+            customerName,
+            statusKey,
+            itemsForFlex,
+            orderNumber,
+            trackingUrl
+          )
+          .catch((err) => {
+            console.error('[OrderItems] LINE Flex notification error:', err);
+          });
 
-        console.log(`[OrderItems] LINE notification sent to ${customerLineId} for status ${newStatusStep}`);
+        console.log(`[OrderItems] LINE Flex notification sent to ${customerLineId} for status ${newStatusStep}`);
       }
     }
 
@@ -454,7 +612,15 @@ router.post('/bulk-status', authenticateAdmin, async (req: AuthRequest, res) => 
       });
     }
 
-    // Update all items
+    // Filter only items that actually have a different status
+    const itemsToUpdate = items.filter(item => item.statusStep !== statusStep);
+    const itemsAlreadyAtStatus = items.length - itemsToUpdate.length;
+
+    if (itemsAlreadyAtStatus > 0) {
+      console.log(`[OrderItems] ${itemsAlreadyAtStatus} items already at status ${statusStep}, skipping notification for them`);
+    }
+
+    // Update all items (even if same status, for consistency)
     await prisma.orderItem.updateMany({
       where: { id: { in: itemIds } },
       data: {
@@ -463,56 +629,89 @@ router.post('/bulk-status', authenticateAdmin, async (req: AuthRequest, res) => 
       },
     });
 
-    // Create status history entries
+    // Create status history entries only for items that changed
     const changedBy = (req as any).user?.email || 'admin';
-    await Promise.all(
-      items.map((item) =>
-        prisma.itemStatusHistory.create({
-          data: {
-            orderItemId: item.id,
-            statusStep,
-            statusName,
-            description: `Bulk update: ${itemIds.length} items`,
-            changedBy,
-          },
-        })
-      )
-    );
+    if (itemsToUpdate.length > 0) {
+      await Promise.all(
+        itemsToUpdate.map((item) =>
+          prisma.itemStatusHistory.create({
+            data: {
+              orderItemId: item.id,
+              statusStep,
+              statusName,
+              description: `Bulk update: ${itemsToUpdate.length} items`,
+              changedBy,
+            },
+          })
+        )
+      );
+    }
 
-    // Send LINE notifications if enabled
+    // Send LINE notifications if enabled AND there are items that actually changed
     let notificationsSent = 0;
-    if (sendNotification) {
-      const customerNotifications = new Map<string, string[]>();
+    if (sendNotification && itemsToUpdate.length > 0) {
+      // Map statusStep to status key for Flex Message
+      const statusStepToKey: Record<number, string> = {
+        1: 'order_received',
+        2: 'first_payment',
+        3: 'ordered_from_japan',
+        4: 'arrived_jp_warehouse',
+        5: 'shipped_from_japan',
+        6: 'arrived_thailand',
+        7: 'out_for_delivery',
+        8: 'delivered',
+      };
 
-      // Group items by customer LINE ID
-      for (const item of items) {
+      // Group items by customer
+      const customerNotifications = new Map<
+        string,
+        {
+          lineId: string;
+          customerName: string;
+          orderNumber: string;
+          items: Array<{ productCode: string; productName?: string }>;
+        }
+      >();
+
+      // Group items by customer LINE ID (only items that actually changed)
+      for (const item of itemsToUpdate) {
         const lineId = item.order?.customer?.lineId;
         if (lineId) {
           if (!customerNotifications.has(lineId)) {
-            customerNotifications.set(lineId, []);
+            customerNotifications.set(lineId, {
+              lineId,
+              customerName: item.order?.customer?.companyName || item.order?.customer?.contactPerson || 'ลูกค้า',
+              orderNumber: item.order?.orderNumber || '',
+              items: [],
+            });
           }
-          customerNotifications.get(lineId)!.push(
-            item.productCode || item.customerName || item.id
-          );
+          customerNotifications.get(lineId)!.items.push({
+            productCode: item.productCode || item.id,
+            productName: item.productName || item.customerName || undefined,
+          });
         }
       }
 
-      // Send one notification per customer
-      for (const [lineId, productCodes] of customerNotifications) {
-        let message = `📦 อัปเดตสถานะสินค้า (${productCodes.length} รายการ)\n\n`;
-        message += `✅ สถานะใหม่: ${statusName}\n\n`;
-        message += `📋 รายการที่อัปเดต:\n`;
-        productCodes.slice(0, 5).forEach((code) => {
-          message += `• ${code}\n`;
-        });
-        if (productCodes.length > 5) {
-          message += `... และอีก ${productCodes.length - 5} รายการ\n`;
-        }
-        message += `\nขอบคุณที่ใช้บริการ 🙏`;
+      // Build tracking URL base
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5001';
 
-        lineService.sendTextMessage(lineId, message).catch((err) => {
-          console.error('[OrderItems] Bulk LINE notification error:', err);
-        });
+      // Send Flex Message notification per customer
+      for (const [lineId, data] of customerNotifications) {
+        const statusKey = statusStepToKey[statusStep] || 'order_received';
+        const trackingUrl = `${frontendUrl}/tracking/${data.orderNumber}`;
+
+        lineService
+          .sendStatusUpdateFlexMessage(
+            lineId,
+            data.customerName,
+            statusKey,
+            data.items,
+            data.orderNumber,
+            trackingUrl
+          )
+          .catch((err) => {
+            console.error('[OrderItems] Bulk LINE Flex notification error:', err);
+          });
         notificationsSent++;
       }
     }
@@ -521,6 +720,8 @@ router.post('/bulk-status', authenticateAdmin, async (req: AuthRequest, res) => 
       success: true,
       data: {
         updatedCount: items.length,
+        actuallyChangedCount: itemsToUpdate.length,
+        alreadyAtStatusCount: itemsAlreadyAtStatus,
         statusStep,
         statusName,
         notificationsSent,
@@ -567,6 +768,7 @@ router.post('/bulk', authenticateAdmin, async (req: AuthRequest, res) => {
         if (item.clickerName) itemData.clickerName = item.clickerName;
         if (item.customerName) itemData.customerName = item.customerName;
         if (item.productCode) itemData.productCode = item.productCode;
+        if (item.productName) itemData.productName = item.productName;
         if (item.productUrl) itemData.productUrl = item.productUrl;
         if (item.priceYen) itemData.priceYen = parseFloat(item.priceYen);
         if (item.priceBaht) itemData.priceBaht = parseFloat(item.priceBaht);
@@ -593,118 +795,6 @@ router.post('/bulk', authenticateAdmin, async (req: AuthRequest, res) => {
       error: {
         code: 'BULK_CREATE_ERROR',
         message: 'Failed to bulk create order items',
-        details: error.message,
-      },
-    });
-  }
-});
-
-// GET /api/v1/order-items/export - Export order items to JSON (for Excel)
-router.get('/export', authenticateAdmin, async (req: AuthRequest, res) => {
-  try {
-    const orderId = req.query.orderId as string;
-    const statusStep = req.query.statusStep as string;
-    const search = req.query.search as string;
-    const format = (req.query.format as string) || 'json';
-
-    const whereClause: any = {};
-
-    if (orderId) {
-      whereClause.orderId = orderId;
-    }
-
-    if (statusStep) {
-      whereClause.statusStep = parseInt(statusStep);
-    }
-
-    if (search) {
-      whereClause.OR = [
-        { productCode: { contains: search, mode: 'insensitive' } },
-        { customerName: { contains: search, mode: 'insensitive' } },
-        { trackingNumber: { contains: search, mode: 'insensitive' } },
-      ];
-    }
-
-    const items = await prisma.orderItem.findMany({
-      where: whereClause,
-      include: {
-        order: {
-          select: {
-            orderNumber: true,
-            status: true,
-            customer: {
-              select: {
-                companyName: true,
-                contactPerson: true,
-                phone: true,
-                lineId: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: { sequenceNumber: 'asc' },
-    });
-
-    // Transform data for export
-    const exportData = items.map((item, index) => ({
-      no: index + 1,
-      sequenceNumber: item.sequenceNumber,
-      orderNumber: item.order?.orderNumber,
-      customerName: item.customerName || item.order?.customer?.companyName,
-      contactPerson: item.order?.customer?.contactPerson,
-      phone: item.order?.customer?.phone,
-      lineId: item.order?.customer?.lineId,
-      clickDate: item.clickDate ? new Date(item.clickDate).toLocaleDateString('th-TH') : '',
-      clickChannel: item.clickChannel,
-      clickerName: item.clickerName,
-      productCode: item.productCode,
-      productUrl: item.productUrl,
-      priceYen: item.priceYen ? Number(item.priceYen) : 0,
-      priceBaht: item.priceBaht ? Number(item.priceBaht) : 0,
-      statusStep: item.statusStep,
-      statusName: STATUS_STEP_NAMES[item.statusStep || 1] || '',
-      itemStatus: item.itemStatus,
-      paymentStatus: item.paymentStatus,
-      shippingRound: item.shippingRound,
-      trackingNumber: item.trackingNumber,
-      trackingNumberJP: item.trackingNumberJP,
-      trackingNumberTH: item.trackingNumberTH,
-      storePage: item.storePage,
-      remarks: item.remarks,
-    }));
-
-    if (format === 'csv') {
-      // Generate CSV
-      const headers = Object.keys(exportData[0] || {}).join(',');
-      const rows = exportData.map((row) =>
-        Object.values(row)
-          .map((val) => `"${String(val || '').replace(/"/g, '""')}"`)
-          .join(',')
-      );
-      const csv = [headers, ...rows].join('\n');
-
-      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-      res.setHeader('Content-Disposition', `attachment; filename="order-items-${new Date().toISOString().slice(0, 10)}.csv"`);
-      res.send('\uFEFF' + csv); // BOM for Excel UTF-8
-    } else {
-      res.json({
-        success: true,
-        data: exportData,
-        meta: {
-          totalItems: exportData.length,
-          exportedAt: new Date().toISOString(),
-          filters: { orderId, statusStep, search },
-        },
-      });
-    }
-  } catch (error: any) {
-    console.error('Error exporting order items:', error);
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'EXPORT_ERROR',
-        message: 'Failed to export order items',
         details: error.message,
       },
     });

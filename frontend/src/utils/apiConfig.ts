@@ -1,10 +1,5 @@
-// API Configuration
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
-
-// Log for debugging
-if (import.meta.env.DEV) {
-  console.log('[API Config] Base URL:', API_BASE_URL);
-  console.log('[API Config] Environment:', import.meta.env.MODE);
-}
+// API Configuration - reads from .env.development or .env.production
+export const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
+export const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || '';
 
 export default API_BASE_URL;

@@ -57,7 +57,7 @@ export const pageTransition = {
     x: 0,
     transition: {
       duration: 0.3,
-      ease: "easeOut",
+      ease: [0, 0, 0.2, 1] as const,
     },
   },
   exit: {
@@ -76,7 +76,7 @@ export const cardHover = {
     scale: 1.02,
     transition: {
       duration: 0.2,
-      ease: "easeInOut",
+      ease: [0.4, 0, 0.2, 1] as const,
     },
   },
 };
@@ -89,7 +89,7 @@ export const buttonTap = {
 // Transition presets
 export const defaultTransition = {
   duration: 0.3,
-  ease: "easeOut",
+  ease: [0, 0, 0.2, 1] as const,
 };
 
 export const springTransition = {

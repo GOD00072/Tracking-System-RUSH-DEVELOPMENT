@@ -1,6 +1,7 @@
 import express from 'express';
 import prisma from '../lib/prisma';
 import { authenticateAdmin } from '../middleware/auth';
+import { lineService } from '../services/lineService';
 
 const router = express.Router();
 
@@ -128,6 +129,12 @@ router.put('/line', authenticateAdmin, async (req, res) => {
     // Don't store sensitive data in plain text (for now, just update)
     // TODO: Encrypt channel_access_token and channel_secret
     await updateSetting('line_oa', updates, 'line');
+
+    // Reinitialize LINE service with new settings
+    if (updates.enabled && updates.channel_access_token && updates.channel_secret) {
+      const initialized = await lineService.reinitialize();
+      console.log('[Settings] LINE service reinitialized:', initialized);
+    }
 
     res.json({
       success: true,

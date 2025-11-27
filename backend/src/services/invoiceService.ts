@@ -22,7 +22,9 @@ const COLORS = {
 
 interface InvoiceItem {
   no: number;
-  description: string;
+  productCode?: string;   // รหัสสินค้า
+  productName?: string;   // ชื่อสินค้า
+  description: string;    // รายละเอียด (productName || productCode)
   priceYen?: number;
   priceBaht: number;
   weight?: number;        // น้ำหนัก (kg)
@@ -89,7 +91,9 @@ export async function generateOrderInvoice(orderId: string): Promise<Buffer> {
     customerAddress: order.customer?.address || undefined,
     items: order.orderItems.map((item, idx) => ({
       no: idx + 1,
-      description: item.productCode || `สินค้า #${item.sequenceNumber}`,
+      productCode: item.productCode || undefined,
+      productName: item.productName || undefined,
+      description: item.productName || item.productCode || `สินค้า #${item.sequenceNumber}`,
       priceYen: item.priceYen ? Number(item.priceYen) : undefined,
       priceBaht: Number(item.priceBaht) || 0,
       weight: item.weight ? Number(item.weight) : undefined,
@@ -115,7 +119,7 @@ export function generateInvoicePDF(data: InvoiceData): Promise<Buffer> {
     try {
       // Calculate dynamic page height based on content
       const baseHeight = 480; // Header + customer info + table header
-      const itemsHeight = data.items.length * 24; // Each row is 24pt
+      const itemsHeight = data.items.length * 28; // Each row is 28pt (increased for two-line items)
       const summaryHeight = 140; // More space for weight + shipping summary
       const bankHeight = data.bankInfo ? 100 : 0;
       const notesHeight = data.notes ? 60 : 0;
@@ -242,7 +246,7 @@ export function generateInvoicePDF(data: InvoiceData): Promise<Buffer> {
 
       // Table Rows
       let rowY = tableTop + 32;
-      const rowHeight = 24;
+      const rowHeight = 28; // Increased for two-line display
 
       data.items.forEach((item, idx) => {
         // Alternate row colors
@@ -254,31 +258,41 @@ export function generateInvoicePDF(data: InvoiceData): Promise<Buffer> {
         xPos = leftMargin;
 
         // Number
-        doc.text(item.no.toString(), xPos + 5, rowY + 7, { width: columnWidths[0] - 10, align: 'center' });
+        doc.text(item.no.toString(), xPos + 5, rowY + 9, { width: columnWidths[0] - 10, align: 'center' });
         xPos += columnWidths[0];
 
-        // Description
-        doc.text(item.description || '-', xPos + 5, rowY + 7, { width: columnWidths[1] - 10, ellipsis: true });
+        // Description - show productName and productCode
+        if (item.productName && item.productCode) {
+          // Show both: productName on top, productCode below
+          doc.fontSize(9).fillColor(COLORS.text);
+          doc.text(item.productName, xPos + 5, rowY + 4, { width: columnWidths[1] - 10, ellipsis: true });
+          doc.fontSize(7).fillColor(COLORS.textLight);
+          doc.text(`[${item.productCode}]`, xPos + 5, rowY + 16, { width: columnWidths[1] - 10, ellipsis: true });
+        } else {
+          // Show only description (productName or productCode)
+          doc.fontSize(9).fillColor(COLORS.text);
+          doc.text(item.description || '-', xPos + 5, rowY + 9, { width: columnWidths[1] - 10, ellipsis: true });
+        }
         xPos += columnWidths[1];
 
         // Price Yen
-        doc.fillColor(COLORS.textLight);
-        doc.text(item.priceYen ? `¥${item.priceYen.toLocaleString()}` : '-', xPos + 5, rowY + 7, { width: columnWidths[2] - 10, align: 'right' });
+        doc.fontSize(9).fillColor(COLORS.textLight);
+        doc.text(item.priceYen ? `¥${item.priceYen.toLocaleString()}` : '-', xPos + 5, rowY + 9, { width: columnWidths[2] - 10, align: 'right' });
         xPos += columnWidths[2];
 
         // Price Baht
         doc.fillColor(COLORS.primary);
-        doc.text(`฿${item.priceBaht.toLocaleString()}`, xPos + 5, rowY + 7, { width: columnWidths[3] - 10, align: 'right' });
+        doc.text(`฿${item.priceBaht.toLocaleString()}`, xPos + 5, rowY + 9, { width: columnWidths[3] - 10, align: 'right' });
         xPos += columnWidths[3];
 
         // Weight
         doc.fillColor(COLORS.text);
-        doc.text(item.weight ? `${item.weight.toFixed(2)} kg` : '-', xPos + 5, rowY + 7, { width: columnWidths[4] - 10, align: 'right' });
+        doc.text(item.weight ? `${item.weight.toFixed(2)} kg` : '-', xPos + 5, rowY + 9, { width: columnWidths[4] - 10, align: 'right' });
         xPos += columnWidths[4];
 
         // Shipping Cost
         doc.fillColor(COLORS.secondary);
-        doc.text(item.shippingCost ? `฿${item.shippingCost.toLocaleString()}` : '-', xPos + 5, rowY + 7, { width: columnWidths[5] - 10, align: 'right' });
+        doc.text(item.shippingCost ? `฿${item.shippingCost.toLocaleString()}` : '-', xPos + 5, rowY + 9, { width: columnWidths[5] - 10, align: 'right' });
 
         rowY += rowHeight;
       });

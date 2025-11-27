@@ -21,13 +21,13 @@
     "all": "All",
     "none": "None",
     "viewAll": "View All",
-    "moreInfo": "More Info"
+    "moreInfo": "More Info",
+    "startNow": "Start Now",
+    "learnMore": "Learn More"
   },
   "nav": {
     "home": "Home",
-    "tracking": "Tracking",
-    "shipTracking": "Ship Tracking",
-    "airTracking": "Air Tracking",
+    "tracking": "Track Product Status",
     "schedule": "Schedule",
     "calculator": "Calculator",
     "portfolio": "Portfolio",
@@ -41,13 +41,146 @@
     "logout": "Logout"
   },
   "home": {
-    "title": "Japan Import Tracking System",
-    "subtitle": "Professional purchasing and importing service from Japan with real-time tracking",
+    "title": "PakkuNeko",
+    "subtitle": "แพ็คคุเนโกะ",
+    "tagline": "Japan Shopping & Shipping Service",
+    "description": "Professional purchasing and shipping service from Japan to Thailand. Our team lives in Japan and handles every step with care.",
+    "startService": "Start Now",
+    "viewProcess": "How It Works",
+    "highlights": {
+      "team": "Our team is based in Japan",
+      "check": "We inspect items before shipping",
+      "combine": "Combine packages to save shipping",
+      "track": "Track packages 24/7"
+    },
+    "about": {
+      "badge": "About Us",
+      "title": "About Us",
+      "description": "PakkuNeko is a purchasing and shipping service from Japan to Thailand. Our team lives in Japan and helps customers buy products from various websites like Mercari, Rakuten, Amazon JP. We inspect items, pack them safely, and deliver directly to you in Thailand.",
+      "quote": "Shopping from Japan shouldn't be complicated",
+      "quoteDescription": "Everyone should have access to quality products at fair prices, with warm service - like having a Japanese friend help you every step of the way."
+    },
+    "services": {
+      "badge": "Our Services",
+      "title": "Our Services",
+      "subtitle": "商品・サービス内容",
+      "purchase": {
+        "title": "Purchasing Service",
+        "subtitle": "代理購入サービス",
+        "description": "We buy products from Japanese websites like Mercari, Rakuten, Yahoo! Japan, Amazon JP on your behalf."
+      },
+      "warehouse": {
+        "title": "Warehouse & Consolidation",
+        "subtitle": "荷物お預かり・同梱サービス",
+        "description": "Combine multiple packages into one to save shipping costs. We photograph items for inspection before shipping."
+      },
+      "shipping": {
+        "title": "International Shipping",
+        "subtitle": "国際配送サービス",
+        "description": "Ship via Air or Sea freight with full tracking numbers provided."
+      },
+      "consultation": {
+        "title": "Bilingual Support",
+        "subtitle": "日本語・タイ語対応",
+        "description": "Our team communicates in both Japanese and Thai to help translate product details."
+      }
+    },
+    "tracking": {
+      "badge": "Tracking Tools",
+      "title": "Tracking Tools",
+      "product": {
+        "title": "Track Product Status",
+        "description": "Check your product status in real-time"
+      },
+      "calculator": {
+        "title": "Shipping Calculator",
+        "description": "Calculate shipping costs instantly"
+      },
+      "schedule": {
+        "title": "Schedule",
+        "description": "View shipping schedules in advance"
+      }
+    },
+    "contact": {
+      "badge": "Contact Us",
+      "title": "Contact Us",
+      "subtitle": "お問い合わせ",
+      "followUs": "Follow Us",
+      "cta": {
+        "title": "Ready to shop from Japan?",
+        "description": "Contact us today to start shopping",
+        "button": "Contact via Facebook"
+      }
+    },
     "trackOrder": "Track Order",
     "enterTracking": "Enter tracking number",
-    "services": "Our Services",
     "whyUs": "Why Choose Us",
     "getStarted": "Get Started"
+  },
+  "contact": {
+    "badge": "Contact Us",
+    "title": "Contact Us",
+    "subtitle": "お問い合わせ",
+    "tagline": "We're here to help and answer any questions. Contact us anytime.",
+    "address": {
+      "title": "Address in Thailand",
+      "line1": "76/3 M.9 T.Akat",
+      "line2": "A.Akat Amnuai",
+      "line3": "Sakon Nakhon 47170"
+    },
+    "phone": {
+      "title": "Phone",
+      "thailand": "Thailand",
+      "japan": "Japan",
+      "thNumber": "095-938-0717",
+      "jpNumber": "080-2643-6975"
+    },
+    "email": {
+      "title": "Email",
+      "address": "anongpotter01@gmail.com"
+    },
+    "hours": {
+      "title": "Business Hours",
+      "weekday": "Monday - Friday",
+      "weekdayTime": "9:00 - 18:00",
+      "weekend": "Saturday - Sunday",
+      "weekendTime": "9:00 - 17:00",
+      "timezone": "Japan Time (GMT+9)"
+    },
+    "social": {
+      "title": "Contact via Social Media",
+      "facebook": "Facebook",
+      "facebookPage": "PakkuNeko Official",
+      "twitter": "X (Twitter)",
+      "twitterHandle": "@mirinpotter"
+    },
+    "cta": {
+      "title": "Ready to get started?",
+      "description": "Contact us today and let us help you shop from Japan",
+      "chatFacebook": "Chat on Facebook",
+      "sendEmail": "Send Email"
+    },
+    "faq": {
+      "title": "Frequently Asked Questions",
+      "q1": "What services does PakkuNeko offer?",
+      "a1": "We offer purchasing service from Japan, package receiving and consolidation, international shipping, and bilingual consultation in Thai and Japanese.",
+      "q2": "How long does shipping take?",
+      "a2": "Depends on shipping method. Air freight takes about 7-14 days, Sea freight takes about 30-45 days.",
+      "q3": "How do I pay?",
+      "a3": "We accept bank transfer and other payment methods as agreed."
+    },
+    "team": {
+      "title": "Our Team is Ready to Help from Japan",
+      "description": "We live in Japan and can help you purchase items, inspect quality, and ship safely to you - whether by sea or air.",
+      "japan": "Japan",
+      "thailand": "Thailand"
+    },
+    "name": "Name",
+    "subject": "Subject",
+    "message": "Message",
+    "send": "Send Message",
+    "success": "Message sent successfully",
+    "workingHours": "Working Hours"
   },
   "tracking": {
     "title": "Track Your Package",
@@ -162,30 +295,40 @@
     "deliveryTime": "Delivery Time",
     "days": "days"
   },
-  "contact": {
-    "title": "Contact Us",
-    "name": "Name",
-    "email": "Email",
-    "phone": "Phone",
-    "subject": "Subject",
-    "message": "Message",
-    "send": "Send Message",
-    "success": "Message sent successfully",
-    "address": "Address",
-    "workingHours": "Working Hours"
-  },
   "footer": {
-    "description": "Professional purchasing and importing service from Japan",
+    "description": "Professional purchasing and shipping service from Japan to Thailand by a team living in Japan.",
     "quickLinks": "Quick Links",
     "services": "Services",
     "contact": "Contact",
     "followUs": "Follow Us",
-    "copyright": "All rights reserved"
+    "copyright": "All rights reserved",
+    "tagline": "Purchasing and shipping from Japan to Thailand",
+    "developedWith": "Developed with 🧡 for better shopping experience"
   },
   "language": {
     "th": "ไทย",
     "en": "English",
     "ja": "日本語",
     "select": "Select Language"
+  },
+  "about": {
+    "title": "About Us",
+    "subtitle": "会社概要"
+  },
+  "process": {
+    "title": "How It Works",
+    "subtitle": "ご利用方法"
+  },
+  "review": {
+    "title": "Customer Reviews",
+    "subtitle": "お客様の声"
+  },
+  "portfolio": {
+    "title": "Our Work",
+    "subtitle": "実績紹介"
+  },
+  "schedule": {
+    "title": "Shipping Schedule",
+    "subtitle": "スケジュール"
   }
 }

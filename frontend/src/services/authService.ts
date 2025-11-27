@@ -1,4 +1,4 @@
-import api from '../lib/api';
+import { BACKEND_URL } from '../utils/apiConfig';
 
 export interface User {
   id: string;
@@ -19,9 +19,9 @@ export interface User {
 
 // Get current user
 export const getCurrentUser = async (): Promise<User> => {
-  // Use axios directly for /auth endpoints (not under /api/v1)
+  // Use fetch directly for /auth endpoints (not under /api/v1)
   const token = localStorage.getItem('token');
-  const response = await fetch('http://localhost:5000/auth/me', {
+  const response = await fetch(`${BACKEND_URL}/auth/me`, {
     headers: {
       'Authorization': `Bearer ${token}`,
     },
@@ -38,7 +38,7 @@ export const getCurrentUser = async (): Promise<User> => {
 // Logout
 export const logout = async (): Promise<void> => {
   const token = localStorage.getItem('token');
-  await fetch('http://localhost:5000/auth/logout', {
+  await fetch(`${BACKEND_URL}/auth/logout`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,

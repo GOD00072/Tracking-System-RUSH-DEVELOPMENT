@@ -9,9 +9,8 @@ passport.use(
       channelID: process.env.LINE_CHANNEL_ID || '',
       channelSecret: process.env.LINE_CHANNEL_SECRET || '',
       callbackURL: process.env.LINE_CALLBACK_URL || 'http://localhost:5001/auth/line/callback',
-      scope: ['profile', 'openid', 'email'],
-      botPrompt: 'normal',
-    },
+      scope: 'profile openid email',
+    } as any,
     async (accessToken: string, refreshToken: string, profile: any, done: any) => {
       try {
         console.log('LINE Profile:', profile);

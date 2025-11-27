@@ -1,5 +1,5 @@
 import api from '../lib/api';
-import { Shipment, TrackingHistory } from './orderService';
+import type { Shipment, TrackingHistory } from './orderService';
 
 // Get all shipments
 export const getShipments = async () => {

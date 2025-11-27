@@ -21,13 +21,13 @@
     "all": "すべて",
     "none": "なし",
     "viewAll": "すべて表示",
-    "moreInfo": "詳細"
+    "moreInfo": "詳細",
+    "startNow": "今すぐ始める",
+    "learnMore": "詳しく見る"
   },
   "nav": {
     "home": "ホーム",
-    "tracking": "追跡",
-    "shipTracking": "船便追跡",
-    "airTracking": "航空便追跡",
+    "tracking": "商品追跡",
     "schedule": "スケジュール",
     "calculator": "料金計算",
     "portfolio": "実績",
@@ -41,13 +41,146 @@
     "logout": "ログアウト"
   },
   "home": {
-    "title": "日本輸入品追跡システム",
-    "subtitle": "日本からの商品購入・輸入サービス、リアルタイム追跡対応",
+    "title": "パックネコ",
+    "subtitle": "PakkuNeko",
+    "tagline": "日本からタイへの購入・配送サービス",
+    "description": "日本からタイへの代理購入・配送サービス。日本在住のスタッフが丁寧にサポートいたします。",
+    "startService": "サービスを始める",
+    "viewProcess": "ご利用方法",
+    "highlights": {
+      "team": "日本在住スタッフが対応",
+      "check": "発送前に商品を検品",
+      "combine": "同梱で送料節約",
+      "track": "24時間追跡可能"
+    },
+    "about": {
+      "badge": "会社概要",
+      "title": "私たちについて",
+      "description": "PakkuNekoは日本からタイへの代理購入・配送サービスです。日本在住のスタッフがMercari、Rakuten、Amazon JPなどのサイトからの購入をサポート。商品を検品し、安全に梱包してタイのお客様へお届けします。",
+      "quote": "日本でのお買い物を簡単に",
+      "quoteDescription": "誰もが適正価格で高品質な商品を手に入れられるべきです。日本人の友人がサポートするような温かいサービスをお届けします。"
+    },
+    "services": {
+      "badge": "サービス内容",
+      "title": "サービス内容",
+      "subtitle": "商品・サービス内容",
+      "purchase": {
+        "title": "代理購入サービス",
+        "subtitle": "代理購入サービス",
+        "description": "Mercari、Rakuten、Yahoo! Japan、Amazon JPなどの日本のサイトから商品を代理購入します。"
+      },
+      "warehouse": {
+        "title": "荷物お預かり・同梱サービス",
+        "subtitle": "荷物お預かり・同梱サービス",
+        "description": "複数の荷物を一つにまとめて送料を節約。発送前に商品の写真撮影も行います。"
+      },
+      "shipping": {
+        "title": "国際配送サービス",
+        "subtitle": "国際配送サービス",
+        "description": "航空便（Air）と船便（Sea）の両方に対応。追跡番号を提供します。"
+      },
+      "consultation": {
+        "title": "日本語・タイ語対応",
+        "subtitle": "日本語・タイ語対応",
+        "description": "スタッフは日本語とタイ語の両方でコミュニケーション可能。商品詳細の翻訳もサポートします。"
+      }
+    },
+    "tracking": {
+      "badge": "追跡ツール",
+      "title": "追跡ツール",
+      "product": {
+        "title": "商品追跡",
+        "description": "リアルタイムで商品状況を確認"
+      },
+      "calculator": {
+        "title": "送料計算",
+        "description": "送料を即座に計算"
+      },
+      "schedule": {
+        "title": "スケジュール",
+        "description": "配送スケジュールを事前に確認"
+      }
+    },
+    "contact": {
+      "badge": "お問い合わせ",
+      "title": "お問い合わせ",
+      "subtitle": "お問い合わせ",
+      "followUs": "フォローする",
+      "cta": {
+        "title": "日本からのお買い物を始めませんか？",
+        "description": "今すぐお問い合わせください",
+        "button": "Facebookで連絡"
+      }
+    },
     "trackOrder": "荷物を追跡",
     "enterTracking": "追跡番号を入力",
-    "services": "サービス一覧",
     "whyUs": "選ばれる理由",
     "getStarted": "始める"
+  },
+  "contact": {
+    "badge": "お問い合わせ",
+    "title": "お問い合わせ",
+    "subtitle": "お問い合わせ",
+    "tagline": "ご質問・ご相談はお気軽にどうぞ。いつでもお待ちしております。",
+    "address": {
+      "title": "タイ国内住所",
+      "line1": "76/3 M.9 T.Akat",
+      "line2": "A.Akat Amnuai",
+      "line3": "Sakon Nakhon 47170"
+    },
+    "phone": {
+      "title": "電話番号",
+      "thailand": "タイ",
+      "japan": "日本",
+      "thNumber": "095-938-0717",
+      "jpNumber": "080-2643-6975"
+    },
+    "email": {
+      "title": "メール",
+      "address": "anongpotter01@gmail.com"
+    },
+    "hours": {
+      "title": "営業時間",
+      "weekday": "月曜〜金曜",
+      "weekdayTime": "9:00 - 18:00",
+      "weekend": "土曜〜日曜",
+      "weekendTime": "9:00 - 17:00",
+      "timezone": "日本時間（GMT+9）"
+    },
+    "social": {
+      "title": "SNSでのお問い合わせ",
+      "facebook": "Facebook",
+      "facebookPage": "PakkuNeko Official",
+      "twitter": "X (Twitter)",
+      "twitterHandle": "@mirinpotter"
+    },
+    "cta": {
+      "title": "始める準備はできましたか？",
+      "description": "今すぐお問い合わせください。日本からのお買い物をサポートします。",
+      "chatFacebook": "Facebookでチャット",
+      "sendEmail": "メールを送る"
+    },
+    "faq": {
+      "title": "よくあるご質問",
+      "q1": "PakkuNekoはどのようなサービスを提供していますか？",
+      "a1": "日本からの代理購入、荷物お預かり・同梱、国際配送、日本語・タイ語での相談サービスを提供しています。",
+      "q2": "配送にはどのくらいかかりますか？",
+      "a2": "配送方法によって異なります。航空便は約7〜14日、船便は約30〜45日です。",
+      "q3": "支払い方法は？",
+      "a3": "銀行振込やその他の決済方法に対応しています。"
+    },
+    "team": {
+      "title": "日本からサポートいたします",
+      "description": "私たちは日本に住んでいます。商品の購入、品質検査、安全な配送をサポートします。船便でも航空便でも対応可能です。",
+      "japan": "日本",
+      "thailand": "タイ"
+    },
+    "name": "お名前",
+    "subject": "件名",
+    "message": "メッセージ",
+    "send": "送信",
+    "success": "メッセージを送信しました",
+    "workingHours": "営業時間"
   },
   "tracking": {
     "title": "荷物追跡",
@@ -162,30 +295,40 @@
     "deliveryTime": "配送日数",
     "days": "日"
   },
-  "contact": {
-    "title": "お問い合わせ",
-    "name": "お名前",
-    "email": "メール",
-    "phone": "電話番号",
-    "subject": "件名",
-    "message": "メッセージ",
-    "send": "送信",
-    "success": "メッセージを送信しました",
-    "address": "住所",
-    "workingHours": "営業時間"
-  },
   "footer": {
-    "description": "日本からの商品購入・輸入代行サービス",
+    "description": "日本在住スタッフによる日本からタイへの代理購入・配送サービス",
     "quickLinks": "クイックリンク",
     "services": "サービス",
     "contact": "連絡先",
     "followUs": "フォロー",
-    "copyright": "無断転載禁止"
+    "copyright": "無断転載禁止",
+    "tagline": "日本からタイへの代理購入・配送",
+    "developedWith": "より良いショッピング体験のために 🧡 開発"
   },
   "language": {
     "th": "ไทย",
     "en": "English",
     "ja": "日本語",
     "select": "言語選択"
+  },
+  "about": {
+    "title": "会社概要",
+    "subtitle": "会社概要"
+  },
+  "process": {
+    "title": "ご利用方法",
+    "subtitle": "ご利用方法"
+  },
+  "review": {
+    "title": "お客様の声",
+    "subtitle": "お客様の声"
+  },
+  "portfolio": {
+    "title": "実績紹介",
+    "subtitle": "実績紹介"
+  },
+  "schedule": {
+    "title": "配送スケジュール",
+    "subtitle": "スケジュール"
   }
 }

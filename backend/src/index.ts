@@ -71,6 +71,9 @@ app.use((req, res, next) => {
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
+// Trust proxy (needed for secure cookies behind nginx/cloudflare)
+app.set('trust proxy', 1);
+
 // Session configuration
 app.use(
   session({
@@ -80,6 +83,7 @@ app.use(
     cookie: {
       secure: process.env.NODE_ENV === 'production',
       httpOnly: true,
+      sameSite: 'lax', // Required for OAuth redirects
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     },
   })
@@ -135,7 +139,6 @@ app.use('/api/v1/order-items', orderItemsRouter);
 app.use('/api/v1/system-settings', systemSettingsRouter);
 app.use('/api/v1/tracking', trackingRouter); // Public tracking portal
 app.use('/api/v1/invoice', invoiceRouter);
-// 🆕 New routes for enhanced features
 app.use('/api/v1/payments', paymentsRouter);
 app.use('/api/v1/upload', uploadRouter);
 

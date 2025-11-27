@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Lock, Mail, Ship } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { toast } from 'sonner';
+import { BACKEND_URL } from '../../utils/apiConfig';
 
 const AdminLoginPage = () => {
   const [email, setEmail] = useState('');
@@ -16,7 +17,7 @@ const AdminLoginPage = () => {
     setLoading(true);
 
     try {
-      const response = await fetch('http://localhost:5000/auth/admin/login', {
+      const response = await fetch(`${BACKEND_URL}/auth/admin/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

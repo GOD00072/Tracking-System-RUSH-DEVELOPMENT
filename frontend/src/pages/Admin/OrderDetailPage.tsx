@@ -8,6 +8,7 @@ import { useOrderItems, useCreateOrderItem, useUpdateOrderItem, useDeleteOrderIt
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { buttonTap } from '../../lib/animations';
 import api from '../../lib/api';
+import { BACKEND_URL } from '../../utils/apiConfig';
 
 // 8-step status timeline (constant)
 const STATUS_STEPS = [
@@ -182,6 +183,7 @@ const OrderDetailPage = () => {
     clickChannel: '',
     clickerName: '',
     productCode: '',
+    productName: '',
     productUrl: '',
     priceYen: '',
     priceBaht: '',
@@ -267,6 +269,7 @@ const OrderDetailPage = () => {
       clickerName: itemForm.clickerName || undefined,
       customerName: customerName, // Locked to order's customer
       productCode: itemForm.productCode || undefined,
+      productName: itemForm.productName || undefined,
       productUrl: itemForm.productUrl || undefined,
       priceYen: itemForm.priceYen ? parseFloat(itemForm.priceYen) : undefined,
       priceBaht: itemForm.priceBaht ? parseFloat(itemForm.priceBaht) : undefined,
@@ -314,6 +317,7 @@ const OrderDetailPage = () => {
       clickChannel: item.clickChannel || '',
       clickerName: item.clickerName || '',
       productCode: item.productCode || '',
+      productName: item.productName || '',
       productUrl: item.productUrl || '',
       priceYen: item.priceYen?.toString() || '',
       priceBaht: item.priceBaht?.toString() || '',
@@ -344,6 +348,7 @@ const OrderDetailPage = () => {
       clickChannel: '',
       clickerName: '',
       productCode: '',
+      productName: '',
       productUrl: '',
       priceYen: '',
       priceBaht: '',
@@ -498,7 +503,7 @@ const OrderDetailPage = () => {
           // Use full URL from API base or relative path
           const imageUrl = response.data.data.url.startsWith('http')
             ? response.data.data.url
-            : `${import.meta.env.VITE_API_URL?.replace('/api/v1', '') || 'http://localhost:5000'}${response.data.data.url}`;
+            : `${BACKEND_URL}${response.data.data.url}`;
           newImages.push(imageUrl);
         }
       }
@@ -1035,7 +1040,7 @@ const OrderDetailPage = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">รหัสสินค้า</label>
                     <input
@@ -1044,6 +1049,16 @@ const OrderDetailPage = () => {
                       onChange={(e) => setItemForm({ ...itemForm, productCode: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                       placeholder="PROD-001"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อสินค้า</label>
+                    <input
+                      type="text"
+                      value={itemForm.productName}
+                      onChange={(e) => setItemForm({ ...itemForm, productName: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      placeholder="ชื่อสินค้า"
                     />
                   </div>
                   <div>
@@ -1305,6 +1320,7 @@ const OrderDetailPage = () => {
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">ลำดับ</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">รูปสินค้า</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">รหัสสินค้า</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">ชื่อสินค้า</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">ลิ้งค์</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">ราคา</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">สถานะสินค้า</th>
@@ -1360,6 +1376,11 @@ const OrderDetailPage = () => {
                         </td>
                         <td className="px-4 py-3 text-sm">
                           <code className="text-xs bg-gray-100 px-2 py-1 rounded">{item.productCode || '-'}</code>
+                        </td>
+                        <td className="px-4 py-3 text-sm">
+                          <span className="text-gray-800" title={item.productName || ''}>
+                            {item.productName ? (item.productName.length > 30 ? item.productName.substring(0, 30) + '...' : item.productName) : '-'}
+                          </span>
                         </td>
                         <td className="px-4 py-3 text-sm">
                           {item.productUrl ? (

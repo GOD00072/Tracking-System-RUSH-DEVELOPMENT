@@ -45,6 +45,8 @@ function App() {
           <Route path="/" element={<Layout />}>
             <Route index element={<HomePage />} />
             <Route path="process" element={<ProcessPage />} />
+            <Route path="tracking" element={<TrackingPortal />} />
+            <Route path="tracking/:orderNumber" element={<TrackingPortal />} />
             <Route path="ship-tracking" element={<ShipTrackingPage />} />
             <Route path="air-tracking" element={<AirTrackingPage />} />
             <Route path="schedule" element={<SchedulePage />} />
@@ -56,9 +58,6 @@ function App() {
             <Route path="contact" element={<ContactPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Route>
-
-          {/* Customer Tracking Portal (No Layout) */}
-          <Route path="/tracking" element={<TrackingPortal />} />
 
           {/* Admin Login (No Layout) */}
           <Route path="/admin/login" element={<AdminLoginPage />} />

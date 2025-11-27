@@ -503,7 +503,7 @@ const AdminSettingsPage = () => {
               <div className="flex justify-end pt-4 border-t">
                 <motion.button
                   onClick={handleSaveLine}
-                  disabled={lineLoading || !lineSettings.enabled}
+                  disabled={lineLoading}
                   className="btn-primary flex items-center gap-2"
                   whileHover={{ scale: 1.05 }}
                   whileTap={buttonTap}

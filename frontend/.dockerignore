@@ -1,0 +1,48 @@
+# ==========================================
+# Frontend .dockerignore
+# ==========================================
+
+# Dependencies
+node_modules
+npm-debug.log
+yarn-error.log
+
+# Build output (will be created in container)
+dist
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+.gitignore
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose*.yml
+
+# Test
+coverage
+.nyc_output
+
+# Misc
+README.md
+*.md
+.eslintrc*
+.prettierrc*
+
+# Public assets that aren't needed
+# public/mockups

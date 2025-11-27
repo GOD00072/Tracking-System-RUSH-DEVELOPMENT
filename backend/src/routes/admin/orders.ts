@@ -131,7 +131,7 @@ router.get('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
         customer: true,
         shipments: {
           include: {
-            trackingEvents: {
+            trackingHistory: {
               orderBy: {
                 timestamp: 'desc',
               },
