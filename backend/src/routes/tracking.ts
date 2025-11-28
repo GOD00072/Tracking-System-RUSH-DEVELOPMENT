@@ -92,11 +92,16 @@ router.get('/lookup', async (req, res) => {
             priceBaht: true,
             statusStep: true,
             itemStatus: true,
-            paymentStatus: true,
             trackingNumber: true,
             trackingNumberJP: true,
             trackingNumberTH: true,
             remarks: true,
+            payments: {
+              select: {
+                amountBaht: true,
+                status: true,
+              },
+            },
           },
           orderBy: { sequenceNumber: 'asc' },
         },
@@ -105,35 +110,52 @@ router.get('/lookup', async (req, res) => {
     });
 
     // Transform data for public view
-    const publicOrders = orders.map((order) => ({
-      orderNumber: order.orderNumber,
-      status: order.status,
-      shippingMethod: order.shippingMethod === 'air' ? 'ทางอากาศ' : 'ทางเรือ',
-      origin: order.origin,
-      destination: order.destination,
-      customerName: order.customer?.companyName || order.customer?.contactPerson || '-',
-      createdAt: order.createdAt,
-      items: order.orderItems.map((item) => ({
-        sequenceNumber: item.sequenceNumber,
-        productCode: item.productCode,
-        productName: item.productName,
-        productUrl: item.productUrl,
-        productImage: Array.isArray(item.productImages) && item.productImages.length > 0 ? item.productImages[0] : null,
-        priceYen: item.priceYen,
-        priceBaht: item.priceBaht,
-        statusStep: item.statusStep,
-        statusName: getStatusName(item.statusStep || 1),
-        paymentStatus: item.paymentStatus,
-        paymentStatusName: getPaymentStatusName(item.paymentStatus || 'pending'),
-        trackingNumber: item.trackingNumberTH || item.trackingNumberJP || item.trackingNumber,
-        remarks: item.remarks,
-      })),
-      summary: {
-        totalItems: order.orderItems.length,
-        totalYen: order.orderItems.reduce((sum, i) => sum + Number(i.priceYen || 0), 0),
-        totalBaht: order.orderItems.reduce((sum, i) => sum + Number(i.priceBaht || 0), 0),
-      },
-    }));
+    const publicOrders = orders.map((order) => {
+      // Calculate order-level payment status
+      const totalBaht = order.orderItems.reduce((sum, i) => sum + Number(i.priceBaht || 0), 0);
+      const allPayments = order.orderItems.flatMap(item => item.payments || []);
+      const paidPayments = allPayments.filter(p => p.status === 'paid' || p.status === 'verified');
+      const paidBaht = paidPayments.reduce((sum, p) => sum + Number(p.amountBaht || 0), 0);
+
+      let orderPaymentStatus = 'pending';
+      if (paidBaht >= totalBaht && totalBaht > 0) {
+        orderPaymentStatus = 'paid';
+      } else if (paidBaht > 0) {
+        orderPaymentStatus = 'partial';
+      }
+
+      return {
+        orderNumber: order.orderNumber,
+        status: order.status,
+        shippingMethod: order.shippingMethod === 'air' ? 'ทางอากาศ' : 'ทางเรือ',
+        origin: order.origin,
+        destination: order.destination,
+        customerName: order.customer?.companyName || order.customer?.contactPerson || '-',
+        createdAt: order.createdAt,
+        paymentStatus: orderPaymentStatus,
+        paymentStatusName: getPaymentStatusName(orderPaymentStatus),
+        items: order.orderItems.map((item) => ({
+          sequenceNumber: item.sequenceNumber,
+          productCode: item.productCode,
+          productName: item.productName,
+          productUrl: item.productUrl,
+          productImage: Array.isArray(item.productImages) && item.productImages.length > 0 ? item.productImages[0] : null,
+          priceYen: item.priceYen,
+          priceBaht: item.priceBaht,
+          statusStep: item.statusStep,
+          statusName: getStatusName(item.statusStep || 1),
+          trackingNumber: item.trackingNumberTH || item.trackingNumberJP || item.trackingNumber,
+          remarks: item.remarks,
+        })),
+        summary: {
+          totalItems: order.orderItems.length,
+          totalYen: order.orderItems.reduce((sum, i) => sum + Number(i.priceYen || 0), 0),
+          totalBaht,
+          paidBaht,
+          remainingBaht: totalBaht - paidBaht,
+        },
+      };
+    });
 
     res.json({
       success: true,
@@ -170,7 +192,7 @@ router.post('/verify', async (req, res) => {
       });
     }
 
-    // Find order with customer phone
+    // Find order with customer phone and payment info
     const order = await prisma.order.findFirst({
       where: {
         orderNumber: {
@@ -205,7 +227,6 @@ router.post('/verify', async (req, res) => {
             priceBaht: true,
             statusStep: true,
             itemStatus: true,
-            paymentStatus: true,
             trackingNumber: true,
             trackingNumberJP: true,
             trackingNumberTH: true,
@@ -218,6 +239,12 @@ router.post('/verify', async (req, res) => {
               },
               orderBy: { timestamp: 'desc' },
               take: 5,
+            },
+            payments: {
+              select: {
+                amountBaht: true,
+                status: true,
+              },
             },
           },
           orderBy: { sequenceNumber: 'asc' },
@@ -250,6 +277,19 @@ router.post('/verify', async (req, res) => {
       }
     }
 
+    // Calculate order-level payment status from payment records
+    const totalBaht = order.orderItems.reduce((sum, i) => sum + Number(i.priceBaht || 0), 0);
+    const allPayments = order.orderItems.flatMap(item => item.payments || []);
+    const paidPayments = allPayments.filter(p => p.status === 'paid' || p.status === 'verified');
+    const paidBaht = paidPayments.reduce((sum, p) => sum + Number(p.amountBaht || 0), 0);
+
+    let orderPaymentStatus = 'pending';
+    if (paidBaht >= totalBaht && totalBaht > 0) {
+      orderPaymentStatus = 'paid';
+    } else if (paidBaht > 0) {
+      orderPaymentStatus = 'partial';
+    }
+
     // Verification passed - return order details
     const publicOrder = {
       orderNumber: order.orderNumber,
@@ -260,6 +300,8 @@ router.post('/verify', async (req, res) => {
       destination: order.destination,
       customerName: order.customer?.companyName || order.customer?.contactPerson || '-',
       createdAt: order.createdAt,
+      paymentStatus: orderPaymentStatus,
+      paymentStatusName: getPaymentStatusName(orderPaymentStatus),
       items: order.orderItems.map((item) => ({
         sequenceNumber: item.sequenceNumber,
         productCode: item.productCode,
@@ -271,8 +313,6 @@ router.post('/verify', async (req, res) => {
         priceBaht: item.priceBaht,
         statusStep: item.statusStep,
         statusName: getStatusName(item.statusStep || 1),
-        paymentStatus: item.paymentStatus,
-        paymentStatusName: getPaymentStatusName(item.paymentStatus || 'pending'),
         trackingNumber: item.trackingNumberTH || item.trackingNumberJP || item.trackingNumber,
         remarks: item.remarks,
         statusHistory: item.statusHistory,
@@ -280,7 +320,9 @@ router.post('/verify', async (req, res) => {
       summary: {
         totalItems: order.orderItems.length,
         totalYen: order.orderItems.reduce((sum, i) => sum + Number(i.priceYen || 0), 0),
-        totalBaht: order.orderItems.reduce((sum, i) => sum + Number(i.priceBaht || 0), 0),
+        totalBaht,
+        paidBaht,
+        remainingBaht: totalBaht - paidBaht,
       },
     };
 

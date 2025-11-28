@@ -41,6 +41,12 @@ const defaultLineSettings = {
   notify_on_status: ['shipped', 'in_transit', 'delivered'],
 };
 
+const defaultBankSettings = {
+  bankName: 'ธนาคารกสิกรไทย',
+  accountName: 'บริษัท ปักกุเนโกะ จำกัด',
+  accountNumber: '123-4-56789-0',
+};
+
 // Helper function to get setting
 async function getSetting(key: string, defaultValue: any) {
   const setting = await prisma.systemSetting.findUnique({
@@ -192,6 +198,49 @@ router.post('/line/test', authenticateAdmin, async (req, res) => {
       error: {
         code: 'TEST_ERROR',
         message: 'Failed to test LINE connection',
+      },
+    });
+  }
+});
+
+// GET /api/v1/settings/bank (Admin only)
+router.get('/bank', authenticateAdmin, async (req, res) => {
+  try {
+    const settings = await getSetting('bank_info', defaultBankSettings);
+    res.json({
+      success: true,
+      data: settings,
+    });
+  } catch (error) {
+    console.error('Error fetching bank settings:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'FETCH_ERROR',
+        message: 'Failed to fetch bank settings',
+      },
+    });
+  }
+});
+
+// PUT /api/v1/settings/bank (Admin only)
+router.put('/bank', authenticateAdmin, async (req, res) => {
+  try {
+    const updates = req.body;
+    await updateSetting('bank_info', updates, 'payment');
+
+    res.json({
+      success: true,
+      data: updates,
+      message: 'Bank settings updated successfully',
+    });
+  } catch (error) {
+    console.error('Error updating bank settings:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'UPDATE_ERROR',
+        message: 'Failed to update bank settings',
       },
     });
   }

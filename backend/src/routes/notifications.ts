@@ -129,7 +129,7 @@ router.post('/status', async (req, res) => {
 // POST /api/v1/notifications/payment - Send payment reminder notification
 router.post('/payment', async (req, res) => {
   try {
-    const { orderId, totalAmount, paidAmount, dueDate, bankInfo } = req.body;
+    const { orderId, totalAmount, paidAmount, dueDate, bankInfo, qrCodeUrl, installmentName, installmentAmount } = req.body;
 
     if (!orderId) {
       return res.status(400).json({
@@ -190,9 +190,11 @@ router.post('/payment', async (req, res) => {
       order.orderNumber,
       finalTotalAmount,
       finalPaidAmount,
-      remainingAmount,
+      installmentAmount || remainingAmount, // Use installment amount if provided
       dueDate ? new Date(dueDate) : undefined,
-      bankInfo
+      bankInfo,
+      qrCodeUrl,
+      installmentName // New parameter for installment name
     );
 
     if (success) {

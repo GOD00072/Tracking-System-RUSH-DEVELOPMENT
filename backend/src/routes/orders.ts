@@ -377,6 +377,7 @@ router.patch('/:id', async (req, res) => {
     if (req.body.customerId !== undefined) updateData.customerId = req.body.customerId;
     if (req.body.shippingMethod !== undefined) updateData.shippingMethod = req.body.shippingMethod;
     if (req.body.status !== undefined) updateData.status = req.body.status;
+    if (req.body.paymentStatus !== undefined) updateData.paymentStatus = req.body.paymentStatus;
     if (req.body.origin !== undefined) updateData.origin = req.body.origin;
     if (req.body.destination !== undefined) updateData.destination = req.body.destination;
     if (req.body.notes !== undefined) updateData.notes = req.body.notes;

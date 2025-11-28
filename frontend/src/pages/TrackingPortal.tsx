@@ -28,8 +28,6 @@ interface OrderItem {
   priceBaht: number;
   statusStep: number;
   statusName: string;
-  paymentStatus: string;
-  paymentStatusName: string;
   trackingNumber: string | null;
   remarks: string;
 }
@@ -43,11 +41,15 @@ interface Order {
   destination: string;
   customerName: string;
   createdAt: string;
+  paymentStatus: string;
+  paymentStatusName: string;
   items: OrderItem[];
   summary: {
     totalItems: number;
     totalYen: number;
     totalBaht: number;
+    paidBaht?: number;
+    remainingBaht?: number;
   };
 }
 
@@ -645,7 +647,6 @@ const TrackingPortal = () => {
                                       >
                                         {item.statusName}
                                       </span>
-                                      <PaymentBadge status={item.paymentStatus} name={item.paymentStatusName} />
                                     </div>
                                     {item.trackingNumber && (
                                       <p className="text-xs text-gray-500 mt-1">
@@ -683,7 +684,10 @@ const TrackingPortal = () => {
                           {/* Summary */}
                           <div className="p-6 bg-gradient-to-r from-primary-50/50 to-orange-50/50 backdrop-blur-sm border-t border-gray-100">
                             <div className="flex justify-between items-center">
-                              <span className="text-gray-600 font-medium">ยอดรวม ({order.summary.totalItems} รายการ)</span>
+                              <div className="flex items-center gap-3">
+                                <span className="text-gray-600 font-medium">ยอดรวม ({order.summary.totalItems} รายการ)</span>
+                                <PaymentBadge status={order.paymentStatus} name={order.paymentStatusName} />
+                              </div>
                               <div className="text-right">
                                 {order.summary.totalYen > 0 && (
                                   <p className="text-sm text-gray-500">¥{order.summary.totalYen.toLocaleString()}</p>
@@ -691,6 +695,16 @@ const TrackingPortal = () => {
                                 <p className="text-2xl font-bold text-primary-600">
                                   ฿{order.summary.totalBaht.toLocaleString()}
                                 </p>
+                                {order.summary.paidBaht !== undefined && order.summary.paidBaht > 0 && (
+                                  <p className="text-sm text-green-600">
+                                    ชำระแล้ว ฿{order.summary.paidBaht.toLocaleString()}
+                                  </p>
+                                )}
+                                {order.summary.remainingBaht !== undefined && order.summary.remainingBaht > 0 && (
+                                  <p className="text-sm text-orange-600">
+                                    ค้างชำระ ฿{order.summary.remainingBaht.toLocaleString()}
+                                  </p>
+                                )}
                               </div>
                             </div>
                           </div>

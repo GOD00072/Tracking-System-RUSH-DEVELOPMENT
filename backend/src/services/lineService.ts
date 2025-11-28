@@ -606,7 +606,9 @@ export class LineService {
     paidAmount: number,
     remainingAmount: number,
     dueDate?: Date,
-    bankInfo?: { bankName: string; accountName: string; accountNumber: string }
+    bankInfo?: { bankName: string; accountName: string; accountNumber: string },
+    qrCodeUrl?: string,
+    installmentName?: string // Name of the installment being requested
   ): Promise<boolean> {
     try {
       if (!this.client) {
@@ -617,16 +619,252 @@ export class LineService {
         }
       }
 
-      const progressPercent = Math.round((paidAmount / totalAmount) * 100);
+      const progressPercent = totalAmount > 0 ? Math.round((paidAmount / totalAmount) * 100) : 0;
       const dueDateText = dueDate
         ? dueDate.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })
         : 'ไม่ระบุ';
 
-      // Build Professional Payment Reminder Flex Message
+      // Build Dark Theme Payment Reminder Flex Message
+      const bodyContents: any[] = [
+        // Header with customer name and order number
+        {
+          type: 'box',
+          layout: 'horizontal',
+          contents: [
+            {
+              type: 'text',
+              text: `สวัสดีคุณ${customerName}`,
+              size: 'md',
+              weight: 'bold',
+              color: '#FFFFFF',
+              flex: 1
+            },
+            {
+              type: 'text',
+              text: `#${orderNumber}`,
+              size: 'xs',
+              color: '#FFFFFF66',
+              align: 'end'
+            }
+          ]
+        },
+        // Outstanding amount card
+        {
+          type: 'box',
+          layout: 'vertical',
+          contents: [
+            {
+              type: 'text',
+              text: installmentName || 'ยอดค้างชำระ',
+              size: 'xs',
+              color: '#FFFFFF99',
+              align: 'center'
+            },
+            {
+              type: 'text',
+              text: `฿${remainingAmount.toLocaleString()}`,
+              size: '3xl',
+              weight: 'bold',
+              color: '#F97316',
+              align: 'center',
+              margin: 'md'
+            },
+            // Progress bar
+            {
+              type: 'box',
+              layout: 'vertical',
+              contents: [
+                {
+                  type: 'box',
+                  layout: 'horizontal',
+                  contents: [
+                    {
+                      type: 'box',
+                      layout: 'vertical',
+                      contents: [],
+                      backgroundColor: '#22C55E',
+                      height: '4px',
+                      width: `${progressPercent}%`,
+                      cornerRadius: '2px'
+                    }
+                  ],
+                  backgroundColor: '#FFFFFF22',
+                  cornerRadius: '2px'
+                }
+              ],
+              margin: 'xl',
+              paddingStart: '30px',
+              paddingEnd: '30px'
+            },
+            {
+              type: 'text',
+              text: `ชำระแล้ว ${progressPercent}%`,
+              size: 'xs',
+              color: '#22C55E',
+              align: 'center',
+              margin: 'md'
+            }
+          ],
+          margin: 'xl',
+          paddingAll: '20px',
+          backgroundColor: '#FFFFFF11',
+          cornerRadius: '16px',
+          borderColor: '#F9731633',
+          borderWidth: '1px'
+        },
+        // Amount breakdown
+        {
+          type: 'box',
+          layout: 'vertical',
+          contents: [
+            {
+              type: 'box',
+              layout: 'horizontal',
+              contents: [
+                { type: 'text', text: 'ยอดรวมทั้งหมด', size: 'sm', color: '#FFFFFF99' },
+                { type: 'text', text: `฿${totalAmount.toLocaleString()}`, size: 'sm', color: '#FFFFFF', weight: 'bold', align: 'end' }
+              ]
+            },
+            {
+              type: 'box',
+              layout: 'horizontal',
+              contents: [
+                { type: 'text', text: 'ชำระแล้ว', size: 'sm', color: '#22C55E' },
+                { type: 'text', text: `฿${paidAmount.toLocaleString()}`, size: 'sm', color: '#22C55E', align: 'end' }
+              ],
+              margin: 'md'
+            },
+            {
+              type: 'separator',
+              margin: 'lg',
+              color: '#FFFFFF22'
+            },
+            {
+              type: 'box',
+              layout: 'horizontal',
+              contents: [
+                { type: 'text', text: 'กำหนดชำระ', size: 'sm', color: '#FFFFFF99' },
+                { type: 'text', text: dueDateText, size: 'sm', color: '#EF4444', weight: 'bold', align: 'end' }
+              ],
+              margin: 'lg'
+            }
+          ],
+          margin: 'lg',
+          paddingAll: '15px',
+          backgroundColor: '#FFFFFF11',
+          cornerRadius: '12px'
+        }
+      ];
+
+      // Add bank info if provided
+      if (bankInfo) {
+        bodyContents.push({
+          type: 'box',
+          layout: 'vertical',
+          contents: [
+            {
+              type: 'text',
+              text: 'BANK TRANSFER',
+              size: 'xxs',
+              color: '#F97316',
+              weight: 'bold'
+            },
+            {
+              type: 'box',
+              layout: 'vertical',
+              contents: [
+                {
+                  type: 'text',
+                  text: bankInfo.bankName,
+                  size: 'md',
+                  weight: 'bold',
+                  color: '#FFFFFF'
+                },
+                {
+                  type: 'text',
+                  text: bankInfo.accountName,
+                  size: 'xs',
+                  color: '#FFFFFF99',
+                  margin: 'sm'
+                },
+                {
+                  type: 'text',
+                  text: bankInfo.accountNumber,
+                  size: 'xl',
+                  weight: 'bold',
+                  color: '#F97316',
+                  margin: 'md'
+                }
+              ],
+              margin: 'md',
+              paddingAll: '15px',
+              backgroundColor: '#FFFFFF11',
+              cornerRadius: '10px',
+              borderColor: '#FFFFFF22',
+              borderWidth: '1px'
+            }
+          ],
+          margin: 'lg'
+        });
+      }
+
+      // Add QR code if provided
+      if (qrCodeUrl) {
+        bodyContents.push({
+          type: 'box',
+          layout: 'vertical',
+          contents: [
+            {
+              type: 'text',
+              text: 'QR CODE',
+              size: 'xxs',
+              color: '#F97316',
+              weight: 'bold',
+              align: 'center'
+            },
+            {
+              type: 'box',
+              layout: 'vertical',
+              contents: [
+                {
+                  type: 'image',
+                  url: qrCodeUrl,
+                  size: 'lg',
+                  aspectRatio: '1:1',
+                  aspectMode: 'fit'
+                }
+              ],
+              margin: 'md',
+              paddingAll: '10px',
+              backgroundColor: '#FFFFFF',
+              cornerRadius: '12px'
+            },
+            {
+              type: 'text',
+              text: 'สแกน QR Code เพื่อชำระเงิน',
+              size: 'xxs',
+              color: '#FFFFFF66',
+              align: 'center',
+              margin: 'md'
+            }
+          ],
+          margin: 'lg'
+        });
+      }
+
+      // Add footer text
+      bodyContents.push({
+        type: 'text',
+        text: 'PakkuNeko - ฝากซื้อฝากส่งจากญี่ปุ่น',
+        size: 'xxs',
+        color: '#FFFFFF44',
+        align: 'center',
+        margin: 'xl'
+      });
+
       const flexContents: any = {
         type: 'bubble',
         size: 'giga',
-        // Hero section with background image and logo overlay
         hero: {
           type: 'box',
           layout: 'vertical',
@@ -657,8 +895,9 @@ export class LineService {
               background: {
                 type: 'linearGradient',
                 angle: '180deg',
-                startColor: '#1A1A2E00',
-                endColor: '#1A1A2ECC'
+                startColor: '#18181800',
+                centerColor: '#18181866',
+                endColor: '#181818FF'
               }
             },
             // Content layer
@@ -666,32 +905,49 @@ export class LineService {
               type: 'box',
               layout: 'vertical',
               contents: [
-                // Logo
+                // Logo and brand row
                 {
-                  type: 'image',
-                  url: this.logoUrl,
-                  size: 'xxs',
-                  aspectRatio: '1:1',
-                  aspectMode: 'cover'
+                  type: 'box',
+                  layout: 'horizontal',
+                  contents: [
+                    {
+                      type: 'box',
+                      layout: 'vertical',
+                      contents: [
+                        {
+                          type: 'image',
+                          url: this.logoUrl,
+                          size: 'full',
+                          aspectRatio: '1:1',
+                          aspectMode: 'cover'
+                        }
+                      ],
+                      width: '32px',
+                      height: '32px',
+                      cornerRadius: '8px'
+                    },
+                    {
+                      type: 'text',
+                      text: 'PAKKUNEKO',
+                      size: 'xs',
+                      color: '#FFFFFF',
+                      weight: 'bold',
+                      margin: 'md',
+                      gravity: 'center'
+                    },
+                    {
+                      type: 'filler'
+                    },
+                    {
+                      type: 'text',
+                      text: 'JP → TH',
+                      size: 'xxs',
+                      color: '#FFFFFF99',
+                      gravity: 'center'
+                    }
+                  ],
+                  alignItems: 'center'
                 },
-                // Brand name
-                {
-                  type: 'text',
-                  text: 'PakkuNeko',
-                  size: 'md',
-                  weight: 'bold',
-                  color: '#FFFFFF',
-                  align: 'center',
-                  margin: 'sm'
-                },
-                {
-                  type: 'text',
-                  text: 'ฝากซื้อ ฝากส่งจากญี่ปุ่น',
-                  size: 'xxs',
-                  color: '#FFFFFFCC',
-                  align: 'center'
-                },
-                // Spacer
                 {
                   type: 'filler'
                 },
@@ -701,246 +957,40 @@ export class LineService {
                   layout: 'horizontal',
                   contents: [
                     {
-                      type: 'box',
-                      layout: 'baseline',
-                      contents: [
-                        {
-                          type: 'text',
-                          text: 'แจ้งเตือนการชำระเงิน',
-                          size: 'sm',
-                          weight: 'bold',
-                          color: '#FFFFFF',
-                          flex: 0,
-                          wrap: false
-                        }
-                      ],
-                      backgroundColor: '#F59E0B',
-                      cornerRadius: '20px',
-                      paddingAll: '10px',
-                      paddingStart: '15px',
-                      paddingEnd: '15px'
+                      type: 'text',
+                      text: 'แจ้งเตือนการชำระเงิน',
+                      size: 'sm',
+                      weight: 'bold',
+                      color: '#181818'
                     }
                   ],
-                  justifyContent: 'center'
+                  cornerRadius: '20px',
+                  paddingAll: '10px',
+                  paddingStart: '16px',
+                  paddingEnd: '16px',
+                  justifyContent: 'center',
+                  backgroundColor: '#FFFFFF'
                 }
               ],
-              paddingAll: '15px',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              height: '150px'
+              paddingAll: '20px',
+              height: '130px'
             }
           ],
-          height: '150px',
+          height: '130px',
           paddingAll: '0px'
         },
         body: {
           type: 'box',
           layout: 'vertical',
-          contents: [
-            // Greeting
-            {
-              type: 'box',
-              layout: 'horizontal',
-              contents: [
-                {
-                  type: 'text',
-                  text: `สวัสดีคุณ ${customerName}`,
-                  size: 'md',
-                  weight: 'bold',
-                  color: '#1A1A2E',
-                  flex: 1
-                },
-                {
-                  type: 'text',
-                  text: `#${orderNumber}`,
-                  size: 'xs',
-                  color: '#888888',
-                  align: 'end'
-                }
-              ]
-            },
-            // Divider
-            {
-              type: 'separator',
-              margin: 'lg',
-              color: '#E8E8E8'
-            },
-            // Big amount card
-            {
-              type: 'box',
-              layout: 'vertical',
-              contents: [
-                {
-                  type: 'text',
-                  text: 'ยอดค้างชำระ',
-                  size: 'xs',
-                  color: '#888888',
-                  align: 'center'
-                },
-                {
-                  type: 'text',
-                  text: `฿${remainingAmount.toLocaleString()}`,
-                  size: 'xxl',
-                  weight: 'bold',
-                  color: '#F59E0B',
-                  align: 'center',
-                  margin: 'sm'
-                },
-                // Progress bar
-                {
-                  type: 'box',
-                  layout: 'vertical',
-                  contents: [
-                    {
-                      type: 'box',
-                      layout: 'horizontal',
-                      contents: [
-                        {
-                          type: 'box',
-                          layout: 'vertical',
-                          contents: [],
-                          backgroundColor: '#10B981',
-                          height: '6px',
-                          width: `${progressPercent}%`
-                        }
-                      ],
-                      backgroundColor: '#E5E7EB',
-                      cornerRadius: '3px'
-                    }
-                  ],
-                  margin: 'lg',
-                  paddingStart: '20px',
-                  paddingEnd: '20px'
-                },
-                {
-                  type: 'text',
-                  text: `ชำระแล้ว ${progressPercent}%`,
-                  size: 'xxs',
-                  color: '#10B981',
-                  align: 'center',
-                  margin: 'sm'
-                }
-              ],
-              margin: 'lg',
-              paddingAll: '15px',
-              backgroundColor: '#FFFBEB',
-              cornerRadius: '12px'
-            },
-            // Amount breakdown
-            {
-              type: 'box',
-              layout: 'vertical',
-              contents: [
-                {
-                  type: 'box',
-                  layout: 'horizontal',
-                  contents: [
-                    { type: 'text', text: 'ยอดรวมทั้งหมด', size: 'sm', color: '#666666' },
-                    { type: 'text', text: `฿${totalAmount.toLocaleString()}`, size: 'sm', color: '#1A1A2E', weight: 'bold', align: 'end' }
-                  ]
-                },
-                {
-                  type: 'box',
-                  layout: 'horizontal',
-                  contents: [
-                    { type: 'text', text: 'ชำระแล้ว', size: 'sm', color: '#10B981' },
-                    { type: 'text', text: `฿${paidAmount.toLocaleString()}`, size: 'sm', color: '#10B981', align: 'end' }
-                  ],
-                  margin: 'sm'
-                },
-                {
-                  type: 'separator',
-                  margin: 'md',
-                  color: '#E8E8E8'
-                },
-                {
-                  type: 'box',
-                  layout: 'horizontal',
-                  contents: [
-                    { type: 'text', text: 'กำหนดชำระ', size: 'sm', color: '#666666' },
-                    { type: 'text', text: dueDateText, size: 'sm', color: '#EF4444', weight: 'bold', align: 'end' }
-                  ],
-                  margin: 'md'
-                }
-              ],
-              margin: 'lg',
-              paddingAll: '12px',
-              backgroundColor: '#F8F9FA',
-              cornerRadius: '8px'
-            },
-            // Bank info (if provided)
-            ...(bankInfo ? [{
-              type: 'box',
-              layout: 'vertical',
-              contents: [
-                {
-                  type: 'box',
-                  layout: 'horizontal',
-                  contents: [
-                    { type: 'text', text: 'ธนาคาร:', size: 'sm', flex: 0, color: '#666666' },
-                    { type: 'text', text: 'ข้อมูลการโอนเงิน', size: 'sm', weight: 'bold', color: '#1A1A2E', margin: 'sm' }
-                  ]
-                },
-                {
-                  type: 'box',
-                  layout: 'vertical',
-                  contents: [
-                    { type: 'text', text: bankInfo.bankName, size: 'md', weight: 'bold', color: '#1A1A2E' },
-                    { type: 'text', text: bankInfo.accountName, size: 'sm', color: '#666666', margin: 'xs' },
-                    { type: 'text', text: bankInfo.accountNumber, size: 'lg', weight: 'bold', color: '#4A6FA5', margin: 'sm' }
-                  ],
-                  margin: 'md',
-                  paddingAll: '10px',
-                  backgroundColor: '#FFFFFF',
-                  cornerRadius: '8px',
-                  borderColor: '#E8E8E8',
-                  borderWidth: '1px'
-                }
-              ],
-              margin: 'lg',
-              paddingAll: '12px',
-              backgroundColor: '#EEF2FF',
-              cornerRadius: '8px'
-            }] : [])
-          ],
+          contents: bodyContents,
           paddingAll: '20px',
-          backgroundColor: '#FFFFFF'
-        },
-        footer: {
-          type: 'box',
-          layout: 'vertical',
-          contents: [
-            {
-              type: 'text',
-              text: 'หากชำระเงินแล้ว กรุณาแจ้งกลับ',
-              size: 'xs',
-              color: '#888888',
-              align: 'center'
-            },
-            {
-              type: 'box',
-              layout: 'horizontal',
-              contents: [
-                {
-                  type: 'text',
-                  text: 'PakkuNeko - ฝากซื้อฝากส่งจากญี่ปุ่น',
-                  size: 'xxs',
-                  color: '#AAAAAA',
-                  align: 'center'
-                }
-              ],
-              justifyContent: 'center',
-              margin: 'md'
-            }
-          ],
-          paddingAll: '15px',
-          backgroundColor: '#FAFAFA'
+          backgroundColor: '#181818'
         }
       };
 
       const flexMessage: FlexMessage = {
         type: 'flex',
-        altText: `[PakkuNeko] แจ้งเตือนการชำระเงิน - ค้างชำระ ฿${remainingAmount.toLocaleString()}`,
+        altText: `[PakkuNeko] แจ้งเตือนการชำระเงิน - ${installmentName || 'ค้างชำระ'} ฿${remainingAmount.toLocaleString()}`,
         contents: flexContents
       };
 

@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Save, MessageCircle, CheckCircle, XCircle } from 'lucide-react';
+import { Save, MessageCircle, CheckCircle, XCircle, Building2, CreditCard, Upload, X, QrCode } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { useCalculatorSettings, useUpdateCalculatorSettings } from '../../hooks/useCalculatorSettings';
 import { pageTransition, staggerContainer, staggerItem, buttonTap } from '../../lib/animations';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import api from '../../lib/api';
+import { BACKEND_URL } from '../../utils/apiConfig';
 
 const AdminSettingsPage = () => {
   const { data: settings, isLoading } = useCalculatorSettings();
@@ -48,6 +49,16 @@ const AdminSettingsPage = () => {
 
   const [lineLoading, setLineLoading] = useState(false);
 
+  // Bank info settings for payment notifications
+  const [bankInfo, setBankInfo] = useState({
+    bankName: 'ธนาคารกสิกรไทย',
+    accountName: 'บริษัท ปักกุเนโกะ จำกัด',
+    accountNumber: '123-4-56789-0',
+    qrCodeUrl: '',
+  });
+  const [bankLoading, setBankLoading] = useState(false);
+  const [uploadingQr, setUploadingQr] = useState(false);
+
   // Load settings from API
   useEffect(() => {
     if (settings) {
@@ -73,6 +84,7 @@ const AdminSettingsPage = () => {
   // Load LINE settings
   useEffect(() => {
     fetchLineSettings();
+    fetchBankSettings();
   }, []);
 
   const fetchLineSettings = async () => {
@@ -84,6 +96,68 @@ const AdminSettingsPage = () => {
     } catch (error) {
       console.error('Error loading LINE settings:', error);
     }
+  };
+
+  const fetchBankSettings = async () => {
+    try {
+      const response = await api.get('/settings/bank');
+      if (response.data.success && response.data.data) {
+        setBankInfo({
+          bankName: response.data.data.bankName || 'ธนาคารกสิกรไทย',
+          accountName: response.data.data.accountName || 'บริษัท ปักกุเนโกะ จำกัด',
+          accountNumber: response.data.data.accountNumber || '123-4-56789-0',
+          qrCodeUrl: response.data.data.qrCodeUrl || '',
+        });
+      }
+    } catch (error) {
+      console.error('Error loading bank settings:', error);
+    }
+  };
+
+  const handleSaveBank = async () => {
+    setBankLoading(true);
+    try {
+      const response = await api.put('/settings/bank', bankInfo);
+      if (response.data.success) {
+        toast.success('บันทึกข้อมูลธนาคารสำเร็จ');
+      }
+    } catch (error) {
+      toast.error('เกิดข้อผิดพลาดในการบันทึกข้อมูลธนาคาร');
+    } finally {
+      setBankLoading(false);
+    }
+  };
+
+  const handleQrUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingQr(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await api.post('/upload/image', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      if (response.data.success && response.data.data.url) {
+        const imageUrl = response.data.data.url.startsWith('http')
+          ? response.data.data.url
+          : `${BACKEND_URL}${response.data.data.url}`;
+        setBankInfo({ ...bankInfo, qrCodeUrl: imageUrl });
+        toast.success('อัปโหลด QR Code สำเร็จ');
+      }
+    } catch (error) {
+      toast.error('เกิดข้อผิดพลาดในการอัปโหลด QR Code');
+    } finally {
+      setUploadingQr(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleRemoveQr = () => {
+    setBankInfo({ ...bankInfo, qrCodeUrl: '' });
   };
 
   const handleSave = async () => {
@@ -341,6 +415,114 @@ const AdminSettingsPage = () => {
                     placeholder="info@shiptracking.com"
                   />
                 </div>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Bank Info for Payment Notifications */}
+          <motion.div className="card" variants={staggerItem}>
+            <div className="flex items-center gap-3 mb-4">
+              <Building2 className="w-6 h-6 text-amber-600" />
+              <h2 className="text-xl font-bold">ข้อมูลธนาคาร (สำหรับแจ้งเตือนชำระเงิน)</h2>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              ข้อมูลนี้จะใช้เป็นค่าเริ่มต้นเมื่อส่งแจ้งเตือนชำระเงินผ่าน LINE
+            </p>
+            <div className="space-y-4">
+              <div>
+                <label className="block font-medium mb-2">ชื่อธนาคาร</label>
+                <input
+                  type="text"
+                  value={bankInfo.bankName}
+                  onChange={(e) => setBankInfo({ ...bankInfo, bankName: e.target.value })}
+                  className="input-field"
+                  placeholder="ธนาคารกสิกรไทย"
+                />
+              </div>
+              <div>
+                <label className="block font-medium mb-2">ชื่อบัญชี</label>
+                <input
+                  type="text"
+                  value={bankInfo.accountName}
+                  onChange={(e) => setBankInfo({ ...bankInfo, accountName: e.target.value })}
+                  className="input-field"
+                  placeholder="บริษัท ปักกุเนโกะ จำกัด"
+                />
+              </div>
+              <div>
+                <label className="block font-medium mb-2">เลขบัญชี</label>
+                <input
+                  type="text"
+                  value={bankInfo.accountNumber}
+                  onChange={(e) => setBankInfo({ ...bankInfo, accountNumber: e.target.value })}
+                  className="input-field"
+                  placeholder="123-4-56789-0"
+                />
+              </div>
+              {/* QR Code Upload */}
+              <div>
+                <label className="block font-medium mb-2">
+                  <QrCode className="w-4 h-4 inline mr-1" />
+                  QR Code สำหรับชำระเงิน
+                </label>
+                <p className="text-sm text-gray-500 mb-3">
+                  อัปโหลดรูป QR Code (PromptPay, QR Code ธนาคาร) เพื่อแสดงในข้อความแจ้งเตือน
+                </p>
+                {bankInfo.qrCodeUrl ? (
+                  <div className="flex items-start gap-4">
+                    <div className="relative group">
+                      <img
+                        src={bankInfo.qrCodeUrl}
+                        alt="QR Code"
+                        className="w-40 h-40 object-contain border rounded-lg bg-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleRemoveQr}
+                        className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      <p className="text-green-600 font-medium">QR Code พร้อมใช้งาน</p>
+                      <p className="mt-1">คลิกที่รูปเพื่อลบและอัปโหลดใหม่</p>
+                    </div>
+                  </div>
+                ) : (
+                  <label className="inline-flex items-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-amber-500 hover:bg-amber-50 transition-colors">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleQrUpload}
+                      className="hidden"
+                      disabled={uploadingQr}
+                    />
+                    {uploadingQr ? (
+                      <>
+                        <div className="w-5 h-5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                        <span className="text-sm text-gray-600">กำลังอัปโหลด...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-5 h-5 text-gray-400" />
+                        <span className="text-sm text-gray-600">อัปโหลด QR Code</span>
+                      </>
+                    )}
+                  </label>
+                )}
+              </div>
+              <div className="flex justify-end pt-4 border-t">
+                <motion.button
+                  onClick={handleSaveBank}
+                  disabled={bankLoading}
+                  className="btn-primary flex items-center gap-2"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={buttonTap}
+                >
+                  <CreditCard className="w-4 h-4" />
+                  {bankLoading ? 'กำลังบันทึก...' : 'บันทึกข้อมูลธนาคาร'}
+                </motion.button>
               </div>
             </div>
           </motion.div>

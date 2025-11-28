@@ -1,11 +1,10 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit, Trash2, Eye, Package, Search, X, User, Phone, Building2, Bell, CreditCard } from 'lucide-react';
+import { Plus, Edit, Trash2, Eye, Package, Search, X, User, Phone, Building2, Bell } from 'lucide-react';
 import { useAdminOrders, useAdminCreateOrder, useAdminUpdateOrder, useAdminDeleteOrder } from '../../hooks/useAdminOrders';
 import { useCustomers } from '../../hooks/useCustomers';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import NotifyStatusModal from '../../components/Admin/NotifyStatusModal';
-import NotifyPaymentModal from '../../components/Admin/NotifyPaymentModal';
 
 // Country options for Origin/Destination
 const COUNTRIES = [
@@ -34,9 +33,8 @@ const AdminOrdersPage = () => {
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [editingOrder, setEditingOrder] = useState<any>(null);
 
-  // Notification modal states
+  // Notification modal state
   const [notifyStatusOrder, setNotifyStatusOrder] = useState<{ id: string; orderNumber: string } | null>(null);
-  const [notifyPaymentOrder, setNotifyPaymentOrder] = useState<{ id: string; orderNumber: string } | null>(null);
 
   const [formData, setFormData] = useState({
     orderNumber: '',
@@ -316,16 +314,9 @@ const AdminOrdersPage = () => {
                       <button
                         onClick={() => setNotifyStatusOrder({ id: order.id, orderNumber: order.orderNumber })}
                         className="p-1.5 text-purple-600 hover:text-purple-900 hover:bg-purple-50 rounded"
-                        title="แจ้งเตือนสถานะ"
+                        title="แจ้งเตือน LINE"
                       >
                         <Bell className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => setNotifyPaymentOrder({ id: order.id, orderNumber: order.orderNumber })}
-                        className="p-1.5 text-amber-600 hover:text-amber-900 hover:bg-amber-50 rounded"
-                        title="แจ้งเตือนชำระเงิน"
-                      >
-                        <CreditCard className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleDelete(order.id)}
@@ -675,23 +666,13 @@ const AdminOrdersPage = () => {
         </div>
       )}
 
-      {/* Notify Status Modal */}
+      {/* Notification Modal (Status + Payment tabs) */}
       {notifyStatusOrder && (
         <NotifyStatusModal
           isOpen={!!notifyStatusOrder}
           onClose={() => setNotifyStatusOrder(null)}
           orderId={notifyStatusOrder.id}
           orderNumber={notifyStatusOrder.orderNumber}
-        />
-      )}
-
-      {/* Notify Payment Modal */}
-      {notifyPaymentOrder && (
-        <NotifyPaymentModal
-          isOpen={!!notifyPaymentOrder}
-          onClose={() => setNotifyPaymentOrder(null)}
-          orderId={notifyPaymentOrder.id}
-          orderNumber={notifyPaymentOrder.orderNumber}
         />
       )}
     </div>

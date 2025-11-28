@@ -135,6 +135,65 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
       });
     }
 
+    // Get order item with order and all order items to validate total at order level
+    const orderItem = await prisma.orderItem.findUnique({
+      where: { id: orderItemId },
+      include: {
+        order: {
+          include: {
+            orderItems: {
+              include: {
+                payments: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!orderItem) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Order item not found',
+        },
+      });
+    }
+
+    // Calculate order total (all items)
+    const orderTotal = orderItem.order.orderItems.reduce(
+      (sum, item) => sum + (Number(item.priceBaht) || 0) + (Number(item.shippingCost) || 0),
+      0
+    );
+
+    // Calculate existing payments total for entire order
+    const existingPaymentsTotal = orderItem.order.orderItems.reduce(
+      (sum, item) => sum + item.payments.reduce((pSum, p) => pSum + (Number(p.amountBaht) || 0), 0),
+      0
+    );
+
+    const newPaymentAmount = req.body.amountBaht ? parseFloat(req.body.amountBaht) : 0;
+    const newTotal = existingPaymentsTotal + newPaymentAmount;
+
+    // Validate: total payments should not exceed order total
+    if (newTotal > orderTotal) {
+      const remainingBalance = orderTotal - existingPaymentsTotal;
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'EXCEEDS_ORDER_TOTAL',
+          message: `ยอดรวมงวดชำระเกินยอดออเดอร์! คงเหลือที่สร้างได้: ฿${remainingBalance.toLocaleString()}`,
+          details: {
+            orderTotal,
+            existingPaymentsTotal,
+            newPaymentAmount,
+            remainingBalance,
+          },
+        },
+      });
+    }
+
     const paymentData: any = {
       orderItemId,
       installmentNumber: parseInt(installmentNumber),
@@ -178,6 +237,75 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
 // PATCH /api/v1/payments/:id - Update payment
 router.patch('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
+    // If updating amountBaht, validate it doesn't exceed order total
+    if (req.body.amountBaht !== undefined) {
+      const existingPayment = await prisma.payment.findUnique({
+        where: { id: req.params.id },
+        include: {
+          orderItem: {
+            include: {
+              order: {
+                include: {
+                  orderItems: {
+                    include: {
+                      payments: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!existingPayment) {
+        return res.status(404).json({
+          success: false,
+          error: {
+            code: 'NOT_FOUND',
+            message: 'Payment not found',
+          },
+        });
+      }
+
+      const order = existingPayment.orderItem.order;
+
+      // Calculate order total (all items)
+      const orderTotal = order.orderItems.reduce(
+        (sum, item) => sum + (Number(item.priceBaht) || 0) + (Number(item.shippingCost) || 0),
+        0
+      );
+
+      // Calculate existing payments total for entire order, excluding current payment
+      const otherPaymentsTotal = order.orderItems.reduce(
+        (sum, item) => sum + item.payments
+          .filter(p => p.id !== req.params.id)
+          .reduce((pSum, p) => pSum + (Number(p.amountBaht) || 0), 0),
+        0
+      );
+
+      const newPaymentAmount = req.body.amountBaht ? parseFloat(req.body.amountBaht) : 0;
+      const newTotal = otherPaymentsTotal + newPaymentAmount;
+
+      // Validate: total payments should not exceed order total
+      if (newTotal > orderTotal) {
+        const remainingBalance = orderTotal - otherPaymentsTotal;
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'EXCEEDS_ORDER_TOTAL',
+            message: `ยอดรวมงวดชำระเกินยอดออเดอร์! สามารถแก้ไขได้สูงสุด: ฿${remainingBalance.toLocaleString()}`,
+            details: {
+              orderTotal,
+              otherPaymentsTotal,
+              newPaymentAmount,
+              remainingBalance,
+            },
+          },
+        });
+      }
+    }
+
     const updateData: any = {
       updatedAt: new Date(),
     };
@@ -276,6 +404,70 @@ router.post('/bulk', authenticateAdmin, async (req: AuthRequest, res) => {
       });
     }
 
+    // Get order item with order and all order items to validate total at order level
+    const orderItem = await prisma.orderItem.findUnique({
+      where: { id: orderItemId },
+      include: {
+        order: {
+          include: {
+            orderItems: {
+              include: {
+                payments: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!orderItem) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Order item not found',
+        },
+      });
+    }
+
+    // Calculate order total (all items)
+    const orderTotal = orderItem.order.orderItems.reduce(
+      (sum, item) => sum + (Number(item.priceBaht) || 0) + (Number(item.shippingCost) || 0),
+      0
+    );
+
+    // Calculate existing payments total for entire order
+    const existingPaymentsTotal = orderItem.order.orderItems.reduce(
+      (sum, item) => sum + item.payments.reduce((pSum, p) => pSum + (Number(p.amountBaht) || 0), 0),
+      0
+    );
+
+    // Calculate total of new installments
+    const newInstallmentsTotal = installments.reduce(
+      (sum, inst: any) => sum + (inst.amountBaht ? parseFloat(inst.amountBaht) : 0),
+      0
+    );
+
+    const newTotal = existingPaymentsTotal + newInstallmentsTotal;
+
+    // Validate: total payments should not exceed order total
+    if (newTotal > orderTotal) {
+      const remainingBalance = orderTotal - existingPaymentsTotal;
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'EXCEEDS_ORDER_TOTAL',
+          message: `ยอดรวมงวดชำระเกินยอดออเดอร์! คงเหลือที่สร้างได้: ฿${remainingBalance.toLocaleString()}`,
+          details: {
+            orderTotal,
+            existingPaymentsTotal,
+            newInstallmentsTotal,
+            remainingBalance,
+          },
+        },
+      });
+    }
+
     const createdPayments = await Promise.all(
       installments.map((inst: any, index: number) => {
         const paymentData: any = {
@@ -306,6 +498,126 @@ router.post('/bulk', authenticateAdmin, async (req: AuthRequest, res) => {
         code: 'BULK_CREATE_ERROR',
         message: 'Failed to bulk create payments',
         details: error.message,
+      },
+    });
+  }
+});
+
+// GET /api/v1/payments/order/:orderId - Get all payments for an order (grouped by item)
+router.get('/order/:orderId', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { orderId } = req.params;
+
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        customer: {
+          select: {
+            id: true,
+            companyName: true,
+            contactPerson: true,
+            lineId: true,
+          },
+        },
+        orderItems: {
+          include: {
+            payments: {
+              orderBy: { installmentNumber: 'asc' },
+            },
+          },
+        },
+      },
+    });
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Order not found',
+        },
+      });
+    }
+
+    // Calculate totals
+    let totalYen = 0;
+    let totalBaht = 0;
+    let totalShipping = 0;
+    let paidYen = 0;
+    let paidBaht = 0;
+    let pendingPayments: any[] = [];
+    let allPayments: any[] = [];
+
+    order.orderItems.forEach((item) => {
+      totalYen += Number(item.priceYen) || 0;
+      totalBaht += Number(item.priceBaht) || 0;
+      totalShipping += Number(item.shippingCost) || 0;
+
+      item.payments.forEach((payment) => {
+        allPayments.push({
+          ...payment,
+          productCode: item.productCode,
+          productName: item.productName,
+        });
+
+        if (payment.status === 'paid' || payment.status === 'verified') {
+          paidYen += Number(payment.amountYen) || 0;
+          paidBaht += Number(payment.amountBaht) || 0;
+        } else if (payment.status === 'pending') {
+          pendingPayments.push({
+            ...payment,
+            productCode: item.productCode,
+            productName: item.productName,
+          });
+        }
+      });
+    });
+
+    const grandTotal = totalBaht + totalShipping;
+    const remainingBaht = grandTotal - paidBaht;
+
+    res.json({
+      success: true,
+      data: {
+        order: {
+          id: order.id,
+          orderNumber: order.orderNumber,
+          customer: order.customer,
+        },
+        items: order.orderItems.map((item) => ({
+          id: item.id,
+          productCode: item.productCode,
+          productName: item.productName,
+          priceYen: item.priceYen,
+          priceBaht: item.priceBaht,
+          shippingCost: item.shippingCost,
+          paymentStatus: item.paymentStatus,
+          payments: item.payments,
+        })),
+        summary: {
+          totalYen,
+          totalBaht,
+          totalShipping,
+          grandTotal,
+          paidYen,
+          paidBaht,
+          remainingBaht,
+          percentPaid: grandTotal > 0 ? Math.round((paidBaht / grandTotal) * 100) : 0,
+          totalPayments: allPayments.length,
+          paidPayments: allPayments.filter((p) => p.status === 'paid' || p.status === 'verified').length,
+          pendingPayments: pendingPayments.length,
+        },
+        pendingPayments,
+        allPayments,
+      },
+    });
+  } catch (error: any) {
+    console.error('Error fetching order payments:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'FETCH_ERROR',
+        message: 'Failed to fetch order payments',
       },
     });
   }
