@@ -178,7 +178,7 @@ router.post('/payment', async (req, res) => {
     const customerName = order.customer?.companyName || order.customer?.contactPerson || 'ลูกค้า';
 
     // Calculate totals if not provided
-    const calculatedTotal = order.orderItems.reduce((sum, item) => sum + (item.priceBaht || 0), 0);
+    const calculatedTotal = order.orderItems.reduce((sum, item) => sum + Number(item.priceBaht || 0), 0);
     const finalTotalAmount = totalAmount || calculatedTotal || 0;
     const finalPaidAmount = paidAmount || 0;
     const remainingAmount = finalTotalAmount - finalPaidAmount;
@@ -264,7 +264,7 @@ router.get('/preview/:orderId', async (req, res) => {
     const lineId = order.customer?.lineId || order.customer?.user?.lineId;
     const customerName = order.customer?.companyName || order.customer?.contactPerson || 'ลูกค้า';
     const maxStatusStep = Math.max(...order.orderItems.map((item) => item.statusStep || 1), 1);
-    const totalBaht = order.orderItems.reduce((sum, item) => sum + (item.priceBaht || 0), 0);
+    const totalBaht = order.orderItems.reduce((sum, item) => sum + Number(item.priceBaht || 0), 0);
 
     // Status labels
     const statusLabels: Record<number, string> = {
