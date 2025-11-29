@@ -12,6 +12,7 @@ import { buttonTap } from '../../lib/animations';
 import api from '../../lib/api';
 import { BACKEND_URL } from '../../utils/apiConfig';
 import PaymentTab from '../../components/Admin/PaymentTab';
+import { useConfirm } from '../../hooks/useConfirm';
 
 // 8-step status timeline (constant)
 const STATUS_STEPS = [
@@ -133,6 +134,7 @@ const OrderDetailPage = () => {
   const createItem = useCreateOrderItem();
   const updateItem = useUpdateOrderItem();
   const deleteItem = useDeleteOrderItem();
+  const { confirm } = useConfirm();
 
   const order = ordersData?.data.find((o) => o.id === id);
   const items = itemsData?.data || [];
@@ -228,6 +230,27 @@ const OrderDetailPage = () => {
     return { status: 'pending', label: 'รอชำระ', color: 'bg-red-100 text-red-800' };
   };
 
+  // Handle payment status change with confirmation
+  const handlePaymentStatusChange = async (newStatus: string) => {
+    const currentPayment = getOrderPaymentStatus();
+
+    // If changing to "paid" but payment is not actually complete
+    if (newStatus === 'paid' && currentPayment.status !== 'paid') {
+      const confirmed = await confirm({
+        title: 'ยืนยันการเปลี่ยนสถานะ',
+        message: 'ชำระเงินยังไม่ครบ ต้องการปรับสถานะเป็น "ชำระครบ" จริงๆ ใช่ไหม?',
+        confirmText: 'ยืนยัน',
+        cancelText: 'ยกเลิก',
+        type: 'warning'
+      });
+      if (confirmed) {
+        setOrderForm({ ...orderForm, paymentStatus: newStatus });
+      }
+    } else {
+      setOrderForm({ ...orderForm, paymentStatus: newStatus });
+    }
+  };
+
   // Check if there are any pending changes (including payments)
   const hasPendingChanges = pendingStatusChanges.size > 0 || pendingNewItems.length > 0 || pendingItemEdits.size > 0 || pendingItemDeletes.size > 0 || hasPaymentPendingChanges;
 
@@ -266,6 +289,7 @@ const OrderDetailPage = () => {
     customerId: '',
     shippingMethod: 'sea',
     status: 'pending',
+    statusStep: 1,
     paymentStatus: '',
     origin: '',
     destination: '',
@@ -309,6 +333,7 @@ const OrderDetailPage = () => {
         customerId: order.customerId || '',
         shippingMethod: order.shippingMethod,
         status: order.status,
+        statusStep: (order as any).statusStep || 1,
         paymentStatus: (order as any).paymentStatus || '',
         origin: order.origin || '',
         destination: order.destination || '',
@@ -337,6 +362,7 @@ const OrderDetailPage = () => {
       customerId: orderForm.customerId || undefined,
       shippingMethod: orderForm.shippingMethod,
       status: orderForm.status,
+      statusStep: orderForm.statusStep,
       paymentStatus: orderForm.paymentStatus || undefined,
       origin: orderForm.origin || undefined,
       destination: orderForm.destination || undefined,
@@ -441,9 +467,16 @@ const OrderDetailPage = () => {
     }
   };
 
-  const handleDeleteOrder = () => {
+  const handleDeleteOrder = async () => {
     if (!id) return;
-    if (window.confirm('คุณต้องการลบ Order นี้? (รายการสินค้าทั้งหมดจะถูกลบด้วย)')) {
+    const confirmed = await confirm({
+      title: 'ลบคำสั่งซื้อ',
+      message: 'คุณต้องการลบ Order นี้? รายการสินค้าทั้งหมดจะถูกลบด้วย',
+      confirmText: 'ลบ',
+      cancelText: 'ยกเลิก',
+      type: 'danger'
+    });
+    if (confirmed) {
       deleteOrder.mutate(id, {
         onSuccess: () => {
           navigate('/admin/orders');
@@ -530,8 +563,15 @@ const OrderDetailPage = () => {
     setShowItemForm(true);
   };
 
-  const handleDeleteItem = (itemId: string) => {
-    if (window.confirm('คุณต้องการลบรายการสินค้านี้?')) {
+  const handleDeleteItem = async (itemId: string) => {
+    const confirmed = await confirm({
+      title: 'ลบรายการสินค้า',
+      message: 'คุณต้องการลบรายการสินค้านี้?',
+      confirmText: 'ลบ',
+      cancelText: 'ยกเลิก',
+      type: 'danger'
+    });
+    if (confirmed) {
       // Store in pending deletes instead of immediate API call
       setPendingItemDeletes(prev => {
         const newSet = new Set(prev);
@@ -802,7 +842,7 @@ const OrderDetailPage = () => {
     const texts: Record<string, string> = {
       pending: 'รอดำเนินการ',
       processing: 'กำลังดำเนินการ',
-      shipped: 'จัดส่งแล้ว',
+      shipped: 'กำลังจัดส่ง',
       delivered: 'ส่งถึงแล้ว',
       cancelled: 'ยกเลิก',
     };
@@ -862,7 +902,7 @@ const OrderDetailPage = () => {
       ordered: 'สั่งซื้อแล้ว',
       received: 'รับสินค้าแล้ว',
       packing: 'กำลังแพ็ค',
-      shipped: 'จัดส่งแล้ว',
+      shipped: 'กำลังจัดส่ง',
       delivered: 'ส่งถึงแล้ว',
       cancelled: 'ยกเลิก',
     };
@@ -1026,17 +1066,26 @@ const OrderDetailPage = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">สถานะ</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">สถานะออเดอร์</label>
               <select
-                value={orderForm.status}
-                onChange={(e) => setOrderForm({ ...orderForm, status: e.target.value })}
+                value={orderForm.statusStep}
+                onChange={(e) => {
+                  const step = parseInt(e.target.value);
+                  const statusName = STATUS_STEPS.find(s => s.step === step)?.name || '';
+                  // Update both statusStep and status based on step
+                  let newStatus = 'pending';
+                  if (step >= 8) newStatus = 'delivered';
+                  else if (step >= 5) newStatus = 'shipped';
+                  else if (step >= 2) newStatus = 'processing';
+                  setOrderForm({ ...orderForm, statusStep: step, status: newStatus });
+                }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
-                <option value="pending">รอดำเนินการ</option>
-                <option value="processing">กำลังดำเนินการ</option>
-                <option value="shipped">จัดส่งแล้ว</option>
-                <option value="delivered">ส่งถึงแล้ว</option>
-                <option value="cancelled">ยกเลิก</option>
+                {STATUS_STEPS.map((s) => (
+                  <option key={s.step} value={s.step}>
+                    {s.step}. {s.name}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -1044,19 +1093,7 @@ const OrderDetailPage = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">สถานะการชำระเงิน</label>
               <select
                 value={orderForm.paymentStatus || getOrderPaymentStatus().status}
-                onChange={(e) => {
-                  const newStatus = e.target.value;
-                  const currentPayment = getOrderPaymentStatus();
-
-                  // If changing to "paid" but payment is not actually complete
-                  if (newStatus === 'paid' && currentPayment.status !== 'paid') {
-                    if (window.confirm('ชำระเงินยังไม่ครบ ต้องการปรับสถานะเป็น "ชำระครบ" จริงๆ ใช่ไหม?')) {
-                      setOrderForm({ ...orderForm, paymentStatus: newStatus });
-                    }
-                  } else {
-                    setOrderForm({ ...orderForm, paymentStatus: newStatus });
-                  }
-                }}
+                onChange={(e) => handlePaymentStatusChange(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
                 <option value="pending">รอชำระ</option>

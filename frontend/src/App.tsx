@@ -3,6 +3,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 import { queryClient } from './lib/queryClient';
 import CookieConsentBanner from './components/CookieConsentBanner';
+import { ConfirmProvider } from './hooks/useConfirm';
 
 // Layouts
 import Layout from './components/layout/Layout';
@@ -39,8 +40,9 @@ import AdminNotFoundPage from './pages/Admin/AdminNotFoundPage';
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <Routes>
+      <ConfirmProvider>
+        <BrowserRouter>
+          <Routes>
           {/* Public Routes */}
           <Route path="/" element={<Layout />}>
             <Route index element={<HomePage />} />
@@ -81,10 +83,11 @@ function App() {
             <Route path="cookies" element={<AdminCookiePage />} />
             <Route path="*" element={<AdminNotFoundPage />} />
           </Route>
-        </Routes>
-      </BrowserRouter>
-      <Toaster position="top-right" richColors />
-      <CookieConsentBanner />
+          </Routes>
+        </BrowserRouter>
+        <Toaster position="top-right" richColors />
+        <CookieConsentBanner />
+      </ConfirmProvider>
     </QueryClientProvider>
   );
 }

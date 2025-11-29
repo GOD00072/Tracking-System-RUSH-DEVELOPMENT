@@ -35,6 +35,22 @@ interface PaymentInstallment {
   amountBaht: number | null;
   status: string;
   dueDate: string | null;
+  productCode?: string;
+  productName?: string;
+}
+
+interface PaymentItem {
+  id: string;
+  productCode: string | null;
+  productName: string | null;
+  priceBaht: number | null;
+  shippingCost: number | null;
+  payments: PaymentInstallment[];
+  itemSummary: {
+    itemTotal: number;
+    paidBaht: number;
+    remainingBaht: number;
+  };
 }
 
 interface PaymentSummary {
@@ -56,6 +72,7 @@ const NotifyStatusModal = ({ isOpen, onClose, orderId, orderNumber }: NotifyStat
   const qrFileInputRef = useRef<HTMLInputElement>(null);
 
   // Payment installments
+  const [paymentItems, setPaymentItems] = useState<PaymentItem[]>([]);
   const [installments, setInstallments] = useState<PaymentInstallment[]>([]);
   const [paymentSummary, setPaymentSummary] = useState<PaymentSummary | null>(null);
   const [selectedInstallmentId, setSelectedInstallmentId] = useState<string | null>(null);
@@ -103,9 +120,13 @@ const NotifyStatusModal = ({ isOpen, onClose, orderId, orderNumber }: NotifyStat
       const response = await api.get(`/payments/order/${orderId}`);
       if (response.data.success) {
         const data = response.data.data;
-        // Filter only pending installments
+
+        // Store items with their payments
+        setPaymentItems(data.items || []);
+
+        // Filter only pending installments from all payments
         const pendingInstallments = data.allPayments.filter(
-          (p: PaymentInstallment) => p.status === 'pending' && (p.amountBaht || 0) > 0
+          (p: PaymentInstallment) => p.status === 'pending' && (Number(p.amountBaht) || 0) > 0
         );
         setInstallments(pendingInstallments);
         setPaymentSummary(data.summary);
@@ -236,7 +257,18 @@ const NotifyStatusModal = ({ isOpen, onClose, orderId, orderNumber }: NotifyStat
       return;
     }
 
-    const selectedInstallment = installments.find(i => i.id === selectedInstallmentId);
+    // Find selected installment from paymentItems
+    let selectedInstallment: PaymentInstallment | undefined;
+    let selectedItemName: string | undefined;
+    for (const item of paymentItems) {
+      const found = item.payments.find(p => p.id === selectedInstallmentId);
+      if (found) {
+        selectedInstallment = found;
+        selectedItemName = item.productName || item.productCode || 'สินค้า';
+        break;
+      }
+    }
+
     if (!selectedInstallment) {
       setError('ไม่พบงวดชำระเงินที่เลือก');
       return;
@@ -250,7 +282,8 @@ const NotifyStatusModal = ({ isOpen, onClose, orderId, orderNumber }: NotifyStat
         totalAmount: paymentSummary?.grandTotal || 0,
         paidAmount: paymentSummary?.paidBaht || 0,
         installmentName: selectedInstallment.installmentName || `งวดที่ ${selectedInstallment.installmentNumber}`,
-        installmentAmount: selectedInstallment.amountBaht || 0,
+        installmentAmount: Number(selectedInstallment.amountBaht) || 0,
+        itemName: selectedItemName, // Include item name for per-item payment
       };
 
       if (selectedInstallment.dueDate || paymentForm.dueDate) {
@@ -456,54 +489,82 @@ const NotifyStatusModal = ({ isOpen, onClose, orderId, orderNumber }: NotifyStat
                     </div>
                   )}
 
-                  {/* Installment Selection */}
+                  {/* Installment Selection - Grouped by Item */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       <CreditCard className="w-4 h-4 inline mr-1" />
                       เลือกงวดชำระเงินที่ต้องการแจ้งเตือน
                     </label>
-                    {installments.length === 0 ? (
+                    {paymentItems.filter(item => item.payments.some(p => p.status === 'pending' && (Number(p.amountBaht) || 0) > 0)).length === 0 ? (
                       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
                         <AlertCircle className="w-8 h-8 text-yellow-500 mx-auto mb-2" />
                         <p className="text-yellow-700 font-medium">ไม่มีงวดชำระเงินที่รอชำระ</p>
                         <p className="text-yellow-600 text-sm">กรุณาสร้างงวดชำระเงินในแท็บ "การชำระเงิน" ก่อน</p>
                       </div>
                     ) : (
-                      <div className="space-y-2">
-                        {installments.map((installment) => (
-                          <label
-                            key={installment.id}
-                            className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer transition-colors ${
-                              selectedInstallmentId === installment.id
-                                ? 'border-amber-500 bg-amber-50'
-                                : 'border-gray-200 hover:border-amber-300 hover:bg-amber-25'
-                            }`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <input
-                                type="radio"
-                                name="installment"
-                                value={installment.id}
-                                checked={selectedInstallmentId === installment.id}
-                                onChange={(e) => setSelectedInstallmentId(e.target.value)}
-                                className="w-4 h-4 text-amber-500 focus:ring-amber-500"
-                              />
-                              <div>
-                                <p className="font-medium text-gray-800">
-                                  {installment.installmentName || `งวดที่ ${installment.installmentNumber}`}
-                                </p>
-                                {installment.dueDate && (
-                                  <p className="text-xs text-gray-500">
-                                    กำหนดชำระ: {new Date(installment.dueDate).toLocaleDateString('th-TH')}
-                                  </p>
-                                )}
+                      <div className="space-y-4 max-h-60 overflow-y-auto">
+                        {paymentItems.map((item) => {
+                          const pendingPayments = item.payments.filter(
+                            p => p.status === 'pending' && (Number(p.amountBaht) || 0) > 0
+                          );
+                          if (pendingPayments.length === 0) return null;
+
+                          return (
+                            <div key={item.id} className="border rounded-lg overflow-hidden">
+                              {/* Item Header */}
+                              <div className="bg-gray-50 px-3 py-2 border-b">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <Package className="w-4 h-4 text-gray-400" />
+                                    <span className="text-sm font-medium text-gray-700 truncate max-w-[200px]">
+                                      {item.productName || item.productCode || 'สินค้า'}
+                                    </span>
+                                  </div>
+                                  <span className="text-xs text-gray-500">
+                                    ค้าง ฿{(item.itemSummary?.remainingBaht || 0).toLocaleString()}
+                                  </span>
+                                </div>
+                              </div>
+                              {/* Installments for this item */}
+                              <div className="divide-y divide-gray-100">
+                                {pendingPayments.map((installment) => (
+                                  <label
+                                    key={installment.id}
+                                    className={`flex items-center justify-between p-3 cursor-pointer transition-colors ${
+                                      selectedInstallmentId === installment.id
+                                        ? 'bg-amber-50'
+                                        : 'hover:bg-gray-50'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      <input
+                                        type="radio"
+                                        name="installment"
+                                        value={installment.id}
+                                        checked={selectedInstallmentId === installment.id}
+                                        onChange={(e) => setSelectedInstallmentId(e.target.value)}
+                                        className="w-4 h-4 text-amber-500 focus:ring-amber-500"
+                                      />
+                                      <div>
+                                        <p className="font-medium text-gray-800 text-sm">
+                                          {installment.installmentName || `งวดที่ ${installment.installmentNumber}`}
+                                        </p>
+                                        {installment.dueDate && (
+                                          <p className="text-xs text-gray-500">
+                                            กำหนด: {new Date(installment.dueDate).toLocaleDateString('th-TH')}
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <span className="font-bold text-amber-600">
+                                      ฿{(Number(installment.amountBaht) || 0).toLocaleString()}
+                                    </span>
+                                  </label>
+                                ))}
                               </div>
                             </div>
-                            <span className="font-bold text-amber-600">
-                              ฿{(installment.amountBaht || 0).toLocaleString()}
-                            </span>
-                          </label>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -656,7 +717,7 @@ const NotifyStatusModal = ({ isOpen, onClose, orderId, orderNumber }: NotifyStat
               disabled={
                 sending ||
                 !preview.hasLineId ||
-                (notificationType === 'payment' && (!selectedInstallmentId || installments.length === 0))
+                (notificationType === 'payment' && (!selectedInstallmentId || paymentItems.filter(item => item.payments.some(p => p.status === 'pending')).length === 0))
               }
               className={`px-6 py-2 text-white rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                 notificationType === 'status'

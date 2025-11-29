@@ -25,6 +25,42 @@
     "startNow": "今すぐ始める",
     "learnMore": "詳しく見る"
   },
+  "confirm": {
+    "cancel": "キャンセル",
+    "confirm": "確認",
+    "processing": "処理中...",
+    "delete": {
+      "title": "削除の確認",
+      "message": "このアイテムを削除してもよろしいですか？",
+      "messageWithName": "「{{name}}」を削除してもよろしいですか？",
+      "warning": "この操作は元に戻せません",
+      "button": "削除"
+    },
+    "action": {
+      "title": "操作の確認"
+    },
+    "order": {
+      "deleteTitle": "注文を削除",
+      "deleteMessage": "この注文を削除しますか？すべての商品も削除されます。"
+    },
+    "item": {
+      "deleteTitle": "商品を削除",
+      "deleteMessage": "この商品を削除しますか？"
+    },
+    "payment": {
+      "deleteTitle": "支払いを削除",
+      "deleteMessage": "この支払いを削除しますか？",
+      "confirmPaid": "支払いが完了していません。本当に「支払い済み」にしますか？"
+    },
+    "customer": {
+      "deleteTitle": "顧客を削除",
+      "deleteMessage": "この顧客を削除しますか？"
+    },
+    "review": {
+      "deleteTitle": "レビューを削除",
+      "deleteMessage": "このレビューを削除しますか？"
+    }
+  },
   "nav": {
     "home": "ホーム",
     "tracking": "商品追跡",
@@ -209,6 +245,282 @@
     "shipped": "出荷済み",
     "cancelled": "キャンセル"
   },
+  "admin": {
+    "sidebar": {
+      "title": "Ship Tracking",
+      "subtitle": "管理パネル",
+      "dashboard": "ダッシュボード",
+      "orders": "注文",
+      "shipments": "配送",
+      "airImport": "航空便データ取込",
+      "schedules": "船便スケジュール",
+      "customers": "顧客",
+      "reviews": "レビュー",
+      "pricing": "価格設定",
+      "messages": "メッセージ",
+      "statistics": "統計",
+      "seo": "SEO",
+      "cookies": "クッキー",
+      "settings": "システム設定",
+      "logout": "ログアウト",
+      "logoutSuccess": "ログアウトしました"
+    },
+    "dashboard": {
+      "title": "トラッキングシステム概要",
+      "refresh": "更新",
+      "totalOrders": "総注文数",
+      "activeShipments": "配送中",
+      "deliveredThisMonth": "今月配達完了",
+      "totalCustomers": "総顧客数",
+      "loading": "ダッシュボードデータを読み込み中...",
+      "error": "エラーが発生しました",
+      "retry": "再試行",
+      "loadError": "データの読み込みに失敗しました"
+    },
+    "orders": {
+      "noName": "名前なし",
+      "sea": "船便",
+      "air": "航空便",
+      "viewDetails": "詳細と商品を表示",
+      "edit": "編集",
+      "notifyLine": "LINE通知",
+      "delete": "削除",
+      "searchCustomer": "顧客を検索...",
+      "clearSelection": "選択をクリア",
+      "origin": "発送元",
+      "selectOrigin": "発送元国を選択",
+      "destination": "配送先",
+      "selectDestination": "配送先国を選択",
+      "searchByName": "名前、電話番号、LINE IDで検索...",
+      "foundResults": "{{count}}件見つかりました",
+      "noCustomerMatch": "該当する顧客がいません",
+      "close": "閉じる"
+    },
+    "settings": {
+      "title": "システム設定",
+      "bankName": "銀行名",
+      "accountName": "口座名義",
+      "accountNumber": "口座番号",
+      "defaultBankName": "カシコン銀行",
+      "defaultAccountName": "パックネコ株式会社",
+      "saveSuccess": "設定を保存しました",
+      "saveError": "設定の保存中にエラーが発生しました",
+      "uploadQrSuccess": "QRコードをアップロードしました",
+      "uploadQrError": "QRコードのアップロード中にエラーが発生しました",
+      "lineSettingSuccess": "LINE設定を保存しました",
+      "lineSettingError": "LINE設定の保存中にエラーが発生しました"
+    },
+    "login": {
+      "title": "管理者ログイン",
+      "email": "メールアドレス",
+      "password": "パスワード",
+      "submit": "ログイン",
+      "submitting": "ログイン中...",
+      "success": "ログインしました",
+      "failed": "ログインに失敗しました",
+      "error": "ログイン中にエラーが発生しました"
+    },
+    "seo": {
+      "title": "SEO設定",
+      "subtitle": "SEO、メタタグ、アナリティクス、トラッキングスクリプトの管理",
+      "basic": "基本SEO",
+      "siteName": "サイト名",
+      "siteDescription": "サイト説明",
+      "keywords": "キーワード",
+      "keywordsHelp": "カンマで区切る",
+      "ogImage": "OG画像",
+      "showInSearch": "ブラウザタブと検索結果に表示",
+      "saveSuccess": "SEO設定を保存しました",
+      "saveError": "エラーが発生しました"
+    },
+    "cookies": {
+      "title": "クッキー管理",
+      "subtitle": "クッキー同意バナーの設定とすべてのクッキーの管理",
+      "defaultMessage": "より良い体験のためにクッキーを使用しています",
+      "acceptAll": "すべて受け入れる",
+      "rejectAll": "すべて拒否",
+      "enableBanner": "クッキー同意バナーを有効化",
+      "bannerPosition": "バナーの位置",
+      "saveSuccess": "クッキー設定を保存しました",
+      "saveError": "エラーが発生しました",
+      "resetConfirm": "すべてのクッキー同意をリセットしますか？",
+      "resetSuccess": "クッキー同意をリセットしました - バナーを表示するにはページを再読み込み",
+      "deleteCookieConfirm": "クッキー「{{name}}」を削除しますか？",
+      "deleteCookieSuccess": "クッキー{{name}}を削除しました",
+      "deleteAllConfirm": "すべてのクッキーを削除しますか？（システムクッキーを除く）",
+      "deleteAllSuccess": "すべてのクッキーを削除しました"
+    },
+    "airImport": {
+      "title": "航空便データ取込",
+      "subtitle": "Excelファイルをアップロードして航空便追跡データをインポート",
+      "uploadFile": "ファイルをアップロード",
+      "downloadTemplate": "テンプレートをダウンロード",
+      "dragDrop": "クリックしてファイルを選択、またはドラッグ＆ドロップ",
+      "selectExcel": "Excelファイル（.xlsxまたは.xls）を選択してください",
+      "selectFirst": "まずファイルを選択してください",
+      "foundErrors": "{{count}}件のエラーが見つかりました",
+      "readSuccess": "{{count}}件のレコードを読み込みました",
+      "noData": "インポートするデータがありません",
+      "fixErrors": "インポート前にエラーを修正してください",
+      "importSuccess": "{{count}}件のレコードをインポートしました",
+      "importError": "データのインポート中にエラーが発生しました"
+    },
+    "notFound": {
+      "title": "管理ページが見つかりません",
+      "description": "このページは存在しないか、アクセス権限がありません",
+      "checkUrl": "URLまたはアクセス権限を確認してください",
+      "warning": "警告",
+      "warningText": "制限されたデータにアクセスしようとしている場合は、管理者に連絡してください",
+      "goBack": "戻る",
+      "goToDashboard": "管理ダッシュボード"
+    }
+  },
+  "countries": {
+    "japan": "日本",
+    "thailand": "タイ",
+    "china": "中国",
+    "southKorea": "韓国",
+    "taiwan": "台湾",
+    "hongKong": "香港",
+    "singapore": "シンガポール",
+    "malaysia": "マレーシア",
+    "vietnam": "ベトナム",
+    "indonesia": "インドネシア",
+    "philippines": "フィリピン",
+    "usa": "アメリカ",
+    "uk": "イギリス",
+    "germany": "ドイツ",
+    "france": "フランス",
+    "australia": "オーストラリア"
+  },
+  "statusLabels": {
+    "pending": "保留中",
+    "processing": "処理中",
+    "shipped": "出荷済み",
+    "delivered": "配達完了",
+    "cancelled": "キャンセル"
+  },
+  "statusSteps": {
+    "step1": "注文受付",
+    "step2": "初回支払い",
+    "step3": "日本で注文済み",
+    "step4": "日本倉庫到着",
+    "step5": "日本から出荷",
+    "step6": "タイ到着",
+    "step7": "配達中",
+    "step8": "配達完了"
+  },
+  "tierLabels": {
+    "regular": "一般",
+    "vip": "VIP",
+    "premium": "プレミアム"
+  },
+  "trackingPortal": {
+    "notFound": "見つかりません",
+    "orderNotFound": "注文が見つかりません",
+    "enterPhone": "電話番号の下4桁を入力してください",
+    "verifyFailed": "確認に失敗しました",
+    "wrongPhone": "電話番号の下4桁が正しくありません",
+    "enterInfo": "検索情報を入力してください"
+  },
+  "shipTracking": {
+    "title": "船便追跡",
+    "subtitle": "追跡番号を入力して荷物の状況を確認",
+    "placeholder": "追跡番号を入力（例：TEST-001）",
+    "search": "検索",
+    "shipmentInfo": "配送情報",
+    "orderNumber": "注文番号",
+    "status": "ステータス",
+    "origin": "発送元",
+    "destination": "配送先",
+    "shippingMethod": "配送方法",
+    "createdAt": "作成日",
+    "trackingInfo": "追跡情報",
+    "position": "現在地",
+    "notFoundTitle": "追跡番号が見つかりません",
+    "notFoundDesc": "追跡番号を再度確認してください",
+    "availableOrders": "システム内の注文",
+    "loadError": "データの読み込みエラー"
+  },
+  "airTracking": {
+    "title": "航空便追跡",
+    "subtitle": "航空便の状況を即座に確認",
+    "placeholder": "追跡番号を入力（例：AIR-2025-001）",
+    "search": "検索"
+  },
+  "notFoundPage": {
+    "title": "ページが見つかりません",
+    "description": "申し訳ありませんが、このページは移動、削除、または存在しない可能性があります",
+    "checkUrl": "URLを再確認するか、ホームページに戻ってください",
+    "goBack": "戻る",
+    "goHome": "ホームへ",
+    "checkStatus": "ステータス確認",
+    "popularPages": "人気のページ：",
+    "shipTracking": "船便追跡",
+    "airTracking": "航空便追跡",
+    "calculator": "送料計算",
+    "schedule": "船便スケジュール",
+    "contact": "お問い合わせ",
+    "errorHelp": "エラーだと思われる場合は、お問い合わせください"
+  },
+  "reviewPage": {
+    "title": "お客様レビュー",
+    "subtitle": "お客様からのフィードバックと体験談",
+    "featured": "おすすめレビュー",
+    "allReviews": "すべてのレビュー",
+    "orderNumber": "注文",
+    "noReviews": "まだレビューがありません"
+  },
+  "calculatorPage": {
+    "loading": "計算データを読み込み中...",
+    "title": "料金計算機",
+    "subtitle": "見積もり費用を計算",
+    "userTier": "ユーザーランク",
+    "productPrice": "商品価格（¥）",
+    "estimatedWeight": "推定重量（KG）",
+    "deliveryDays": "必要な配送日数",
+    "airOption": "20日以内（AIR）",
+    "seaOption": "30〜45日（SEA）",
+    "productType": "商品タイプ（AIRのみ）",
+    "selectType": "商品タイプを選択",
+    "typeGeneral": "一般",
+    "typeElectronics": "電子機器",
+    "typeCosmetics": "化粧品",
+    "typeFood": "食品"
+  },
+  "schedulePage": {
+    "title": "船便・航空便スケジュール",
+    "developing": "開発中..."
+  },
+  "portfolioPage": {
+    "title": "実績",
+    "developing": "開発中..."
+  },
+  "statisticsPage": {
+    "title": "統計",
+    "developing": "開発中..."
+  },
+  "aboutPage": {
+    "title": "PakkuNekoについて",
+    "subtitle": "日本からタイへの代理購入・配送",
+    "ourStory": "私たちのストーリー",
+    "values": {
+      "warmService": "温かいサービス",
+      "warmServiceDesc": "日本人の友人がサポートするような体験",
+      "japanTeam": "日本在住チーム",
+      "japanTeamDesc": "日本在住のスタッフがサービスをご提供",
+      "accessible": "アクセスしやすい",
+      "accessibleDesc": "誰もが適正価格で高品質な商品を手に入れられるべき",
+      "simple": "シンプルなプロセス",
+      "simpleDesc": "日本からのお買い物は複雑であるべきではない"
+    },
+    "features": {
+      "reliableShipping": "信頼性の高い配送",
+      "reliableShippingDesc": "経験豊富で信頼性の高い配送会社とリアルタイム追跡",
+      "qualityCheck": "品質チェック",
+      "qualityCheckDesc": "すべての商品は発送前に入念に検品"
+    }
+  },
   "dashboard": {
     "title": "ダッシュボード",
     "overview": "システム概要",
@@ -317,7 +629,65 @@
   },
   "process": {
     "title": "ご利用方法",
-    "subtitle": "ご利用方法"
+    "subtitle": "ご利用方法",
+    "description": "簡単9ステップで商品をお届け",
+    "phases": {
+      "thailand": "タイでの手続き",
+      "japan": "日本での手続き",
+      "return": "タイへの返送"
+    },
+    "steps": {
+      "step1": {
+        "title": "商品リンクを送信",
+        "description": "Mercari / Rakuten / Amazon / Yahoo の商品リンクまたは画像をLINE公式またはTwitterで送信",
+        "benefits": ["送信簡単", "フォーム不要", "迅速対応"]
+      },
+      "step2": {
+        "title": "見積もり＋内金50%",
+        "description": "管理者が当日レートで価格を計算し、内金額を即座にお知らせ",
+        "benefits": ["明確な価格", "隠れた費用なし"]
+      },
+      "step3": {
+        "title": "お客様が内金を支払う",
+        "description": "QRコードでスキャン決済、注文ステータスが自動更新",
+        "benefits": ["便利", "支払い確認可能"]
+      },
+      "step4": {
+        "title": "日本チームが即購入",
+        "description": "内金受領後、日本チームが商品を購入し、購入証明をタイに送信して確認",
+        "benefits": ["迅速購入", "安全", "リアルタイム更新"]
+      },
+      "step5": {
+        "title": "日本倉庫到着→検品→タイへ発送",
+        "description": "商品が日本倉庫に届いたら、写真撮影、初期検品、ステータス更新、船便または航空便で梱包準備",
+        "benefits": ["各ステップで更新", "確実な配送"]
+      },
+      "step6": {
+        "title": "タイ到着→仕分け＋重量計測",
+        "description": "タイに届いた商品を注文ごとに仕分け、正確に計量し、国内送料を計算",
+        "benefits": ["実重量での送料", "水増しなし"]
+      },
+      "step7": {
+        "title": "残金＋国内送料のお知らせ",
+        "description": "システムが残金＋国内送料を生成。QRコードで再度お支払い",
+        "benefits": ["透明性", "各ステップで確認可能"]
+      },
+      "step8": {
+        "title": "梱包＋お客様へ発送",
+        "description": "全額支払い後、Kerry / Flash / J&T で梱包・発送し、追跡番号を即座にお知らせ",
+        "benefits": ["迅速発送", "安全梱包", "保険付き（一部）"]
+      },
+      "step9": {
+        "title": "お客様が商品を受け取り完了",
+        "description": "システムが注文をクローズし、お客様の記録用に注文サマリーを送信",
+        "benefits": ["購入履歴", "経費記録", "注文検索が簡単"]
+      }
+    },
+    "cta": {
+      "title": "ショッピングを始めませんか？",
+      "description": "今すぐお問い合わせください - 欲しい商品のリンクを送るだけ",
+      "button": "サービスを始める"
+    }
   },
   "review": {
     "title": "お客様の声",

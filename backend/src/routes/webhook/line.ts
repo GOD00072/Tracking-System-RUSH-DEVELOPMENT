@@ -270,7 +270,7 @@ function getStatusText(status: string): string {
   const statusMap: Record<string, string> = {
     pending: 'รอดำเนินการ',
     processing: 'กำลังดำเนินการ',
-    shipped: 'จัดส่งแล้ว',
+    shipped: 'กำลังจัดส่ง',
     in_transit: 'อยู่ระหว่างการขนส่ง',
     delivered: 'จัดส่งสำเร็จ',
     cancelled: 'ยกเลิก',

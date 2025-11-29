@@ -19,37 +19,31 @@ const STATUS_STEPS = [
 ];
 
 interface OrderItem {
-  sequenceNumber: number;
+  sequenceNumber: number | null;
   productCode: string;
   productName: string | null;
-  productUrl: string;
+  productUrl: string | null;
   productImage: string | null;
-  priceYen: number;
-  priceBaht: number;
-  statusStep: number;
-  statusName: string;
+  priceYen: number | null;
+  priceBaht: number | null;
+  statusStep: number | null;
+  statusName: string | null;
   trackingNumber: string | null;
-  remarks: string;
 }
 
 interface Order {
   orderNumber: string;
   status: string;
-  statusName?: string;
+  statusStep: number;
+  statusName: string;
   shippingMethod: string;
   origin: string;
   destination: string;
   customerName: string;
   createdAt: string;
-  paymentStatus: string;
-  paymentStatusName: string;
   items: OrderItem[];
   summary: {
     totalItems: number;
-    totalYen: number;
-    totalBaht: number;
-    paidBaht?: number;
-    remainingBaht?: number;
   };
 }
 
@@ -251,19 +245,6 @@ const TrackingPortal = () => {
     </div>
   );
 
-  const PaymentBadge = ({ status, name }: { status: string; name: string }) => {
-    const colors: Record<string, string> = {
-      pending: 'bg-red-100 text-red-700',
-      partial: 'bg-yellow-100 text-yellow-700',
-      paid: 'bg-green-100 text-green-700',
-      refunded: 'bg-gray-100 text-gray-700',
-    };
-    return (
-      <span className={`px-2 py-1 rounded-full text-xs font-medium ${colors[status] || colors.pending}`}>
-        {name}
-      </span>
-    );
-  };
 
   return (
     <motion.div
@@ -555,7 +536,15 @@ const TrackingPortal = () => {
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-xl font-bold text-primary-600">฿{order.summary.totalBaht.toLocaleString()}</p>
+                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium mb-1 ${
+                          order.statusStep === 8
+                            ? 'bg-green-100 text-green-700'
+                            : order.statusStep >= 5
+                            ? 'bg-primary-100 text-primary-700'
+                            : 'bg-yellow-100 text-yellow-700'
+                        }`}>
+                          {order.statusName}
+                        </span>
                         <p className="text-xs text-gray-400">
                           {new Date(order.createdAt).toLocaleDateString('th-TH')}
                         </p>
@@ -571,9 +560,9 @@ const TrackingPortal = () => {
                           exit={{ height: 0, opacity: 0 }}
                           className="border-t border-gray-100"
                         >
-                          {/* Status Timeline */}
+                          {/* Status Timeline - ใช้สถานะ Order */}
                           <div className="p-6 bg-gradient-to-r from-primary-50/50 to-orange-50/50 backdrop-blur-sm overflow-x-auto">
-                            <StatusTimeline currentStep={Math.max(...order.items.map((i) => i.statusStep || 1))} />
+                            <StatusTimeline currentStep={order.statusStep || 1} />
                           </div>
 
                           {/* Shipping Info */}
@@ -623,7 +612,9 @@ const TrackingPortal = () => {
                                   {/* Product Info */}
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 flex-wrap">
-                                      <span className="text-sm text-gray-500">#{item.sequenceNumber}</span>
+                                      {item.sequenceNumber && (
+                                        <span className="text-sm text-gray-500">#{item.sequenceNumber}</span>
+                                      )}
                                       {item.productCode && (
                                         <code className="text-sm bg-gray-100 px-2 py-0.5 rounded-lg">
                                           {item.productCode}
@@ -635,19 +626,21 @@ const TrackingPortal = () => {
                                         {item.productName}
                                       </p>
                                     )}
-                                    <div className="flex items-center gap-2 mt-1">
-                                      <span
-                                        className={`text-xs px-2 py-0.5 rounded-full ${
-                                          item.statusStep === 8
-                                            ? 'bg-green-100 text-green-700'
-                                            : item.statusStep >= 5
-                                            ? 'bg-primary-100 text-primary-700'
-                                            : 'bg-yellow-100 text-yellow-700'
-                                        }`}
-                                      >
-                                        {item.statusName}
-                                      </span>
-                                    </div>
+                                    {item.statusName && (
+                                      <div className="flex items-center gap-2 mt-1">
+                                        <span
+                                          className={`text-xs px-2 py-0.5 rounded-full ${
+                                            item.statusStep === 8
+                                              ? 'bg-green-100 text-green-700'
+                                              : (item.statusStep || 0) >= 5
+                                              ? 'bg-primary-100 text-primary-700'
+                                              : 'bg-yellow-100 text-yellow-700'
+                                          }`}
+                                        >
+                                          {item.statusName}
+                                        </span>
+                                      </div>
+                                    )}
                                     {item.trackingNumber && (
                                       <p className="text-xs text-gray-500 mt-1">
                                         Tracking: <code className="bg-gray-100 px-1 rounded">{item.trackingNumber}</code>
@@ -657,11 +650,11 @@ const TrackingPortal = () => {
 
                                   {/* Price */}
                                   <div className="text-right">
-                                    {item.priceYen > 0 && (
-                                      <p className="text-sm text-gray-500">¥{item.priceYen.toLocaleString()}</p>
+                                    {item.priceYen && Number(item.priceYen) > 0 && (
+                                      <p className="text-sm text-gray-500">¥{Number(item.priceYen).toLocaleString()}</p>
                                     )}
-                                    {item.priceBaht > 0 && (
-                                      <p className="font-semibold text-primary-600">฿{item.priceBaht.toLocaleString()}</p>
+                                    {item.priceBaht && Number(item.priceBaht) > 0 && (
+                                      <p className="font-semibold text-primary-600">฿{Number(item.priceBaht).toLocaleString()}</p>
                                     )}
                                   </div>
 
@@ -684,28 +677,10 @@ const TrackingPortal = () => {
                           {/* Summary */}
                           <div className="p-6 bg-gradient-to-r from-primary-50/50 to-orange-50/50 backdrop-blur-sm border-t border-gray-100">
                             <div className="flex justify-between items-center">
-                              <div className="flex items-center gap-3">
-                                <span className="text-gray-600 font-medium">ยอดรวม ({order.summary.totalItems} รายการ)</span>
-                                <PaymentBadge status={order.paymentStatus} name={order.paymentStatusName} />
-                              </div>
-                              <div className="text-right">
-                                {order.summary.totalYen > 0 && (
-                                  <p className="text-sm text-gray-500">¥{order.summary.totalYen.toLocaleString()}</p>
-                                )}
-                                <p className="text-2xl font-bold text-primary-600">
-                                  ฿{order.summary.totalBaht.toLocaleString()}
-                                </p>
-                                {order.summary.paidBaht !== undefined && order.summary.paidBaht > 0 && (
-                                  <p className="text-sm text-green-600">
-                                    ชำระแล้ว ฿{order.summary.paidBaht.toLocaleString()}
-                                  </p>
-                                )}
-                                {order.summary.remainingBaht !== undefined && order.summary.remainingBaht > 0 && (
-                                  <p className="text-sm text-orange-600">
-                                    ค้างชำระ ฿{order.summary.remainingBaht.toLocaleString()}
-                                  </p>
-                                )}
-                              </div>
+                              <span className="text-gray-600 font-medium">สินค้าทั้งหมด</span>
+                              <span className="text-lg font-bold text-primary-600">
+                                {order.summary.totalItems} รายการ
+                              </span>
                             </div>
                           </div>
                         </motion.div>

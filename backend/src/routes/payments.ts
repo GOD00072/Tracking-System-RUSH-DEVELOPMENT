@@ -135,19 +135,11 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
       });
     }
 
-    // Get order item with order and all order items to validate total at order level
+    // Get order item with its payments to validate total at item level
     const orderItem = await prisma.orderItem.findUnique({
       where: { id: orderItemId },
       include: {
-        order: {
-          include: {
-            orderItems: {
-              include: {
-                payments: true,
-              },
-            },
-          },
-        },
+        payments: true,
       },
     });
 
@@ -161,31 +153,28 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
       });
     }
 
-    // Calculate order total (all items)
-    const orderTotal = orderItem.order.orderItems.reduce(
-      (sum, item) => sum + (Number(item.priceBaht) || 0) + (Number(item.shippingCost) || 0),
-      0
-    );
+    // Calculate item total (price + shipping for this item only)
+    const itemTotal = (Number(orderItem.priceBaht) || 0) + (Number(orderItem.shippingCost) || 0);
 
-    // Calculate existing payments total for entire order
-    const existingPaymentsTotal = orderItem.order.orderItems.reduce(
-      (sum, item) => sum + item.payments.reduce((pSum, p) => pSum + (Number(p.amountBaht) || 0), 0),
+    // Calculate existing payments total for this item only
+    const existingPaymentsTotal = orderItem.payments.reduce(
+      (sum, p) => sum + (Number(p.amountBaht) || 0),
       0
     );
 
     const newPaymentAmount = req.body.amountBaht ? parseFloat(req.body.amountBaht) : 0;
     const newTotal = existingPaymentsTotal + newPaymentAmount;
 
-    // Validate: total payments should not exceed order total
-    if (newTotal > orderTotal) {
-      const remainingBalance = orderTotal - existingPaymentsTotal;
+    // Validate: total payments should not exceed item total
+    if (newTotal > itemTotal) {
+      const remainingBalance = itemTotal - existingPaymentsTotal;
       return res.status(400).json({
         success: false,
         error: {
-          code: 'EXCEEDS_ORDER_TOTAL',
-          message: `ยอดรวมงวดชำระเกินยอดออเดอร์! คงเหลือที่สร้างได้: ฿${remainingBalance.toLocaleString()}`,
+          code: 'EXCEEDS_ITEM_TOTAL',
+          message: `ยอดรวมงวดชำระเกินยอดสินค้า! คงเหลือที่สร้างได้: ฿${remainingBalance.toLocaleString()}`,
           details: {
-            orderTotal,
+            itemTotal,
             existingPaymentsTotal,
             newPaymentAmount,
             remainingBalance,
@@ -237,22 +226,14 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
 // PATCH /api/v1/payments/:id - Update payment
 router.patch('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
-    // If updating amountBaht, validate it doesn't exceed order total
+    // If updating amountBaht, validate it doesn't exceed item total
     if (req.body.amountBaht !== undefined) {
       const existingPayment = await prisma.payment.findUnique({
         where: { id: req.params.id },
         include: {
           orderItem: {
             include: {
-              order: {
-                include: {
-                  orderItems: {
-                    include: {
-                      payments: true,
-                    },
-                  },
-                },
-              },
+              payments: true,
             },
           },
         },
@@ -268,35 +249,29 @@ router.patch('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
         });
       }
 
-      const order = existingPayment.orderItem.order;
+      const orderItem = existingPayment.orderItem;
 
-      // Calculate order total (all items)
-      const orderTotal = order.orderItems.reduce(
-        (sum, item) => sum + (Number(item.priceBaht) || 0) + (Number(item.shippingCost) || 0),
-        0
-      );
+      // Calculate item total (price + shipping for this item only)
+      const itemTotal = (Number(orderItem.priceBaht) || 0) + (Number(orderItem.shippingCost) || 0);
 
-      // Calculate existing payments total for entire order, excluding current payment
-      const otherPaymentsTotal = order.orderItems.reduce(
-        (sum, item) => sum + item.payments
-          .filter(p => p.id !== req.params.id)
-          .reduce((pSum, p) => pSum + (Number(p.amountBaht) || 0), 0),
-        0
-      );
+      // Calculate existing payments total for this item, excluding current payment
+      const otherPaymentsTotal = orderItem.payments
+        .filter(p => p.id !== req.params.id)
+        .reduce((sum, p) => sum + (Number(p.amountBaht) || 0), 0);
 
       const newPaymentAmount = req.body.amountBaht ? parseFloat(req.body.amountBaht) : 0;
       const newTotal = otherPaymentsTotal + newPaymentAmount;
 
-      // Validate: total payments should not exceed order total
-      if (newTotal > orderTotal) {
-        const remainingBalance = orderTotal - otherPaymentsTotal;
+      // Validate: total payments should not exceed item total
+      if (newTotal > itemTotal) {
+        const remainingBalance = itemTotal - otherPaymentsTotal;
         return res.status(400).json({
           success: false,
           error: {
-            code: 'EXCEEDS_ORDER_TOTAL',
-            message: `ยอดรวมงวดชำระเกินยอดออเดอร์! สามารถแก้ไขได้สูงสุด: ฿${remainingBalance.toLocaleString()}`,
+            code: 'EXCEEDS_ITEM_TOTAL',
+            message: `ยอดรวมงวดชำระเกินยอดสินค้า! สามารถแก้ไขได้สูงสุด: ฿${remainingBalance.toLocaleString()}`,
             details: {
-              orderTotal,
+              itemTotal,
               otherPaymentsTotal,
               newPaymentAmount,
               remainingBalance,
@@ -404,19 +379,11 @@ router.post('/bulk', authenticateAdmin, async (req: AuthRequest, res) => {
       });
     }
 
-    // Get order item with order and all order items to validate total at order level
+    // Get order item with its payments to validate total at item level
     const orderItem = await prisma.orderItem.findUnique({
       where: { id: orderItemId },
       include: {
-        order: {
-          include: {
-            orderItems: {
-              include: {
-                payments: true,
-              },
-            },
-          },
-        },
+        payments: true,
       },
     });
 
@@ -430,15 +397,12 @@ router.post('/bulk', authenticateAdmin, async (req: AuthRequest, res) => {
       });
     }
 
-    // Calculate order total (all items)
-    const orderTotal = orderItem.order.orderItems.reduce(
-      (sum, item) => sum + (Number(item.priceBaht) || 0) + (Number(item.shippingCost) || 0),
-      0
-    );
+    // Calculate item total (price + shipping for this item only)
+    const itemTotal = (Number(orderItem.priceBaht) || 0) + (Number(orderItem.shippingCost) || 0);
 
-    // Calculate existing payments total for entire order
-    const existingPaymentsTotal = orderItem.order.orderItems.reduce(
-      (sum, item) => sum + item.payments.reduce((pSum, p) => pSum + (Number(p.amountBaht) || 0), 0),
+    // Calculate existing payments total for this item only
+    const existingPaymentsTotal = orderItem.payments.reduce(
+      (sum, p) => sum + (Number(p.amountBaht) || 0),
       0
     );
 
@@ -450,16 +414,16 @@ router.post('/bulk', authenticateAdmin, async (req: AuthRequest, res) => {
 
     const newTotal = existingPaymentsTotal + newInstallmentsTotal;
 
-    // Validate: total payments should not exceed order total
-    if (newTotal > orderTotal) {
-      const remainingBalance = orderTotal - existingPaymentsTotal;
+    // Validate: total payments should not exceed item total
+    if (newTotal > itemTotal) {
+      const remainingBalance = itemTotal - existingPaymentsTotal;
       return res.status(400).json({
         success: false,
         error: {
-          code: 'EXCEEDS_ORDER_TOTAL',
-          message: `ยอดรวมงวดชำระเกินยอดออเดอร์! คงเหลือที่สร้างได้: ฿${remainingBalance.toLocaleString()}`,
+          code: 'EXCEEDS_ITEM_TOTAL',
+          message: `ยอดรวมงวดชำระเกินยอดสินค้า! คงเหลือที่สร้างได้: ฿${remainingBalance.toLocaleString()}`,
           details: {
-            orderTotal,
+            itemTotal,
             existingPaymentsTotal,
             newInstallmentsTotal,
             remainingBalance,
@@ -576,6 +540,37 @@ router.get('/order/:orderId', authenticateAdmin, async (req: AuthRequest, res) =
     const grandTotal = totalBaht + totalShipping;
     const remainingBaht = grandTotal - paidBaht;
 
+    // Build items with per-item summary
+    const itemsWithSummary = order.orderItems.map((item) => {
+      const itemTotal = (Number(item.priceBaht) || 0) + (Number(item.shippingCost) || 0);
+      const itemPaidBaht = item.payments
+        .filter(p => p.status === 'paid' || p.status === 'verified')
+        .reduce((sum, p) => sum + (Number(p.amountBaht) || 0), 0);
+      const itemRemainingBaht = itemTotal - itemPaidBaht;
+      const itemPercentPaid = itemTotal > 0 ? Math.round((itemPaidBaht / itemTotal) * 100) : 0;
+
+      return {
+        id: item.id,
+        productCode: item.productCode,
+        productName: item.productName,
+        priceYen: item.priceYen,
+        priceBaht: item.priceBaht,
+        shippingCost: item.shippingCost,
+        paymentStatus: item.paymentStatus,
+        payments: item.payments,
+        // Per-item summary
+        itemSummary: {
+          itemTotal,
+          paidBaht: itemPaidBaht,
+          remainingBaht: itemRemainingBaht,
+          percentPaid: itemPercentPaid,
+          totalPayments: item.payments.length,
+          paidPayments: item.payments.filter(p => p.status === 'paid' || p.status === 'verified').length,
+          pendingPayments: item.payments.filter(p => p.status === 'pending').length,
+        },
+      };
+    });
+
     res.json({
       success: true,
       data: {
@@ -584,16 +579,7 @@ router.get('/order/:orderId', authenticateAdmin, async (req: AuthRequest, res) =
           orderNumber: order.orderNumber,
           customer: order.customer,
         },
-        items: order.orderItems.map((item) => ({
-          id: item.id,
-          productCode: item.productCode,
-          productName: item.productName,
-          priceYen: item.priceYen,
-          priceBaht: item.priceBaht,
-          shippingCost: item.shippingCost,
-          paymentStatus: item.paymentStatus,
-          payments: item.payments,
-        })),
+        items: itemsWithSummary,
         summary: {
           totalYen,
           totalBaht,

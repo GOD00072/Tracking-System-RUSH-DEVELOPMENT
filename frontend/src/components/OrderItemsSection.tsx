@@ -332,7 +332,7 @@ const OrderItemsSection = ({ orderId, orderNumber, canEdit = true }: OrderItemsS
                     <option value="ordered">สั่งซื้อแล้ว</option>
                     <option value="received">รับสินค้าแล้ว</option>
                     <option value="packing">กำลังแพ็ค</option>
-                    <option value="shipped">จัดส่งแล้ว</option>
+                    <option value="shipped">กำลังจัดส่ง</option>
                     <option value="delivered">ส่งถึงแล้ว</option>
                     <option value="cancelled">ยกเลิก</option>
                   </select>

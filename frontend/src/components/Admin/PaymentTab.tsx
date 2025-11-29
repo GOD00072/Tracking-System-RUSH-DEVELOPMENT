@@ -56,6 +56,16 @@ interface Payment {
   productName?: string;
 }
 
+interface ItemSummary {
+  itemTotal: number;
+  paidBaht: number;
+  remainingBaht: number;
+  percentPaid: number;
+  totalPayments: number;
+  paidPayments: number;
+  pendingPayments: number;
+}
+
 interface OrderItem {
   id: string;
   productCode: string | null;
@@ -65,6 +75,7 @@ interface OrderItem {
   shippingCost: number | null;
   paymentStatus: string | null;
   payments: Payment[];
+  itemSummary: ItemSummary;
 }
 
 interface PaymentData {
@@ -125,7 +136,8 @@ const PaymentTab = ({ orderId, orderNumber, onPendingChangesUpdate, onPaymentSum
     if (onPendingChangesUpdate) {
       onPendingChangesUpdate(pendingOperations.length > 0, pendingOperations);
     }
-  }, [pendingOperations, onPendingChangesUpdate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingOperations]);
 
   // Notify parent of payment summary
   useEffect(() => {
@@ -137,7 +149,8 @@ const PaymentTab = ({ orderId, orderNumber, onPendingChangesUpdate, onPaymentSum
         percentPaid: data.summary.percentPaid,
       });
     }
-  }, [data?.summary, onPaymentSummaryUpdate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.summary]);
 
   // Watch for saveVersion changes to clear pending state and refetch
   useEffect(() => {
@@ -219,8 +232,8 @@ const PaymentTab = ({ orderId, orderNumber, onPendingChangesUpdate, onPaymentSum
     setExpandedItems(newExpanded);
   };
 
-  // Create payment installment - stores in pending state
-  const handleCreatePayment = () => {
+  // Create payment installment - saves immediately
+  const handleCreatePayment = async () => {
     if (!selectedItem || !data) return;
 
     // Calculate final amount after discount and fee
@@ -229,25 +242,21 @@ const PaymentTab = ({ orderId, orderNumber, onPendingChangesUpdate, onPaymentSum
     const fee = paymentForm.fee ? parseFloat(paymentForm.fee) : 0;
     const finalAmount = baseAmount - discount + fee;
 
-    // Validate: Check if total payments would exceed order total
-    const orderTotal = data.summary.grandTotal;
-    const existingPaymentsTotal = data.allPayments.reduce(
-      (sum, p) => sum + (p.amountBaht || 0),
+    // Validate: Check if total payments would exceed item total (per-item validation)
+    const itemTotal = selectedItem.itemSummary?.itemTotal ||
+      ((Number(selectedItem.priceBaht) || 0) + (Number(selectedItem.shippingCost) || 0));
+    const existingPaymentsTotal = selectedItem.payments.reduce(
+      (sum, p) => sum + (Number(p.amountBaht) || 0),
       0
     );
-    // Include pending creates in total
-    const pendingCreatesTotal = pendingOperations
-      .filter(op => op.type === 'create')
-      .reduce((sum, op) => sum + (op.data?.amountBaht || 0), 0);
-    const newTotal = existingPaymentsTotal + pendingCreatesTotal + finalAmount;
+    const newTotal = existingPaymentsTotal + finalAmount;
 
-    if (newTotal > orderTotal) {
-      const remaining = orderTotal - existingPaymentsTotal - pendingCreatesTotal;
-      toast.error(`ยอดรวมงวดชำระเกินยอดออเดอร์! คงเหลือที่สร้างได้: ฿${remaining.toLocaleString()}`);
+    if (newTotal > itemTotal) {
+      const remaining = itemTotal - existingPaymentsTotal;
+      toast.error(`ยอดรวมงวดชำระเกินยอดสินค้า! คงเหลือที่สร้างได้: ฿${remaining.toLocaleString()}`);
       return;
     }
 
-    const tempId = `pending_payment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const payload = {
       orderItemId: selectedItem.id,
       installmentNumber: paymentForm.installmentNumber,
@@ -258,16 +267,15 @@ const PaymentTab = ({ orderId, orderNumber, onPendingChangesUpdate, onPaymentSum
       status: 'pending',
     };
 
-    // Add to pending operations instead of API call
-    setPendingOperations(prev => [...prev, {
-      type: 'create',
-      tempId,
-      data: payload,
-    }]);
-
-    toast.success('เพิ่มงวดชำระเงินแล้ว (รอบันทึก)');
-    setShowAddPayment(false);
-    resetForm();
+    try {
+      await api.post('/payments', payload);
+      toast.success('เพิ่มงวดชำระเงินสำเร็จ');
+      setShowAddPayment(false);
+      resetForm();
+      fetchPayments(); // Refresh data
+    } catch (err: any) {
+      toast.error(err.response?.data?.error?.message || 'เกิดข้อผิดพลาดในการสร้างงวดชำระ');
+    }
   };
 
   // Open confirm payment modal
@@ -281,14 +289,14 @@ const PaymentTab = ({ orderId, orderNumber, onPendingChangesUpdate, onPaymentSum
     });
   };
 
-  // Handle confirm payment with proof - stores in pending state
+  // Handle confirm payment with proof - saves immediately
   const handleConfirmPayment = async () => {
     if (!confirmPaymentModal.paymentId) return;
 
     try {
       let proofImageUrl: string | undefined;
 
-      // Upload proof image if provided (image upload still happens immediately)
+      // Upload proof image if provided
       if (confirmPaymentModal.proofFile) {
         const formData = new FormData();
         formData.append('file', confirmPaymentModal.proofFile);
@@ -304,49 +312,47 @@ const PaymentTab = ({ orderId, orderNumber, onPendingChangesUpdate, onPaymentSum
         }
       }
 
-      // Add to pending operations instead of API call
-      setPendingOperations(prev => [...prev, {
-        type: 'update',
-        paymentId: confirmPaymentModal.paymentId!,
-        data: {
-          status: 'paid',
-          paidAt: new Date().toISOString(),
-          paymentMethod: confirmPaymentModal.paymentMethod,
-          proofImageUrl,
-        },
-      }]);
+      // Save immediately via API
+      await api.patch(`/payments/${confirmPaymentModal.paymentId}`, {
+        status: 'paid',
+        paidAt: new Date().toISOString(),
+        paymentMethod: confirmPaymentModal.paymentMethod,
+        proofImageUrl,
+      });
 
-      toast.success('บันทึกการชำระเงินแล้ว (รอบันทึก)');
+      toast.success('บันทึกการชำระเงินสำเร็จ');
       setConfirmPaymentModal({ show: false, paymentId: null, paymentMethod: 'transfer', proofFile: null, proofPreview: null });
+      fetchPayments(); // Refresh data
     } catch (err: any) {
       toast.error(err.response?.data?.error?.message || 'เกิดข้อผิดพลาด');
     }
   };
 
-  // Verify payment - stores in pending state
-  const handleVerifyPayment = (paymentId: string) => {
-    // Add to pending operations instead of API call
-    setPendingOperations(prev => [...prev, {
-      type: 'update',
-      paymentId,
-      data: {
+  // Verify payment - saves immediately
+  const handleVerifyPayment = async (paymentId: string) => {
+    try {
+      await api.patch(`/payments/${paymentId}`, {
         status: 'verified',
         verified: true,
-      },
-    }]);
-    toast.success('ยืนยันการชำระเงินแล้ว (รอบันทึก)');
+      });
+      toast.success('ยืนยันการชำระเงินสำเร็จ');
+      fetchPayments(); // Refresh data
+    } catch (err: any) {
+      toast.error(err.response?.data?.error?.message || 'เกิดข้อผิดพลาด');
+    }
   };
 
-  // Delete payment - stores in pending state
-  const handleDeletePayment = (paymentId: string) => {
+  // Delete payment - saves immediately
+  const handleDeletePayment = async (paymentId: string) => {
     if (!confirm('ต้องการลบรายการชำระเงินนี้?')) return;
 
-    // Add to pending operations instead of API call
-    setPendingOperations(prev => [...prev, {
-      type: 'delete',
-      paymentId,
-    }]);
-    toast.success('ลบรายการแล้ว (รอบันทึก)');
+    try {
+      await api.delete(`/payments/${paymentId}`);
+      toast.success('ลบรายการสำเร็จ');
+      fetchPayments(); // Refresh data
+    } catch (err: any) {
+      toast.error(err.response?.data?.error?.message || 'เกิดข้อผิดพลาด');
+    }
   };
 
   // Remove pending operation (cancel pending change)
@@ -489,210 +495,208 @@ const PaymentTab = ({ orderId, orderNumber, onPendingChangesUpdate, onPaymentSum
         </div>
       </div>
 
-      {/* Order Payments */}
+      {/* Per-Item Payments */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-bold text-gray-800">งวดชำระเงิน</h3>
-          <div className="flex items-center gap-3">
-            <div className="text-sm text-gray-500">
-              {data.summary.paidPayments}/{data.summary.totalPayments} งวด
-            </div>
-            <motion.button
-              onClick={() => {
-                // Select first item by default for adding payment
-                if (data.items.length > 0) {
-                  const firstItem = data.items[0];
-                  setSelectedItem(firstItem);
-                  setPaymentForm({
-                    ...paymentForm,
-                    installmentNumber: data.allPayments.length + 1,
-                    installmentName: `งวดที่ ${data.allPayments.length + 1}`,
-                  });
-                  setShowAddPayment(true);
-                }
-              }}
-              className="bg-primary-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-primary-700 flex items-center gap-1"
-              whileTap={{ scale: 0.95 }}
-            >
-              <Plus className="w-4 h-4" />
-              เพิ่มงวด
-            </motion.button>
-          </div>
-        </div>
+        <h3 className="text-lg font-bold text-gray-800">งวดชำระเงินแยกตามสินค้า</h3>
 
-        {data.allPayments.length === 0 && pendingOperations.filter(op => op.type === 'create').length === 0 ? (
+        {data.items.length === 0 ? (
           <div className="text-center py-8 text-gray-500 bg-white border border-gray-200 rounded-xl">
             <Receipt className="w-12 h-12 mx-auto mb-3 opacity-30" />
-            <p>ยังไม่มีงวดชำระเงิน</p>
-            <p className="text-sm mt-1">คลิก "เพิ่มงวด" เพื่อสร้างงวดชำระเงินใหม่</p>
+            <p>ไม่มีสินค้าในออเดอร์นี้</p>
           </div>
         ) : (
-          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-100">
-            {/* Pending new payments */}
-            {pendingOperations
-              .filter(op => op.type === 'create')
-              .map((op, index) => (
-              <div key={op.tempId} className="p-4 bg-green-50 border-l-4 border-green-500">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-medium text-gray-800">
-                        {op.data?.installmentName || `งวดที่ ${op.data?.installmentNumber}`}
-                      </span>
-                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 animate-pulse">
-                        <Plus className="w-3 h-3" />
-                        ใหม่ (รอบันทึก)
-                      </span>
-                    </div>
-                    <div className="text-sm text-gray-600">
-                      <span className="font-semibold text-primary-600">
-                        ฿{(op.data?.amountBaht || 0).toLocaleString()}
-                      </span>
-                    </div>
-                    {op.data?.dueDate && (
-                      <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
-                        <Calendar className="w-3 h-3" />
-                        กำหนดชำระ: {new Date(op.data.dueDate).toLocaleDateString('th-TH')}
-                      </div>
-                    )}
-                    {op.data?.notes && (
-                      <p className="text-xs text-gray-400 mt-1">{op.data.notes}</p>
-                    )}
-                  </div>
-                  <motion.button
-                    onClick={() => handleRemovePendingOperation(pendingOperations.indexOf(op))}
-                    className="p-1.5 text-red-500 hover:bg-red-50 rounded"
-                    whileTap={{ scale: 0.95 }}
-                    title="ยกเลิก"
-                  >
-                    <X className="w-4 h-4" />
-                  </motion.button>
-                </div>
-              </div>
-            ))}
-            {/* Existing payments */}
-            {data.allPayments.map((payment) => {
-              const pendingOp = getPaymentPendingStatus(payment.id);
-              const isPendingDelete = pendingOp?.type === 'delete';
-              const isPendingUpdate = pendingOp?.type === 'update';
-              return (
-              <div key={payment.id} className={`p-4 hover:bg-gray-50 ${isPendingDelete ? 'bg-red-50 border-l-4 border-red-500 opacity-60' : ''} ${isPendingUpdate ? 'bg-yellow-50 border-l-4 border-yellow-500' : ''}`}>
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className={`font-medium ${isPendingDelete ? 'line-through text-gray-400' : 'text-gray-800'}`}>
-                        {payment.installmentName || `งวดที่ ${payment.installmentNumber}`}
-                      </span>
-                      {isPendingDelete ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 animate-pulse">
-                          <Trash2 className="w-3 h-3" />
-                          รอลบ
-                        </span>
-                      ) : isPendingUpdate ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 animate-pulse">
-                          <Clock className="w-3 h-3" />
-                          {pendingOp?.data?.status === 'paid' ? 'รอยืนยันชำระ' : pendingOp?.data?.status === 'verified' ? 'รอยืนยัน' : 'รอแก้ไข'}
-                        </span>
-                      ) : (
-                        getStatusBadge(payment.status)
-                      )}
-                    </div>
-                    <div className="text-sm text-gray-600 flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-primary-600">
-                        ฿{(payment.amountBaht || 0).toLocaleString()}
-                      </span>
-                      {payment.paymentMethod && (
-                        <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">
-                          {PAYMENT_METHODS.find(m => m.value === payment.paymentMethod)?.label || payment.paymentMethod}
-                        </span>
-                      )}
-                    </div>
-                    {payment.dueDate && (
-                      <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
-                        <Calendar className="w-3 h-3" />
-                        กำหนดชำระ: {new Date(payment.dueDate).toLocaleDateString('th-TH')}
-                      </div>
-                    )}
-                    {payment.paidAt && (
-                      <div className="text-xs text-green-600 mt-1">
-                        ชำระเมื่อ: {new Date(payment.paidAt).toLocaleDateString('th-TH')}
-                      </div>
-                    )}
-                    {payment.notes && (
-                      <p className="text-xs text-gray-400 mt-1">{payment.notes}</p>
-                    )}
-                  </div>
+          <div className="space-y-4">
+            {data.items.map((item) => {
+              const isExpanded = expandedItems.has(item.id);
+              const defaultItemTotal = (Number(item.priceBaht) || 0) + (Number(item.shippingCost) || 0);
+              const itemSummary = item.itemSummary || {
+                itemTotal: defaultItemTotal,
+                paidBaht: 0,
+                remainingBaht: defaultItemTotal,
+                percentPaid: 0,
+                totalPayments: 0,
+                paidPayments: 0,
+                pendingPayments: 0,
+              };
 
-                  {/* Actions */}
-                  <div className="flex items-center gap-2">
-                    {/* If has pending operation, show cancel button */}
-                    {(isPendingDelete || isPendingUpdate) ? (
+              return (
+                <div key={item.id} className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                  {/* Item Header */}
+                  <div
+                    className="p-4 cursor-pointer hover:bg-gray-50 flex items-center justify-between"
+                    onClick={() => toggleExpand(item.id)}
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-medium text-gray-800">
+                          {item.productName || item.productCode || 'สินค้า'}
+                        </span>
+                        {item.productCode && item.productName && (
+                          <span className="text-xs text-gray-400">({item.productCode})</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-4 text-sm">
+                        <span className="text-gray-600">
+                          ยอดสินค้า: <span className="font-semibold">฿{itemSummary.itemTotal.toLocaleString()}</span>
+                        </span>
+                        <span className="text-green-600">
+                          ชำระแล้ว: <span className="font-semibold">฿{itemSummary.paidBaht.toLocaleString()}</span>
+                        </span>
+                        <span className="text-orange-600">
+                          ค้างชำระ: <span className="font-semibold">฿{itemSummary.remainingBaht.toLocaleString()}</span>
+                        </span>
+                      </div>
+                      {/* Progress bar */}
+                      <div className="w-full bg-gray-200 rounded-full h-2 mt-2 max-w-md">
+                        <div
+                          className="bg-green-500 h-2 rounded-full transition-all duration-500"
+                          style={{ width: `${itemSummary.percentPaid}%` }}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm text-gray-500">
+                        {itemSummary.paidPayments}/{itemSummary.totalPayments} งวด
+                      </span>
                       <motion.button
-                        onClick={() => handleRemovePendingOperation(pendingOperations.indexOf(pendingOp!))}
-                        className="px-3 py-1.5 bg-gray-500 text-white rounded-lg text-xs font-medium hover:bg-gray-600"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedItem(item);
+                          setPaymentForm({
+                            ...paymentForm,
+                            installmentNumber: item.payments.length + 1,
+                            installmentName: `งวดที่ ${item.payments.length + 1}`,
+                          });
+                          setShowAddPayment(true);
+                        }}
+                        className="bg-primary-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-primary-700 flex items-center gap-1"
                         whileTap={{ scale: 0.95 }}
                       >
-                        ยกเลิก
+                        <Plus className="w-4 h-4" />
+                        เพิ่มงวด
                       </motion.button>
-                    ) : (
-                      <>
-                        {/* View Detail Button */}
-                        <motion.button
-                          onClick={() => setViewPaymentDetail(payment)}
-                          className="p-1.5 text-gray-500 hover:bg-gray-100 rounded"
-                          whileTap={{ scale: 0.95 }}
-                          title="ดูรายละเอียด"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </motion.button>
-
-                        {/* Proof image thumbnail */}
-                        {payment.proofImageUrl && (
-                          <button
-                            onClick={() => setViewingImage(payment.proofImageUrl)}
-                            className="w-10 h-10 rounded-lg overflow-hidden border-2 border-green-300 hover:border-green-500 transition-colors"
-                            title="ดูหลักฐานการชำระเงิน"
-                          >
-                            <img
-                              src={payment.proofImageUrl}
-                              alt="หลักฐาน"
-                              className="w-full h-full object-cover"
-                            />
-                          </button>
-                        )}
-
-                        {/* Action buttons based on status */}
-                        {payment.status === 'pending' && (
-                          <motion.button
-                            onClick={() => openConfirmPayment(payment.id)}
-                            className="px-3 py-1.5 bg-blue-500 text-white rounded-lg text-xs font-medium hover:bg-blue-600"
-                            whileTap={{ scale: 0.95 }}
-                          >
-                            ชำระแล้ว
-                          </motion.button>
-                        )}
-                        {payment.status === 'paid' && (
-                          <motion.button
-                            onClick={() => handleVerifyPayment(payment.id)}
-                            className="px-3 py-1.5 bg-green-500 text-white rounded-lg text-xs font-medium hover:bg-green-600"
-                            whileTap={{ scale: 0.95 }}
-                          >
-                            ยืนยัน
-                          </motion.button>
-                        )}
-                        <motion.button
-                          onClick={() => handleDeletePayment(payment.id)}
-                          className="p-1.5 text-red-500 hover:bg-red-50 rounded"
-                          whileTap={{ scale: 0.95 }}
-                          title="ลบ"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </motion.button>
-                      </>
-                    )}
+                      {isExpanded ? (
+                        <ChevronUp className="w-5 h-5 text-gray-400" />
+                      ) : (
+                        <ChevronDown className="w-5 h-5 text-gray-400" />
+                      )}
+                    </div>
                   </div>
+
+                  {/* Item Payments (Expandable) */}
+                  <AnimatePresence>
+                    {isExpanded && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="border-t border-gray-100"
+                      >
+                        {item.payments.length === 0 ? (
+                          <div className="p-6 text-center text-gray-400">
+                            <Receipt className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                            <p className="text-sm">ยังไม่มีงวดชำระเงินสำหรับสินค้านี้</p>
+                          </div>
+                        ) : (
+                          <div className="divide-y divide-gray-100">
+                            {/* Payments for this item */}
+                            {item.payments.map((payment) => (
+                              <div key={payment.id} className="p-4 hover:bg-gray-50">
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className="font-medium text-gray-800">
+                                        {payment.installmentName || `งวดที่ ${payment.installmentNumber}`}
+                                      </span>
+                                      {getStatusBadge(payment.status)}
+                                    </div>
+                                    <div className="text-sm text-gray-600 flex items-center gap-2 flex-wrap">
+                                      <span className="font-semibold text-primary-600">
+                                        ฿{(Number(payment.amountBaht) || 0).toLocaleString()}
+                                      </span>
+                                      {payment.paymentMethod && (
+                                        <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">
+                                          {PAYMENT_METHODS.find(m => m.value === payment.paymentMethod)?.label || payment.paymentMethod}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {payment.dueDate && (
+                                      <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
+                                        <Calendar className="w-3 h-3" />
+                                        กำหนดชำระ: {new Date(payment.dueDate).toLocaleDateString('th-TH')}
+                                      </div>
+                                    )}
+                                    {payment.paidAt && (
+                                      <div className="text-xs text-green-600 mt-1">
+                                        ชำระเมื่อ: {new Date(payment.paidAt).toLocaleDateString('th-TH')}
+                                      </div>
+                                    )}
+                                    {payment.notes && (
+                                      <p className="text-xs text-gray-400 mt-1">{payment.notes}</p>
+                                    )}
+                                  </div>
+
+                                  {/* Actions */}
+                                  <div className="flex items-center gap-2">
+                                    <motion.button
+                                      onClick={() => setViewPaymentDetail(payment)}
+                                      className="p-1.5 text-gray-500 hover:bg-gray-100 rounded"
+                                      whileTap={{ scale: 0.95 }}
+                                      title="ดูรายละเอียด"
+                                    >
+                                      <Eye className="w-4 h-4" />
+                                    </motion.button>
+
+                                    {payment.proofImageUrl && (
+                                      <button
+                                        onClick={() => setViewingImage(payment.proofImageUrl)}
+                                        className="w-10 h-10 rounded-lg overflow-hidden border-2 border-green-300 hover:border-green-500 transition-colors"
+                                        title="ดูหลักฐานการชำระเงิน"
+                                      >
+                                        <img
+                                          src={payment.proofImageUrl}
+                                          alt="หลักฐาน"
+                                          className="w-full h-full object-cover"
+                                        />
+                                      </button>
+                                    )}
+
+                                    {payment.status === 'pending' && (
+                                      <motion.button
+                                        onClick={() => openConfirmPayment(payment.id)}
+                                        className="px-3 py-1.5 bg-blue-500 text-white rounded-lg text-xs font-medium hover:bg-blue-600"
+                                        whileTap={{ scale: 0.95 }}
+                                      >
+                                        ชำระแล้ว
+                                      </motion.button>
+                                    )}
+                                    {payment.status === 'paid' && (
+                                      <motion.button
+                                        onClick={() => handleVerifyPayment(payment.id)}
+                                        className="px-3 py-1.5 bg-green-500 text-white rounded-lg text-xs font-medium hover:bg-green-600"
+                                        whileTap={{ scale: 0.95 }}
+                                      >
+                                        ยืนยัน
+                                      </motion.button>
+                                    )}
+                                    <motion.button
+                                      onClick={() => handleDeletePayment(payment.id)}
+                                      className="p-1.5 text-red-500 hover:bg-red-50 rounded"
+                                      whileTap={{ scale: 0.95 }}
+                                      title="ลบ"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </motion.button>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
-              </div>
               );
             })}
           </div>
@@ -727,19 +731,26 @@ const PaymentTab = ({ orderId, orderNumber, onPendingChangesUpdate, onPaymentSum
               </div>
 
               <div className="flex-1 overflow-y-auto">
-              {/* Order Balance Info */}
+              {/* Item Balance Info (Per-Item) */}
               {(() => {
-                const orderTotal = data?.summary.grandTotal || 0;
-                const existingPaymentsTotal = data?.allPayments.reduce(
-                  (sum, p) => sum + (p.amountBaht || 0), 0
+                const itemTotal = selectedItem?.itemSummary?.itemTotal ||
+                  ((Number(selectedItem?.priceBaht) || 0) + (Number(selectedItem?.shippingCost) || 0));
+                const existingPaymentsTotal = selectedItem?.payments.reduce(
+                  (sum, p) => sum + (Number(p.amountBaht) || 0), 0
                 ) || 0;
-                const remainingBalance = orderTotal - existingPaymentsTotal;
+                const remainingBalance = itemTotal - existingPaymentsTotal;
                 return (
                   <div className="mx-6 mt-4 p-3 rounded-lg bg-blue-50 border border-blue-200">
+                    <div className="mb-2 text-center">
+                      <p className="text-xs text-gray-500">สินค้า</p>
+                      <p className="font-medium text-gray-800 text-sm">
+                        {selectedItem?.productName || selectedItem?.productCode || 'สินค้า'}
+                      </p>
+                    </div>
                     <div className="grid grid-cols-3 gap-2 text-sm">
                       <div className="text-center">
-                        <p className="text-gray-500">ยอดรวมออเดอร์</p>
-                        <p className="font-bold text-gray-800">฿{orderTotal.toLocaleString()}</p>
+                        <p className="text-gray-500">ยอดสินค้า</p>
+                        <p className="font-bold text-gray-800">฿{itemTotal.toLocaleString()}</p>
                       </div>
                       <div className="text-center">
                         <p className="text-gray-500">สร้างงวดแล้ว</p>
@@ -754,7 +765,7 @@ const PaymentTab = ({ orderId, orderNumber, onPendingChangesUpdate, onPaymentSum
                     </div>
                     {remainingBalance <= 0 && (
                       <p className="text-xs text-red-600 text-center mt-2">
-                        ⚠️ ไม่สามารถสร้างงวดเพิ่มได้ เนื่องจากสร้างครบยอดแล้ว
+                        ไม่สามารถสร้างงวดเพิ่มได้ เนื่องจากสร้างครบยอดสินค้านี้แล้ว
                       </p>
                     )}
                   </div>
@@ -772,12 +783,14 @@ const PaymentTab = ({ orderId, orderNumber, onPendingChangesUpdate, onPaymentSum
                       <button
                         key={inst.number}
                         onClick={() => {
-                          const orderTotal = data?.summary.grandTotal || 0;
+                          // Use item total instead of order total
+                          const itemTotal = selectedItem?.itemSummary?.itemTotal ||
+                            ((Number(selectedItem?.priceBaht) || 0) + (Number(selectedItem?.shippingCost) || 0));
                           setPaymentForm({
                             ...paymentForm,
                             installmentName: inst.name,
                             amountBaht: inst.percentOfTotal > 0
-                              ? Math.round(orderTotal * inst.percentOfTotal / 100).toString()
+                              ? Math.round(itemTotal * inst.percentOfTotal / 100).toString()
                               : '',
                           });
                         }}

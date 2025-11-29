@@ -205,7 +205,7 @@ const AdminOrdersPage = () => {
     const texts: Record<string, string> = {
       pending: 'รอดำเนินการ',
       processing: 'กำลังดำเนินการ',
-      shipped: 'จัดส่งแล้ว',
+      shipped: 'กำลังจัดส่ง',
       delivered: 'ส่งถึงแล้ว',
       cancelled: 'ยกเลิก',
     };
@@ -409,7 +409,7 @@ const AdminOrdersPage = () => {
                   >
                     <option value="pending">รอดำเนินการ</option>
                     <option value="processing">กำลังดำเนินการ</option>
-                    <option value="shipped">จัดส่งแล้ว</option>
+                    <option value="shipped">กำลังจัดส่ง</option>
                     <option value="delivered">ส่งถึงแล้ว</option>
                     <option value="cancelled">ยกเลิก</option>
                   </select>

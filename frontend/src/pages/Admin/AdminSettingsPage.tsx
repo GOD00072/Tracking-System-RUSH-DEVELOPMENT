@@ -660,7 +660,7 @@ const AdminSettingsPage = () => {
                   {[
                     { value: 'pending', label: 'รอดำเนินการ' },
                     { value: 'processing', label: 'กำลังดำเนินการ' },
-                    { value: 'shipped', label: 'จัดส่งแล้ว' },
+                    { value: 'shipped', label: 'กำลังจัดส่ง' },
                     { value: 'in_transit', label: 'อยู่ระหว่างการขนส่ง' },
                     { value: 'delivered', label: 'จัดส่งสำเร็จ' },
                   ].map((status) => (

@@ -257,6 +257,7 @@ router.patch('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
     if (req.body.customerId !== undefined) updateData.customerId = req.body.customerId;
     if (req.body.shippingMethod !== undefined) updateData.shippingMethod = req.body.shippingMethod;
     if (req.body.status !== undefined) updateData.status = req.body.status;
+    if (req.body.statusStep !== undefined) updateData.statusStep = parseInt(req.body.statusStep);
     if (req.body.origin !== undefined) updateData.origin = req.body.origin;
     if (req.body.destination !== undefined) updateData.destination = req.body.destination;
     if (req.body.notes !== undefined) updateData.notes = req.body.notes;

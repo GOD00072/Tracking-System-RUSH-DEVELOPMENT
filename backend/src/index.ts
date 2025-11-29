@@ -138,7 +138,7 @@ app.use('/api/v1/settings', settingsRouter);
 app.use('/api/v1/air-tracking', airTrackingRouter);
 app.use('/api/v1/order-items', orderItemsRouter);
 app.use('/api/v1/system-settings', systemSettingsRouter);
-app.use('/api/v1/tracking', trackingRouter); // Public tracking portal
+app.use('/api/v1/tracking', trackingRouter);
 app.use('/api/v1/invoice', invoiceRouter);
 app.use('/api/v1/payments', paymentsRouter);
 app.use('/api/v1/upload', uploadRouter);

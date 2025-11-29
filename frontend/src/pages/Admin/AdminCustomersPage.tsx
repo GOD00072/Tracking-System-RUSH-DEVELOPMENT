@@ -80,7 +80,7 @@ const STATUS_BADGES: Record<string, string> = {
 const STATUS_LABELS: Record<string, string> = {
   pending: 'รอดำเนินการ',
   processing: 'กำลังดำเนินการ',
-  shipped: 'จัดส่งแล้ว',
+  shipped: 'กำลังจัดส่ง',
   delivered: 'ส่งถึงแล้ว',
   cancelled: 'ยกเลิก',
 };
