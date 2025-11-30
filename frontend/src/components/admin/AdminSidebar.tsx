@@ -11,11 +11,12 @@ import {
   MessageSquare,
   BarChart3,
   LogOut,
-  Upload,
   Search,
   Cookie,
   Globe,
-  Check
+  Check,
+  Crown,
+  Cloud
 } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -58,15 +59,16 @@ const AdminSidebar = () => {
     { icon: LayoutDashboard, labelKey: 'admin.sidebar.dashboard', path: '/admin/dashboard' },
     { icon: Ship, labelKey: 'admin.sidebar.orders', path: '/admin/orders' },
     { icon: Package, labelKey: 'admin.sidebar.shipments', path: '/admin/shipments' },
-    { icon: Upload, labelKey: 'admin.sidebar.airImport', path: '/admin/air-tracking-import' },
     { icon: Calendar, labelKey: 'admin.sidebar.schedules', path: '/admin/schedules' },
     { icon: Users, labelKey: 'admin.sidebar.customers', path: '/admin/customers' },
+    { icon: Crown, labelKey: 'admin.sidebar.tierSettings', path: '/admin/tier-settings' },
     { icon: Star, labelKey: 'admin.sidebar.reviews', path: '/admin/reviews' },
     { icon: Calculator, labelKey: 'admin.sidebar.pricing', path: '/admin/pricing' },
     { icon: MessageSquare, labelKey: 'admin.sidebar.messages', path: '/admin/messages' },
     { icon: BarChart3, labelKey: 'admin.sidebar.statistics', path: '/admin/statistics' },
     { icon: Search, labelKey: 'admin.sidebar.seo', path: '/admin/seo' },
     { icon: Cookie, labelKey: 'admin.sidebar.cookies', path: '/admin/cookies' },
+    { icon: Cloud, labelKey: 'admin.sidebar.cloudinary', path: '/admin/cloudinary' },
     { icon: Settings, labelKey: 'admin.sidebar.settings', path: '/admin/settings' },
   ];
 

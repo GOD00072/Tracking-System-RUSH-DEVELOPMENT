@@ -3,6 +3,10 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
+
+// Load environment variables FIRST before any other imports that need them
+dotenv.config();
+
 import rateLimit from 'express-rate-limit';
 import session from 'express-session';
 import cookieParser from 'cookie-parser';
@@ -31,6 +35,8 @@ import invoiceRouter from './routes/invoice';
 import paymentsRouter from './routes/payments';
 import uploadRouter from './routes/upload';
 import notificationsRouter from './routes/notifications';
+import tiersRouter from './routes/tiers';
+import cloudinaryCleanupRouter from './routes/cloudinaryCleanup';
 import path from 'path';
 
 // Admin Routes
@@ -38,8 +44,6 @@ import adminOrdersRouter from './routes/admin/orders';
 
 // Webhook Routes
 import lineWebhookRouter from './routes/webhook/line';
-
-dotenv.config();
 
 const app: Application = express();
 const PORT = process.env.PORT || 5000;
@@ -143,6 +147,8 @@ app.use('/api/v1/invoice', invoiceRouter);
 app.use('/api/v1/payments', paymentsRouter);
 app.use('/api/v1/upload', uploadRouter);
 app.use('/api/v1/notifications', notificationsRouter);
+app.use('/api/v1/tiers', tiersRouter);
+app.use('/api/v1/cloudinary-cleanup', cloudinaryCleanupRouter);
 
 // Admin API Routes
 app.use('/api/v1/admin/orders', adminOrdersRouter);

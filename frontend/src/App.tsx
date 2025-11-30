@@ -28,13 +28,17 @@ import TrackingPortal from './pages/TrackingPortal';
 import AdminLoginPage from './pages/Admin/AdminLoginPage';
 import AdminDashboardPage from './pages/Admin/AdminDashboardPage';
 import AdminSettingsPage from './pages/Admin/AdminSettingsPage';
-import AdminAirTrackingImport from './pages/Admin/AdminAirTrackingImport';
 import AdminReviewsPage from './pages/Admin/AdminReviewsPage';
 import AdminOrdersPage from './pages/Admin/AdminOrdersPage';
 import OrderDetailPage from './pages/Admin/OrderDetailPage';
 import AdminCustomersPage from './pages/Admin/AdminCustomersPage';
 import AdminSEOPage from './pages/Admin/AdminSEOPage';
 import AdminCookiePage from './pages/Admin/AdminCookiePage';
+import AdminTierSettingsPage from './pages/Admin/AdminTierSettingsPage';
+import AdminShipmentsPage from './pages/Admin/AdminShipmentsPage';
+import AdminPricingPage from './pages/Admin/AdminPricingPage';
+import AdminSchedulesPage from './pages/Admin/AdminSchedulesPage';
+import AdminCloudinaryPage from './pages/Admin/AdminCloudinaryPage';
 import AdminNotFoundPage from './pages/Admin/AdminNotFoundPage';
 
 function App() {
@@ -71,16 +75,17 @@ function App() {
             <Route path="settings" element={<AdminSettingsPage />} />
             <Route path="orders" element={<AdminOrdersPage />} />
             <Route path="orders/:id" element={<OrderDetailPage />} />
-            <Route path="shipments" element={<AdminDashboardPage />} />
-            <Route path="air-tracking-import" element={<AdminAirTrackingImport />} />
-            <Route path="schedules" element={<AdminDashboardPage />} />
+            <Route path="shipments" element={<AdminShipmentsPage />} />
+            <Route path="schedules" element={<AdminSchedulesPage />} />
             <Route path="customers" element={<AdminCustomersPage />} />
+            <Route path="tier-settings" element={<AdminTierSettingsPage />} />
             <Route path="reviews" element={<AdminReviewsPage />} />
-            <Route path="pricing" element={<AdminSettingsPage />} />
+            <Route path="pricing" element={<AdminPricingPage />} />
             <Route path="messages" element={<AdminDashboardPage />} />
             <Route path="statistics" element={<AdminDashboardPage />} />
             <Route path="seo" element={<AdminSEOPage />} />
             <Route path="cookies" element={<AdminCookiePage />} />
+            <Route path="cloudinary" element={<AdminCloudinaryPage />} />
             <Route path="*" element={<AdminNotFoundPage />} />
           </Route>
           </Routes>
