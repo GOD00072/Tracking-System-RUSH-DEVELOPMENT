@@ -1,71 +1,114 @@
 import express from 'express';
-import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
 import prisma from '../lib/prisma';
 import { authenticateAdmin, AuthRequest } from '../middleware/auth';
+import { productUpload, paymentUpload, profileUpload, deleteFromCloudinary, isCloudinaryUrl, createDynamicUpload } from '../config/cloudinary';
 
 const router = express.Router();
 
-// Create uploads directory if it doesn't exist
-const uploadsDir = path.join(__dirname, '../../uploads');
-const productImagesDir = path.join(uploadsDir, 'products');
-const paymentProofsDir = path.join(uploadsDir, 'payments');
+// POST /api/v1/upload/cloudinary - Generic Cloudinary upload with folder support
+router.post('/cloudinary', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    // Get folder from query or body, default to 'general'
+    const folder = (req.query.folder as string) || (req.body?.folder as string) || 'general';
 
-[uploadsDir, productImagesDir, paymentProofsDir].forEach(dir => {
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
+    // Validate folder name
+    const allowedFolders = ['customer-profiles', 'products', 'payments', 'reviews', 'schedules', 'general'];
+    const finalFolder = allowedFolders.includes(folder) ? folder : 'general';
+
+    // Create dynamic upload handler for the specified folder
+    const upload = createDynamicUpload(finalFolder);
+
+    // Use multer middleware manually
+    upload.single('file')(req, res, (err) => {
+      if (err) {
+        console.error('Cloudinary upload error:', err);
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'UPLOAD_ERROR',
+            message: err.message || 'Failed to upload file',
+          },
+        });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'NO_FILE',
+            message: 'No file provided',
+          },
+        });
+      }
+
+      const imageUrl = (req.file as any).path;
+
+      res.json({
+        success: true,
+        data: {
+          filename: (req.file as any).filename || req.file.originalname,
+          url: imageUrl,
+          folder: `pakkuneko/${finalFolder}`,
+          size: req.file.size,
+          mimetype: req.file.mimetype,
+        },
+      });
+    });
+  } catch (error: any) {
+    console.error('Error in cloudinary upload:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'UPLOAD_ERROR',
+        message: error.message || 'Failed to upload file',
+      },
+    });
   }
 });
 
-// Multer configuration for product images
-const productStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, productImagesDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname);
-    cb(null, `product-${uniqueSuffix}${ext}`);
-  },
-});
+// POST /api/v1/upload/profile - Upload customer profile image
+router.post('/profile', authenticateAdmin, profileUpload.single('file'), async (req: AuthRequest, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'NO_FILE',
+          message: 'No image file provided',
+        },
+      });
+    }
 
-// Multer configuration for payment proofs
-const paymentStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, paymentProofsDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname);
-    cb(null, `payment-${uniqueSuffix}${ext}`);
-  },
-});
+    const imageUrl = (req.file as any).path;
 
-// File filter for images
-const imageFilter = (req: any, file: any, cb: any) => {
-  const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-  if (allowedTypes.includes(file.mimetype)) {
-    cb(null, true);
-  } else {
-    cb(new Error('Only image files (JPEG, PNG, GIF, WebP) are allowed'), false);
+    // Optionally update customer record if customerId is provided
+    if (req.body.customerId) {
+      await prisma.customer.update({
+        where: { id: req.body.customerId },
+        data: { profileImageUrl: imageUrl },
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        filename: (req.file as any).filename || req.file.originalname,
+        url: imageUrl,
+        folder: 'pakkuneko/customer-profiles',
+        size: req.file.size,
+        mimetype: req.file.mimetype,
+      },
+    });
+  } catch (error: any) {
+    console.error('Error uploading profile image:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'UPLOAD_ERROR',
+        message: error.message || 'Failed to upload profile image',
+      },
+    });
   }
-};
-
-const productUpload = multer({
-  storage: productStorage,
-  fileFilter: imageFilter,
-  limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB limit
-  },
-});
-
-const paymentUpload = multer({
-  storage: paymentStorage,
-  fileFilter: imageFilter,
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit for payment proofs
-  },
 });
 
 // POST /api/v1/upload/image - Simple image upload (accepts 'file' field)
@@ -81,12 +124,13 @@ router.post('/image', productUpload.single('file'), async (req, res) => {
       });
     }
 
-    const imageUrl = `/uploads/products/${req.file.filename}`;
+    // Cloudinary returns the full URL in req.file.path
+    const imageUrl = (req.file as any).path;
 
     res.json({
       success: true,
       data: {
-        filename: req.file.filename,
+        filename: (req.file as any).filename || req.file.originalname,
         url: imageUrl,
         size: req.file.size,
         mimetype: req.file.mimetype,
@@ -117,12 +161,13 @@ router.post('/product-image', authenticateAdmin, productUpload.single('image'), 
       });
     }
 
-    const imageUrl = `/uploads/products/${req.file.filename}`;
+    // Cloudinary returns the full URL in req.file.path
+    const imageUrl = (req.file as any).path;
 
     res.json({
       success: true,
       data: {
-        filename: req.file.filename,
+        filename: (req.file as any).filename || req.file.originalname,
         url: imageUrl,
         size: req.file.size,
         mimetype: req.file.mimetype,
@@ -155,9 +200,10 @@ router.post('/product-images', authenticateAdmin, productUpload.array('images', 
       });
     }
 
+    // Cloudinary returns the full URL in file.path
     const images = files.map(file => ({
-      filename: file.filename,
-      url: `/uploads/products/${file.filename}`,
+      filename: (file as any).filename || file.originalname,
+      url: (file as any).path,
       size: file.size,
       mimetype: file.mimetype,
     }));
@@ -194,7 +240,8 @@ router.post('/payment-proof', authenticateAdmin, paymentUpload.single('proof'), 
       });
     }
 
-    const proofUrl = `/uploads/payments/${req.file.filename}`;
+    // Cloudinary returns the full URL in req.file.path
+    const proofUrl = (req.file as any).path;
 
     // Optionally update payment record if paymentId is provided
     if (req.body.paymentId) {
@@ -207,7 +254,7 @@ router.post('/payment-proof', authenticateAdmin, paymentUpload.single('proof'), 
     res.json({
       success: true,
       data: {
-        filename: req.file.filename,
+        filename: (req.file as any).filename || req.file.originalname,
         url: proofUrl,
         size: req.file.size,
         mimetype: req.file.mimetype,
@@ -257,9 +304,9 @@ router.post('/order-item-images/:orderItemId', authenticateAdmin, productUpload.
       });
     }
 
-    // Merge existing and new images
+    // Merge existing and new images (Cloudinary returns full URL in file.path)
     const existingImages = (orderItem.productImages as string[]) || [];
-    const newImageUrls = files.map(file => `/uploads/products/${file.filename}`);
+    const newImageUrls = files.map(file => (file as any).path);
     const allImages = [...existingImages, ...newImageUrls];
 
     // Update order item with new images
@@ -330,15 +377,9 @@ router.delete('/order-item-image/:orderItemId', authenticateAdmin, async (req: A
       data: { productImages: updatedImages },
     });
 
-    // Try to delete the file from disk
-    try {
-      const filename = path.basename(imageUrl);
-      const filePath = path.join(productImagesDir, filename);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
-    } catch (fileErr) {
-      console.warn('Could not delete file from disk:', fileErr);
+    // Delete from Cloudinary if it's a Cloudinary URL
+    if (isCloudinaryUrl(imageUrl)) {
+      await deleteFromCloudinary(imageUrl);
     }
 
     res.json({

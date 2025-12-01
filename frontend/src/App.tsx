@@ -39,6 +39,7 @@ import AdminShipmentsPage from './pages/Admin/AdminShipmentsPage';
 import AdminPricingPage from './pages/Admin/AdminPricingPage';
 import AdminSchedulesPage from './pages/Admin/AdminSchedulesPage';
 import AdminCloudinaryPage from './pages/Admin/AdminCloudinaryPage';
+import AdminStatisticsPage from './pages/Admin/AdminStatisticsPage';
 import AdminNotFoundPage from './pages/Admin/AdminNotFoundPage';
 
 function App() {
@@ -81,11 +82,10 @@ function App() {
             <Route path="tier-settings" element={<AdminTierSettingsPage />} />
             <Route path="reviews" element={<AdminReviewsPage />} />
             <Route path="pricing" element={<AdminPricingPage />} />
-            <Route path="messages" element={<AdminDashboardPage />} />
-            <Route path="statistics" element={<AdminDashboardPage />} />
             <Route path="seo" element={<AdminSEOPage />} />
             <Route path="cookies" element={<AdminCookiePage />} />
             <Route path="cloudinary" element={<AdminCloudinaryPage />} />
+            <Route path="statistics" element={<AdminStatisticsPage />} />
             <Route path="*" element={<AdminNotFoundPage />} />
           </Route>
           </Routes>

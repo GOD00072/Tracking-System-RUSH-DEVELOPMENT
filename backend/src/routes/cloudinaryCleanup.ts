@@ -83,26 +83,11 @@ router.get('/scan', authenticateAdmin, async (req, res) => {
       }
     }
 
-    // ScheduleImage.imageUrl
-    const scheduleImages = await prisma.scheduleImage.findMany({
-      select: { imageUrl: true },
+    // Notification.imageUrl (if exists)
+    const notifications = await prisma.notification.findMany({
+      select: { id: true },
     });
-    for (const schedule of scheduleImages) {
-      if (isCloudinaryUrl(schedule.imageUrl)) {
-        dbImageUrls.add(schedule.imageUrl);
-      }
-    }
-
-    // WebNotification.imageUrl
-    const webNotifications = await prisma.webNotification.findMany({
-      where: { imageUrl: { not: null } },
-      select: { imageUrl: true },
-    });
-    for (const notification of webNotifications) {
-      if (notification.imageUrl && isCloudinaryUrl(notification.imageUrl)) {
-        dbImageUrls.add(notification.imageUrl);
-      }
-    }
+    // Note: Notification model may not have imageUrl field
 
     // Payment.proofImageUrl
     const payments = await prisma.payment.findMany({
@@ -306,25 +291,6 @@ router.delete('/delete-all', authenticateAdmin, async (req, res) => {
     for (const review of reviews) {
       if (review.customerImage && isCloudinaryUrl(review.customerImage)) {
         dbImageUrls.add(review.customerImage);
-      }
-    }
-
-    const scheduleImages = await prisma.scheduleImage.findMany({
-      select: { imageUrl: true },
-    });
-    for (const schedule of scheduleImages) {
-      if (isCloudinaryUrl(schedule.imageUrl)) {
-        dbImageUrls.add(schedule.imageUrl);
-      }
-    }
-
-    const webNotifications = await prisma.webNotification.findMany({
-      where: { imageUrl: { not: null } },
-      select: { imageUrl: true },
-    });
-    for (const notification of webNotifications) {
-      if (notification.imageUrl && isCloudinaryUrl(notification.imageUrl)) {
-        dbImageUrls.add(notification.imageUrl);
       }
     }
 

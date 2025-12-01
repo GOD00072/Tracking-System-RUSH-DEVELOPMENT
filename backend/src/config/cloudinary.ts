@@ -62,6 +62,21 @@ export const reviewUpload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
 });
 
+export const profileUpload = multer({
+  storage: createCloudinaryStorage('customer-profiles'),
+  fileFilter: imageFilter,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+});
+
+// Dynamic folder upload - creates storage on-demand
+export const createDynamicUpload = (folder: string) => {
+  return multer({
+    storage: createCloudinaryStorage(folder),
+    fileFilter: imageFilter,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  });
+};
+
 // Helper function to delete image from Cloudinary
 export const deleteFromCloudinary = async (imageUrl: string): Promise<boolean> => {
   try {

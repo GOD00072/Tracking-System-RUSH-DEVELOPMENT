@@ -20,39 +20,64 @@ model User {
   updatedAt      DateTime       @updatedAt @map("updated_at") @db.Timestamp(6)
   lineId         String?        @unique @map("line_id") @db.VarChar(255)
   profilePicture String?        @map("profile_picture")
+  // Soft Delete
+  deletedAt      DateTime?      @map("deleted_at") @db.Timestamp(6)
+  deletedBy      String?        @map("deleted_by") @db.VarChar(255)
   customers      Customer[]
   notifications  Notification[]
 
   @@index([email])
   @@index([googleId])
   @@index([lineId])
+  @@index([deletedAt])
   @@map("users")
 }
 
 model Customer {
-  id            String         @id @default(uuid()) @db.Uuid
-  userId        String?        @map("user_id") @db.Uuid
-  airtableId    String?        @unique @map("airtable_id") @db.VarChar(255)
-  companyName   String?        @map("company_name") @db.VarChar(255)
-  contactPerson String?        @map("contact_person") @db.VarChar(255)
-  phone         String?        @db.VarChar(20)
-  lineId        String?        @map("line_id") @db.VarChar(255)
-  address       String?
-  notes         String?
-  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt     DateTime       @updatedAt @map("updated_at") @db.Timestamp(6)
-  discount      Decimal?       @db.Decimal(5, 2)
-  tier          String         @default("regular") @db.VarChar(20)
-  totalSpent    Decimal?       @default(0) @map("total_spent") @db.Decimal(12, 2)
-  vipSince      DateTime?      @map("vip_since") @db.Timestamp(6)
-  user          User?          @relation(fields: [userId], references: [id])
-  notifications Notification[]
-  orders        Order[]
-  reviews       Review[]
+  id               String         @id @default(uuid()) @db.Uuid
+  userId           String?        @map("user_id") @db.Uuid
+  airtableId       String?        @unique @map("airtable_id") @db.VarChar(255)
+  companyName      String?        @map("company_name") @db.VarChar(255)
+  contactPerson    String?        @map("contact_person") @db.VarChar(255)
+  phone            String?        @db.VarChar(20)
+  lineId           String?        @map("line_id") @db.VarChar(255)
+  address          String?
+  notes            String?
+  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt        DateTime       @updatedAt @map("updated_at") @db.Timestamp(6)
+  discount         Decimal?       @db.Decimal(5, 2)
+  tier             String         @default("regular") @db.VarChar(20)
+  totalSpent       Decimal?       @default(0) @map("total_spent") @db.Decimal(12, 2)
+  vipSince         DateTime?      @map("vip_since") @db.Timestamp(6)
+  // New fields for enhanced customer management
+  profileImageUrl  String?        @map("profile_image_url")
+  email            String?        @db.VarChar(255)
+  taxId            String?        @map("tax_id") @db.VarChar(20)
+  shippingAddress  String?        @map("shipping_address")
+  billingAddress   String?        @map("billing_address")
+  province         String?        @db.VarChar(100)
+  postalCode       String?        @map("postal_code") @db.VarChar(10)
+  country          String?        @default("Thailand") @db.VarChar(100)
+  dateOfBirth      DateTime?      @map("date_of_birth") @db.Date
+  preferredContact String?        @default("line") @map("preferred_contact") @db.VarChar(20)
+  referralSource   String?        @map("referral_source") @db.VarChar(100)
+  tags             String[]       @default([])
+  isActive         Boolean        @default(true) @map("is_active")
+  lastOrderAt      DateTime?      @map("last_order_at") @db.Timestamp(6)
+  // Soft Delete
+  deletedAt        DateTime?      @map("deleted_at") @db.Timestamp(6)
+  deletedBy        String?        @map("deleted_by") @db.VarChar(255)
+  user             User?          @relation(fields: [userId], references: [id])
+  notifications    Notification[]
+  orders           Order[]
+  reviews          Review[]
 
   @@index([userId])
   @@index([airtableId])
   @@index([tier])
+  @@index([email])
+  @@index([isActive])
+  @@index([deletedAt])
   @@map("customers")
 }
 
@@ -74,6 +99,9 @@ model Order {
   notes             String?
   createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt         DateTime        @updatedAt @map("updated_at") @db.Timestamp(6)
+  // Soft Delete
+  deletedAt         DateTime?       @map("deleted_at") @db.Timestamp(6)
+  deletedBy         String?         @map("deleted_by") @db.VarChar(255)
   orderItems        OrderItem[]
   customer          Customer?       @relation(fields: [customerId], references: [id])
   portfolioItems    PortfolioItem[]
@@ -84,6 +112,7 @@ model Order {
   @@index([orderNumber])
   @@index([status])
   @@index([statusStep])
+  @@index([deletedAt])
   @@map("orders")
 }
 
@@ -114,6 +143,9 @@ model OrderItem {
   trackingNumberTH String?             @map("tracking_number_th") @db.VarChar(100)
   shippingCost     Decimal?            @map("shipping_cost") @db.Decimal(10, 2)
   weight           Decimal?            @db.Decimal(10, 2)
+  // Soft Delete
+  deletedAt        DateTime?           @map("deleted_at") @db.Timestamp(6)
+  deletedBy        String?             @map("deleted_by") @db.VarChar(255)
   statusHistory    ItemStatusHistory[]
   order            Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
   payments         Payment[]
@@ -124,6 +156,7 @@ model OrderItem {
   @@index([trackingNumberTH])
   @@index([trackingNumber])
   @@index([statusStep])
+  @@index([deletedAt])
   @@map("order_items")
 }
 
@@ -201,6 +234,7 @@ model Review {
   updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
   customerImage String?   @map("customer_image")
   customerName  String?   @map("customer_name") @db.VarChar(255)
+  reviewImages  Json?     @map("review_images")  // Array of image URLs [{url: string, caption?: string}]
   customer      Customer? @relation(fields: [customerId], references: [id])
   order         Order?    @relation(fields: [orderId], references: [id])
 
@@ -332,10 +366,201 @@ model Payment {
   verifiedAt        DateTime? @map("verified_at") @db.Timestamp(6)
   createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+  // Soft Delete
+  deletedAt         DateTime? @map("deleted_at") @db.Timestamp(6)
+  deletedBy         String?   @map("deleted_by") @db.VarChar(255)
   orderItem         OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
 
   @@index([orderItemId])
   @@index([status])
   @@index([installmentNumber])
+  @@index([deletedAt])
   @@map("payments")
+}
+
+// Customer Tier System - ระบบระดับลูกค้า VIP
+model CustomerTier {
+  id              String   @id @default(uuid()) @db.Uuid
+  tierCode        String   @unique @map("tier_code") @db.VarChar(20) // member, vip, vvip
+  tierName        String   @map("tier_name") @db.VarChar(100)        // Member, VIP, VVIP
+  tierNameTh      String?  @map("tier_name_th") @db.VarChar(100)     // ชื่อภาษาไทย
+  exchangeRate    Decimal  @map("exchange_rate") @db.Decimal(10, 4)  // อัตราแลกเปลี่ยน ¥ → ฿
+  minSpent        Decimal  @default(0) @map("min_spent") @db.Decimal(12, 2)  // ยอดใช้จ่ายขั้นต่ำ
+  maxSpent        Decimal? @map("max_spent") @db.Decimal(12, 2)      // ยอดใช้จ่ายสูงสุด (null = ไม่จำกัด)
+  benefits        Json?                                               // สิทธิประโยชน์อื่นๆ
+  color           String?  @db.VarChar(20)                           // สีสำหรับแสดง badge
+  icon            String?  @db.VarChar(50)                           // icon name
+  sortOrder       Int      @default(0) @map("sort_order")            // ลำดับการแสดง
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@index([tierCode])
+  @@index([sortOrder])
+  @@map("customer_tiers")
+}
+
+// Tier Change History - ประวัติการเปลี่ยนระดับลูกค้า
+model TierHistory {
+  id            String   @id @default(uuid()) @db.Uuid
+  customerId    String   @map("customer_id") @db.Uuid
+  previousTier  String?  @map("previous_tier") @db.VarChar(20)
+  newTier       String   @map("new_tier") @db.VarChar(20)
+  reason        String?  @db.VarChar(255)  // auto_upgrade, manual, downgrade
+  totalSpentAt  Decimal? @map("total_spent_at") @db.Decimal(12, 2) // ยอดสะสม ณ เวลาเปลี่ยน
+  changedBy     String?  @map("changed_by") @db.VarChar(255)       // admin email หรือ "system"
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  @@index([customerId])
+  @@index([createdAt])
+  @@map("tier_history")
+}
+
+// Schedule Image - รูปตารางรอบเรือ/เครื่องบินประจำเดือน
+model ScheduleImage {
+  id            String   @id @default(uuid()) @db.Uuid
+  type          String   @db.VarChar(20)              // 'ship' หรือ 'air'
+  title         String   @db.VarChar(255)             // ชื่อตาราง เช่น "ตารางเรือ ธันวาคม 2024"
+  description   String?                               // รายละเอียดเพิ่มเติม
+  imageUrl      String   @map("image_url")            // URL ของรูปภาพ
+  month         Int                                   // เดือน (1-12)
+  year          Int                                   // ปี
+  isActive      Boolean  @default(true) @map("is_active")
+  isNotified    Boolean  @default(false) @map("is_notified") // ส่งแจ้งเตือนแล้วหรือยัง
+  notifiedAt    DateTime? @map("notified_at") @db.Timestamp(6)
+  uploadedBy    String?  @map("uploaded_by") @db.VarChar(255)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@index([type])
+  @@index([month, year])
+  @@index([isActive])
+  @@map("schedule_images")
+}
+
+// Web Notification - การแจ้งเตือนในเว็บ
+model WebNotification {
+  id          String    @id @default(uuid()) @db.Uuid
+  type        String    @db.VarChar(50)              // schedule_update, announcement, etc.
+  title       String    @db.VarChar(255)
+  message     String?
+  linkUrl     String?   @map("link_url")             // ลิงก์ไปยังหน้าที่เกี่ยวข้อง
+  imageUrl    String?   @map("image_url")            // รูปภาพประกอบ
+  isActive    Boolean   @default(true) @map("is_active")
+  expiresAt   DateTime? @map("expires_at") @db.Timestamp(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+
+  @@index([type])
+  @@index([isActive])
+  @@index([expiresAt])
+  @@map("web_notifications")
+}
+
+// ============================================
+// SECURITY & AUDIT MODELS
+// ============================================
+
+// Login History - บันทึกประวัติการ login ของ User และ Admin
+model LoginHistory {
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String?   @map("user_id") @db.Uuid
+  userType      String    @map("user_type") @db.VarChar(20)  // 'user', 'admin'
+  email         String?   @db.VarChar(255)
+  loginMethod   String    @map("login_method") @db.VarChar(50)  // 'google', 'line', 'email', 'password'
+  ipAddress     String?   @map("ip_address") @db.VarChar(45)    // IPv4 or IPv6
+  userAgent     String?   @map("user_agent")                    // Browser/Device info
+  deviceType    String?   @map("device_type") @db.VarChar(50)   // 'desktop', 'mobile', 'tablet'
+  browser       String?   @db.VarChar(100)
+  os            String?   @db.VarChar(100)
+  country       String?   @db.VarChar(100)
+  city          String?   @db.VarChar(100)
+  success       Boolean   @default(true)                         // login สำเร็จหรือไม่
+  failReason    String?   @map("fail_reason") @db.VarChar(255)   // เหตุผลที่ login ไม่สำเร็จ
+  sessionId     String?   @map("session_id") @db.VarChar(255)    // Session/Token ID
+  logoutAt      DateTime? @map("logout_at") @db.Timestamp(6)     // เวลา logout
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+
+  @@index([userId])
+  @@index([email])
+  @@index([userType])
+  @@index([ipAddress])
+  @@index([success])
+  @@index([createdAt])
+  @@map("login_history")
+}
+
+// Admin Audit Log - บันทึกทุกการกระทำของ Admin
+model AdminAuditLog {
+  id            String   @id @default(uuid()) @db.Uuid
+  adminId       String?  @map("admin_id") @db.Uuid       // ID ของ admin ที่ทำ
+  adminEmail    String   @map("admin_email") @db.VarChar(255)
+  action        String   @db.VarChar(50)                  // 'create', 'update', 'delete', 'view', 'export', 'login', 'logout'
+  resourceType  String   @map("resource_type") @db.VarChar(100)  // 'customer', 'order', 'payment', etc.
+  resourceId    String?  @map("resource_id") @db.VarChar(255)    // ID ของ resource ที่ถูกกระทำ
+  resourceName  String?  @map("resource_name") @db.VarChar(255)  // ชื่อของ resource (เช่น ชื่อลูกค้า, เลขออเดอร์)
+  description   String?                                   // รายละเอียดเพิ่มเติม
+  oldValue      Json?    @map("old_value")                // ค่าเดิมก่อนเปลี่ยน (สำหรับ update/delete)
+  newValue      Json?    @map("new_value")                // ค่าใหม่ (สำหรับ create/update)
+  changedFields String[] @default([]) @map("changed_fields")  // รายชื่อ fields ที่เปลี่ยน
+  ipAddress     String?  @map("ip_address") @db.VarChar(45)
+  userAgent     String?  @map("user_agent")
+  requestMethod String?  @map("request_method") @db.VarChar(10)  // GET, POST, PATCH, DELETE
+  requestPath   String?  @map("request_path") @db.VarChar(500)   // API path
+  statusCode    Int?     @map("status_code")                     // HTTP status code
+  duration      Int?                                              // Response time in ms
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  @@index([adminId])
+  @@index([adminEmail])
+  @@index([action])
+  @@index([resourceType])
+  @@index([resourceId])
+  @@index([createdAt])
+  @@map("admin_audit_logs")
+}
+
+// Security Alert - แจ้งเตือนเหตุการณ์ผิดปกติ
+model SecurityAlert {
+  id            String    @id @default(uuid()) @db.Uuid
+  alertType     String    @map("alert_type") @db.VarChar(50)  // 'failed_login', 'suspicious_activity', 'rate_limit', 'ip_blocked'
+  severity      String    @db.VarChar(20)                      // 'low', 'medium', 'high', 'critical'
+  userId        String?   @map("user_id") @db.Uuid
+  userEmail     String?   @map("user_email") @db.VarChar(255)
+  ipAddress     String?   @map("ip_address") @db.VarChar(45)
+  description   String
+  metadata      Json?                                          // ข้อมูลเพิ่มเติม
+  isResolved    Boolean   @default(false) @map("is_resolved")
+  resolvedBy    String?   @map("resolved_by") @db.VarChar(255)
+  resolvedAt    DateTime? @map("resolved_at") @db.Timestamp(6)
+  resolvedNotes String?   @map("resolved_notes")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+
+  @@index([alertType])
+  @@index([severity])
+  @@index([userId])
+  @@index([ipAddress])
+  @@index([isResolved])
+  @@index([createdAt])
+  @@map("security_alerts")
+}
+
+// Data Access Log - บันทึกการเข้าถึงข้อมูลส่วนบุคคล (PII)
+model DataAccessLog {
+  id            String   @id @default(uuid()) @db.Uuid
+  accessorId    String?  @map("accessor_id") @db.Uuid
+  accessorEmail String   @map("accessor_email") @db.VarChar(255)
+  accessorType  String   @map("accessor_type") @db.VarChar(20)  // 'admin', 'user', 'system'
+  accessType    String   @map("access_type") @db.VarChar(50)    // 'view', 'export', 'download', 'search'
+  dataType      String   @map("data_type") @db.VarChar(100)     // 'customer_info', 'payment_data', 'contact_info'
+  resourceId    String?  @map("resource_id") @db.VarChar(255)
+  fieldsAccessed String[] @default([]) @map("fields_accessed")  // รายชื่อ fields ที่เข้าถึง
+  purpose       String?  @db.VarChar(255)                        // เหตุผลในการเข้าถึง
+  ipAddress     String?  @map("ip_address") @db.VarChar(45)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  @@index([accessorId])
+  @@index([accessorEmail])
+  @@index([dataType])
+  @@index([createdAt])
+  @@map("data_access_logs")
 }

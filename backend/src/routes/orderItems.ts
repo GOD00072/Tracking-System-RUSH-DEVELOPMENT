@@ -2,6 +2,7 @@ import express from 'express';
 import prisma from '../lib/prisma';
 import { authenticateAdmin, AuthRequest } from '../middleware/auth';
 import { lineService } from '../services/lineService';
+import { deleteFromCloudinary, isCloudinaryUrl } from '../config/cloudinary';
 
 const router = express.Router();
 
@@ -371,10 +372,10 @@ const STATUS_STEP_NAMES: Record<number, string> = {
 // PATCH /api/v1/order-items/:id - Update order item
 router.patch('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
-    // Get current item to check if status actually changed
+    // Get current item to check if status actually changed and to compare images
     const currentItem = await prisma.orderItem.findUnique({
       where: { id: req.params.id },
-      select: { statusStep: true, orderId: true },
+      select: { statusStep: true, orderId: true, productImages: true },
     });
 
     if (!currentItem) {
@@ -382,6 +383,23 @@ router.patch('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
         success: false,
         error: { code: 'NOT_FOUND', message: 'Order item not found' },
       });
+    }
+
+    // Handle image deletion from Cloudinary when productImages changes
+    if (req.body.productImages !== undefined) {
+      const oldImages = (currentItem.productImages as string[]) || [];
+      const newImages = req.body.productImages || [];
+
+      // Find removed images
+      const removedImages = oldImages.filter(img => !newImages.includes(img));
+
+      // Delete removed images from Cloudinary
+      for (const imageUrl of removedImages) {
+        if (isCloudinaryUrl(imageUrl)) {
+          console.log('[OrderItems] Deleting removed image from Cloudinary:', imageUrl);
+          await deleteFromCloudinary(imageUrl);
+        }
+      }
     }
 
     const updateData: any = {

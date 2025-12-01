@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import UserProfile from '../UserProfile';
 import LanguageSwitcher from '../LanguageSwitcher';
+import NotificationBell from '../NotificationBell';
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -55,8 +56,11 @@ const Navbar = () => {
           </ul>
         </div>
 
-        {/* Right Side - Language, Login & Mobile Menu */}
+        {/* Right Side - Notifications, Language, Login & Mobile Menu */}
         <div className="flex items-center gap-2 shrink-0">
+          {/* Notification Bell */}
+          <NotificationBell />
+
           {/* Language Switcher - Desktop */}
           <div className="hidden xl:block">
             <LanguageSwitcher variant="minimal" />

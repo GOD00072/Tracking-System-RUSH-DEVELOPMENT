@@ -42,24 +42,26 @@ services:
   # Backend API (Node.js + Express + Prisma)
   # ==========================================
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: pakkuneko-backend:latest
     container_name: pakkuneko-backend
     restart: unless-stopped
     environment:
       NODE_ENV: production
       PORT: 5000
-      DATABASE_URL: postgresql://${DB_USER:-trackinguser}:${DB_PASSWORD:-trackingpass123}@postgres:5432/${DB_NAME:-tracking_system}?schema=public
-      JWT_SECRET: ${JWT_SECRET:-change-this-secret-in-production}
-      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost,http://localhost:80}
-      FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
-      # LINE OA (optional)
-      LINE_CHANNEL_SECRET: ${LINE_CHANNEL_SECRET:-}
+      DATABASE_URL: postgresql://postgres.sxjevjkpililwencsbhg:svPzJi9xRfcjX3Cr@aws-1-ap-south-1.pooler.supabase.com:6543/postgres?pgbouncer=true
+      DIRECT_URL: postgresql://postgres.sxjevjkpililwencsbhg:svPzJi9xRfcjX3Cr@aws-1-ap-south-1.pooler.supabase.com:5432/postgres?sslmode=require
+      JWT_SECRET: ${JWT_SECRET:-pakkuneko-jwt-secret-2024}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-https://pakkuneko.com,http://pakkuneko.com}
+      FRONTEND_URL: ${FRONTEND_URL:-https://pakkuneko.com}
+      # LINE Login
+      LINE_CHANNEL_ID: ${LINE_CHANNEL_ID:-2007045063}
+      LINE_CHANNEL_SECRET: ${LINE_CHANNEL_SECRET:-16c2f937653bb008394d0290d42b995d}
+      LINE_CALLBACK_URL: ${LINE_CALLBACK_URL:-https://pakkuneko.com/auth/line/callback}
       LINE_CHANNEL_ACCESS_TOKEN: ${LINE_CHANNEL_ACCESS_TOKEN:-}
-    depends_on:
-      postgres:
-        condition: service_healthy
+      # Cloudinary
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-dywvxbk4w}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-674739978726566}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-fkaMEt5nMnaSIgc6AW-JACEbWOk}
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5000/health"]
       interval: 30s
@@ -68,14 +70,8 @@ services:
       retries: 3
     networks:
       - pakkuneko-network
-    # Run migrations on startup
-    command: >
-      sh -c "
-        echo 'Running database migrations...' &&
-        npx prisma migrate deploy &&
-        echo 'Starting server...' &&
-        node dist/index.js
-      "
+    # Start server (Supabase DB already has schema)
+    command: node dist/index.js
 
   # ==========================================
   # Frontend (React + Vite + Nginx)

@@ -37,6 +37,7 @@ import uploadRouter from './routes/upload';
 import notificationsRouter from './routes/notifications';
 import tiersRouter from './routes/tiers';
 import cloudinaryCleanupRouter from './routes/cloudinaryCleanup';
+import auditRouter from './routes/audit';
 import path from 'path';
 
 // Admin Routes
@@ -75,6 +76,7 @@ app.use((req, res, next) => {
 });
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+
 
 // Trust proxy (needed for secure cookies behind nginx/cloudflare)
 app.set('trust proxy', 1);
@@ -149,6 +151,7 @@ app.use('/api/v1/upload', uploadRouter);
 app.use('/api/v1/notifications', notificationsRouter);
 app.use('/api/v1/tiers', tiersRouter);
 app.use('/api/v1/cloudinary-cleanup', cloudinaryCleanupRouter);
+app.use('/api/v1/audit', auditRouter);
 
 // Admin API Routes
 app.use('/api/v1/admin/orders', adminOrdersRouter);

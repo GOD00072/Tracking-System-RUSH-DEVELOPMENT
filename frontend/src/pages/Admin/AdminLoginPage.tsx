@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Lock, Mail, Ship } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Lock, Mail, Ship, AlertCircle } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { toast } from 'sonner';
 import { BACKEND_URL } from '../../utils/apiConfig';
@@ -9,8 +9,25 @@ const AdminLoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [sessionExpired, setSessionExpired] = useState(false);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const login = useAuthStore((state) => state.login);
+  const logout = useAuthStore((state) => state.logout);
+
+  // ตรวจสอบว่ามาจาก session expired หรือไม่
+  useEffect(() => {
+    if (searchParams.get('expired') === 'true') {
+      setSessionExpired(true);
+      // Clear any remaining tokens
+      logout();
+      localStorage.removeItem('token');
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('admin_token');
+      // Show toast notification
+      toast.error('Session หมดอายุ กรุณาเข้าสู่ระบบใหม่');
+    }
+  }, [searchParams, logout]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,8 +56,10 @@ const AdminLoginPage = () => {
           },
           data.data.token
         );
+        setSessionExpired(false);
         toast.success('เข้าสู่ระบบสำเร็จ');
-        navigate('/admin/dashboard');
+        // Navigate without query params
+        navigate('/admin/dashboard', { replace: true });
       } else {
         toast.error(data.error?.message || 'เข้าสู่ระบบไม่สำเร็จ');
       }
@@ -64,6 +83,17 @@ const AdminLoginPage = () => {
             <h1 className="text-2xl font-bold text-gray-900">Admin Panel</h1>
             <p className="text-gray-600 mt-2">Ship Tracking System</p>
           </div>
+
+          {/* Session Expired Warning */}
+          {sessionExpired && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-red-800">Session หมดอายุ</p>
+                <p className="text-xs text-red-600 mt-1">กรุณาเข้าสู่ระบบใหม่อีกครั้ง</p>
+              </div>
+            </div>
+          )}
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-6">

@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router-dom';
 import Navbar from './Navbar';
 import Footer from './Footer';
+import NotificationPopup from '../NotificationPopup';
 
 const Layout = () => {
   return (
@@ -10,6 +11,8 @@ const Layout = () => {
         <Outlet />
       </main>
       <Footer />
+      {/* Popup notification for new schedules */}
+      <NotificationPopup />
     </div>
   );
 };

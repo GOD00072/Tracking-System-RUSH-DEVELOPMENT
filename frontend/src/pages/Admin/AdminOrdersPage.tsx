@@ -33,6 +33,9 @@ const AdminOrdersPage = () => {
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [editingOrder, setEditingOrder] = useState<any>(null);
 
+  // Search state for order list
+  const [searchQuery, setSearchQuery] = useState('');
+
   // Notification modal state
   const [notifyStatusOrder, setNotifyStatusOrder] = useState<{ id: string; orderNumber: string } | null>(null);
 
@@ -56,6 +59,37 @@ const AdminOrdersPage = () => {
   const createOrder = useAdminCreateOrder();
   const updateOrder = useAdminUpdateOrder();
   const deleteOrder = useAdminDeleteOrder();
+
+  // Filter orders based on search query
+  const filteredOrders = useMemo(() => {
+    if (!ordersData?.data) return [];
+    if (!searchQuery.trim()) return ordersData.data;
+
+    const query = searchQuery.toLowerCase();
+    return ordersData.data.filter((order) => {
+      // Search by order number
+      const orderNumber = (order.orderNumber || '').toLowerCase();
+      if (orderNumber.includes(query)) return true;
+
+      // Search by customer name
+      const companyName = (order.customer?.companyName || '').toLowerCase();
+      const contactPerson = (order.customer?.contactPerson || '').toLowerCase();
+      const phone = (order.customer?.phone || '').toLowerCase();
+      if (companyName.includes(query) || contactPerson.includes(query) || phone.includes(query)) return true;
+
+      // Search by product name in order items
+      if (order.items && Array.isArray(order.items)) {
+        const hasMatchingItem = order.items.some((item: any) => {
+          const productName = (item.productName || '').toLowerCase();
+          const description = (item.description || '').toLowerCase();
+          return productName.includes(query) || description.includes(query);
+        });
+        if (hasMatchingItem) return true;
+      }
+
+      return false;
+    });
+  }, [ordersData?.data, searchQuery]);
 
   // Filter customers based on search query
   const filteredCustomers = useMemo(() => {
@@ -232,6 +266,33 @@ const AdminOrdersPage = () => {
         </button>
       </div>
 
+      {/* Search Bar */}
+      <div className="mb-4">
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="ค้นหา Order, ชื่อลูกค้า, ชื่อสินค้า..."
+            className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
+        </div>
+        {searchQuery && (
+          <p className="text-sm text-gray-500 mt-2">
+            พบ {filteredOrders.length} รายการ จาก {ordersData?.data.length || 0} รายการทั้งหมด
+          </p>
+        )}
+      </div>
+
       {isLoading ? (
         <LoadingSpinner />
       ) : (
@@ -260,7 +321,7 @@ const AdminOrdersPage = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {ordersData?.data.map((order) => (
+              {filteredOrders.map((order) => (
                 <tr key={order.id}>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
@@ -332,8 +393,23 @@ const AdminOrdersPage = () => {
             </tbody>
           </table>
 
-          {ordersData && ordersData.data.length === 0 && (
-            <div className="text-center py-12 text-gray-500">No orders found. Create your first order!</div>
+          {filteredOrders.length === 0 && (
+            <div className="text-center py-12 text-gray-500">
+              {searchQuery ? (
+                <div>
+                  <Search className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                  <p>ไม่พบออเดอร์ที่ตรงกับ "{searchQuery}"</p>
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="mt-2 text-primary-600 hover:text-primary-700"
+                  >
+                    ล้างการค้นหา
+                  </button>
+                </div>
+              ) : (
+                'No orders found. Create your first order!'
+              )}
+            </div>
           )}
         </div>
       )}

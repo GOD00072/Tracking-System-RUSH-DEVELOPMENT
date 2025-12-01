@@ -1,6 +1,7 @@
 import express from 'express';
 import passport from '../config/passport';
 import jwt from 'jsonwebtoken';
+import { createLoginHistory, createSecurityAlert } from '../middleware/auditLogger';
 
 console.log('[AUTH ROUTES] Loading auth routes...');
 
@@ -70,6 +71,17 @@ router.post('/admin/login', async (req, res) => {
         path: '/',
       });
 
+      // บันทึก Login History - สำเร็จ
+      await createLoginHistory({
+        userId: adminUser.id,
+        userType: 'admin',
+        email: adminUser.email || email,
+        loginMethod: 'password',
+        success: true,
+        sessionId: token.substring(0, 20),
+        req,
+      });
+
       return res.json({
         success: true,
         data: {
@@ -84,7 +96,37 @@ router.post('/admin/login', async (req, res) => {
       });
     }
 
-    // Invalid credentials
+    // Invalid credentials - บันทึก Login History - ล้มเหลว
+    await createLoginHistory({
+      userType: 'admin',
+      email: email,
+      loginMethod: 'password',
+      success: false,
+      failReason: 'Invalid email or password',
+      req,
+    });
+
+    // ตรวจสอบ failed login attempts - สร้าง Security Alert ถ้ามากเกินไป
+    const prisma = (await import('../lib/prisma')).default;
+    const recentFailedLogins = await prisma.loginHistory.count({
+      where: {
+        email: email,
+        success: false,
+        createdAt: { gte: new Date(Date.now() - 15 * 60 * 1000) }, // 15 นาทีล่าสุด
+      },
+    });
+
+    if (recentFailedLogins >= 5) {
+      await createSecurityAlert({
+        alertType: 'failed_login',
+        severity: 'medium',
+        userEmail: email,
+        description: `Multiple failed login attempts (${recentFailedLogins}) for email: ${email}`,
+        metadata: { failedAttempts: recentFailedLogins },
+        req,
+      });
+    }
+
     return res.status(401).json({
       success: false,
       error: {
@@ -105,13 +147,46 @@ router.post('/admin/login', async (req, res) => {
 });
 
 // Admin Logout
-router.post('/admin/logout', (req, res) => {
-  // Clear admin cookie
-  res.clearCookie('admin_token', { path: '/' });
-  res.json({
-    success: true,
-    message: 'Logged out successfully',
-  });
+router.post('/admin/logout', async (req, res) => {
+  try {
+    // ดึง token จาก cookie หรือ header เพื่อบันทึก logout
+    const token = req.cookies?.admin_token || req.headers.authorization?.replace('Bearer ', '');
+
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret-key') as any;
+        const prisma = (await import('../lib/prisma')).default;
+
+        // อัพเดท logoutAt ใน LoginHistory ล่าสุดของ user นี้
+        await prisma.loginHistory.updateMany({
+          where: {
+            userId: decoded.userId,
+            userType: 'admin',
+            logoutAt: null,
+          },
+          data: {
+            logoutAt: new Date(),
+          },
+        });
+      } catch (e) {
+        // Token invalid - ignore
+      }
+    }
+
+    // Clear admin cookie
+    res.clearCookie('admin_token', { path: '/' });
+    res.json({
+      success: true,
+      message: 'Logged out successfully',
+    });
+  } catch (error) {
+    console.error('Error in admin logout:', error);
+    res.clearCookie('admin_token', { path: '/' });
+    res.json({
+      success: true,
+      message: 'Logged out successfully',
+    });
+  }
 });
 
 // LINE Login - Initiate
@@ -126,11 +201,20 @@ router.get(
     failureRedirect: `${FRONTEND_URL}?login=failed`,
     session: true,
   }),
-  (req, res) => {
+  async (req, res) => {
     try {
       const user = req.user as any;
 
       if (!user) {
+        // บันทึก Login History - ล้มเหลว (LINE)
+        await createLoginHistory({
+          userType: 'user',
+          email: 'unknown',
+          loginMethod: 'line',
+          success: false,
+          failReason: 'LINE authentication failed - no user',
+          req,
+        });
         return res.redirect(`${FRONTEND_URL}?login=failed`);
       }
 
@@ -155,6 +239,17 @@ router.get(
         sameSite: 'lax',
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
         path: '/',
+      });
+
+      // บันทึก Login History - สำเร็จ (LINE)
+      await createLoginHistory({
+        userId: user.id,
+        userType: 'user',
+        email: user.email || user.lineId || 'LINE User',
+        loginMethod: 'line',
+        success: true,
+        sessionId: token.substring(0, 20),
+        req,
       });
 
       // Redirect to frontend with token (for backward compatibility)
@@ -252,23 +347,59 @@ router.get('/me', async (req, res) => {
 });
 
 // Logout
-router.post('/logout', (req, res) => {
-  req.logout((err) => {
-    if (err) {
-      return res.status(500).json({
-        success: false,
-        error: {
-          code: 'LOGOUT_ERROR',
-          message: 'Failed to logout',
-        },
-      });
+router.post('/logout', async (req, res) => {
+  try {
+    // ดึง token จาก cookie หรือ header เพื่อบันทึก logout
+    const token = req.cookies?.user_token || req.headers.authorization?.replace('Bearer ', '');
+
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret-key') as any;
+        const prisma = (await import('../lib/prisma')).default;
+
+        // อัพเดท logoutAt ใน LoginHistory ล่าสุดของ user นี้
+        await prisma.loginHistory.updateMany({
+          where: {
+            userId: decoded.userId,
+            userType: 'user',
+            logoutAt: null,
+          },
+          data: {
+            logoutAt: new Date(),
+          },
+        });
+      } catch (e) {
+        // Token invalid - ignore
+      }
     }
 
+    // Clear user cookie
+    res.clearCookie('user_token', { path: '/' });
+
+    req.logout((err) => {
+      if (err) {
+        return res.status(500).json({
+          success: false,
+          error: {
+            code: 'LOGOUT_ERROR',
+            message: 'Failed to logout',
+          },
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Logged out successfully',
+      });
+    });
+  } catch (error) {
+    console.error('Error in logout:', error);
+    res.clearCookie('user_token', { path: '/' });
     res.json({
       success: true,
       message: 'Logged out successfully',
     });
-  });
+  }
 });
 
 console.log('[AUTH ROUTES] All routes registered, exporting router');

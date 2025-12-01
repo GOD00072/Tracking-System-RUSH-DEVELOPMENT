@@ -21,9 +21,9 @@ const defaultCalculatorSettings = {
     best: 35,
     lalamove: 50,
   },
-  additional_services: {
-    repack: 50,
-  },
+  additional_services: [
+    { id: '1', name: 'Repack/Bubble', price: 50, isActive: true },
+  ],
   company_info: {
     name: 'Ship Tracking Company',
     address: 'กรุงเทพมหานคร ประเทศไทย',
