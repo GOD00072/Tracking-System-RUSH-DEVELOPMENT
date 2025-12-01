@@ -29,8 +29,9 @@ deploy_frontend() {
 
     # Upload to server
     echo -e "${GREEN}Uploading to server...${NC}"
-    sshpass -p "$SERVER_PASS" ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST "rm -rf /var/www/pakkuneko/frontend/*"
-    sshpass -p "$SERVER_PASS" scp -o StrictHostKeyChecking=no -r "$FRONTEND_DIR/dist/"* $SERVER_USER@$SERVER_HOST:/var/www/pakkuneko/frontend/
+    sshpass -p "$SERVER_PASS" ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST "rm -rf /var/www/pakkuneko/frontend/{*,.*} 2>/dev/null || true"
+    cd "$FRONTEND_DIR/dist"
+    sshpass -p "$SERVER_PASS" scp -o StrictHostKeyChecking=no -r . $SERVER_USER@$SERVER_HOST:/var/www/pakkuneko/frontend/
 
     # Reload nginx
     echo -e "${GREEN}Reloading nginx...${NC}"

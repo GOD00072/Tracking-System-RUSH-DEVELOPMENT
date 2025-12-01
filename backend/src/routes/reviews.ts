@@ -172,7 +172,7 @@ router.post('/', authenticateAdmin, reviewUpload.fields([
         customerId: cleanCustomerId,
         customerName: req.body.customerName,
         customerImage,
-        reviewImages: reviewImages.length > 0 ? reviewImages : null,
+        reviewImages: reviewImages.length > 0 ? (reviewImages as any) : null,
         orderId: cleanOrderId,
         rating: parseInt(req.body.rating) || 5,
         comment: req.body.comment,
@@ -270,7 +270,7 @@ router.patch('/:id', authenticateAdmin, reviewUpload.fields([
       }
 
       // Delete removed images from Cloudinary
-      const existingReviewImages = (existing.reviewImages as ReviewImage[]) || [];
+      const existingReviewImages = (existing.reviewImages as unknown as ReviewImage[]) || [];
       const newImageUrls = reviewImages.map(img => img.url);
       for (const oldImg of existingReviewImages) {
         if (!newImageUrls.includes(oldImg.url) && isCloudinaryUrl(oldImg.url)) {
@@ -329,7 +329,7 @@ router.delete('/:id', authenticateAdmin, async (req, res) => {
     }
 
     // Delete all review images from Cloudinary
-    const reviewImages = (existing.reviewImages as ReviewImage[]) || [];
+    const reviewImages = (existing.reviewImages as unknown as ReviewImage[]) || [];
     for (const img of reviewImages) {
       if (isCloudinaryUrl(img.url)) {
         await deleteFromCloudinary(img.url);
