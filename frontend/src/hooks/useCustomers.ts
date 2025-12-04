@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getCustomers,
   getCustomer,
+  getCustomerStats,
   createCustomer,
   updateCustomer,
   deleteCustomer,
@@ -17,13 +18,41 @@ type CreateCustomerInput = {
   lineId?: string;
   address?: string;
   notes?: string;
+  email?: string;
+  tier?: string;
+  discount?: number;
+  profileImageUrl?: string;
+  taxId?: string;
+  shippingAddress?: string;
+  billingAddress?: string;
+  province?: string;
+  postalCode?: string;
+  country?: string;
+  dateOfBirth?: string;
+  preferredContact?: string;
+  referralSource?: string;
+  tags?: string[];
+  isActive?: boolean;
 };
 
-// Get all customers
-export const useCustomers = (page = 1, limit = 20) => {
+// Get all customers with optional search and filters
+export const useCustomers = (
+  page = 1,
+  limit = 20,
+  search?: string,
+  filters?: { tier?: string; status?: string; hasLine?: string }
+) => {
   return useQuery({
-    queryKey: ['customers', page, limit],
-    queryFn: () => getCustomers(page, limit),
+    queryKey: ['customers', page, limit, search, filters],
+    queryFn: () => getCustomers(page, limit, search, filters),
+  });
+};
+
+// Get customer statistics
+export const useCustomerStats = () => {
+  return useQuery({
+    queryKey: ['customerStats'],
+    queryFn: () => getCustomerStats(),
   });
 };
 

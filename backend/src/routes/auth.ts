@@ -1,6 +1,7 @@
 import express from 'express';
 import passport from '../config/passport';
 import jwt from 'jsonwebtoken';
+import { jwtConfig } from '../config/jwt';
 import { createLoginHistory, createSecurityAlert } from '../middleware/auditLogger';
 
 console.log('[AUTH ROUTES] Loading auth routes...');
@@ -12,7 +13,10 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5001';
 
 console.log('[AUTH ROUTES] Router created');
 
-// Admin Login (username/password)
+// Store pending logins with OTP codes (in-memory, expires in 5 minutes)
+const pendingLogins = new Map<string, { email: string; userId: string; fullName: string; role: string; code: string; expiresAt: Date }>();
+
+// Admin Login Step 1 - ตรวจสอบ email/password และส่ง OTP
 router.post('/admin/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -27,72 +31,50 @@ router.post('/admin/login', async (req, res) => {
       });
     }
 
-    // For demo: hardcoded admin credentials
-    // TODO: Replace with database lookup and bcrypt password verification
-    if (email === 'admin@shiptracking.com' && password === 'admin123') {
-      const prisma = (await import('../lib/prisma')).default;
+    const prisma = (await import('../lib/prisma')).default;
+    const bcrypt = (await import('bcryptjs')).default;
 
-      // Find or create admin user in database
-      let adminUser = await prisma.user.findUnique({
-        where: { email: 'admin@shiptracking.com' },
-      });
+    // ค้นหา user จาก database
+    let adminUser = await prisma.user.findUnique({
+      where: { email },
+    });
 
-      if (!adminUser) {
-        adminUser = await prisma.user.create({
-          data: {
-            email: 'admin@shiptracking.com',
-            fullName: 'Admin User',
-            role: 'admin',
-          },
-        });
-      }
+    let isValidPassword = false;
 
-      // Generate JWT token
-      const token = jwt.sign(
-        {
-          userId: adminUser.id,
-          email: adminUser.email,
-          role: adminUser.role,
-        },
-        process.env.JWT_SECRET || 'dev-secret-key',
-        { expiresIn: '7d' }
-      );
+    // Verify password from database only (no hardcoded credentials)
+    if (adminUser && adminUser.password) {
+      isValidPassword = await bcrypt.compare(password, adminUser.password);
+    }
 
-      // Clear any existing user cookies to prevent conflicts
-      res.clearCookie('user_token', { path: '/' });
-      res.clearCookie('token', { path: '/' });
+    // ตรวจสอบว่าเป็น admin หรือ staff
+    if (isValidPassword && adminUser && (adminUser.role === 'admin' || adminUser.role === 'staff')) {
+      // Generate 6-digit OTP code
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
-      // Set admin cookie (different name from user cookie)
-      res.cookie('admin_token', token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-        path: '/',
-      });
-
-      // บันทึก Login History - สำเร็จ
-      await createLoginHistory({
+      // Store pending login
+      pendingLogins.set(email, {
+        email,
         userId: adminUser.id,
-        userType: 'admin',
-        email: adminUser.email || email,
-        loginMethod: 'password',
-        success: true,
-        sessionId: token.substring(0, 20),
-        req,
+        fullName: adminUser.fullName || 'Admin',
+        role: adminUser.role,
+        code,
+        expiresAt,
       });
+
+      // Send OTP to LINE group
+      const { lineOtpService } = await import('../services/lineOtpService');
+      await lineOtpService.sendLoginOtpToGroup(code, adminUser.fullName || email, email);
+
+      // Security: Never log OTP codes in production
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[Auth] Login OTP requested for ${email}`);
+      }
 
       return res.json({
         success: true,
-        data: {
-          user: {
-            id: adminUser.id,
-            email: adminUser.email,
-            fullName: adminUser.fullName,
-            role: adminUser.role,
-          },
-          token: token,
-        },
+        requireOtp: true,
+        message: 'OTP ถูกส่งไปยังกลุ่มแอดมินแล้ว',
       });
     }
 
@@ -107,7 +89,6 @@ router.post('/admin/login', async (req, res) => {
     });
 
     // ตรวจสอบ failed login attempts - สร้าง Security Alert ถ้ามากเกินไป
-    const prisma = (await import('../lib/prisma')).default;
     const recentFailedLogins = await prisma.loginHistory.count({
       where: {
         email: email,
@@ -146,6 +127,304 @@ router.post('/admin/login', async (req, res) => {
   }
 });
 
+// Admin Login Step 2 - ยืนยัน OTP และเข้าสู่ระบบ
+router.post('/admin/verify-login', async (req, res) => {
+  try {
+    const { email, otpCode } = req.body;
+
+    if (!email || !otpCode) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'MISSING_FIELDS',
+          message: 'กรุณากรอกอีเมลและ OTP',
+        },
+      });
+    }
+
+    // ตรวจสอบ pending login
+    const pending = pendingLogins.get(email);
+
+    if (!pending) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'NO_PENDING_LOGIN',
+          message: 'ไม่พบการขอเข้าสู่ระบบ กรุณาเข้าสู่ระบบใหม่',
+        },
+      });
+    }
+
+    // ตรวจสอบว่าหมดอายุหรือไม่
+    if (new Date() > pending.expiresAt) {
+      pendingLogins.delete(email);
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'OTP_EXPIRED',
+          message: 'OTP หมดอายุแล้ว กรุณาเข้าสู่ระบบใหม่',
+        },
+      });
+    }
+
+    // ตรวจสอบ OTP
+    if (otpCode !== pending.code) {
+      return res.status(403).json({
+        success: false,
+        error: {
+          code: 'INVALID_OTP',
+          message: 'OTP ไม่ถูกต้อง',
+        },
+      });
+    }
+
+    // OTP ถูกต้อง - ลบ pending login
+    pendingLogins.delete(email);
+
+    // Generate JWT token
+    const token = jwt.sign(
+      {
+        userId: pending.userId,
+        email: pending.email,
+        role: pending.role,
+      },
+      jwtConfig.secret,
+      { expiresIn: '7d' }
+    );
+
+    // Set admin cookie
+    res.cookie('admin_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/',
+    });
+
+    // บันทึก Login History - สำเร็จ
+    await createLoginHistory({
+      userId: pending.userId,
+      userType: 'admin',
+      email: pending.email,
+      loginMethod: 'password',
+      success: true,
+      sessionId: token.substring(0, 20),
+      req,
+    });
+
+    console.log(`[Auth] Login OTP verified for ${email}`);
+
+    return res.json({
+      success: true,
+      data: {
+        user: {
+          id: pending.userId,
+          email: pending.email,
+          full_name: pending.fullName,
+          role: pending.role,
+        },
+        token,
+      },
+    });
+  } catch (error) {
+    console.error('Error in verify login OTP:', error);
+    return res.status(500).json({
+      success: false,
+      error: {
+        code: 'VERIFY_ERROR',
+        message: 'เกิดข้อผิดพลาดในการยืนยัน OTP',
+      },
+    });
+  }
+});
+
+// Store pending registrations with OTP codes (in-memory, expires in 10 minutes)
+const pendingRegistrations = new Map<string, { email: string; password: string; fullName: string; code: string; expiresAt: Date }>();
+
+// Request Staff Code - Step 1: ขอโค้ด (ส่งไปกลุ่ม LINE)
+router.post('/admin/request-code', async (req, res) => {
+  try {
+    const { email, password, fullName } = req.body;
+
+    if (!email || !password || !fullName) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'MISSING_FIELDS',
+          message: 'กรุณากรอกข้อมูลให้ครบทุกช่อง',
+        },
+      });
+    }
+
+    const prisma = (await import('../lib/prisma')).default;
+
+    // ตรวจสอบว่า email ซ้ำหรือไม่
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'EMAIL_EXISTS',
+          message: 'อีเมลนี้มีผู้ใช้งานแล้ว',
+        },
+      });
+    }
+
+    // Generate 6-digit OTP code
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    // Store pending registration
+    pendingRegistrations.set(email, {
+      email,
+      password,
+      fullName,
+      code,
+      expiresAt,
+    });
+
+    // Send to LINE group
+    const { lineOtpService } = await import('../services/lineOtpService');
+    await lineOtpService.sendStaffCodeToGroup(code, fullName, email);
+
+    // Security: Never log staff codes in production
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[Auth] Staff code requested for ${email}`);
+    }
+
+    return res.json({
+      success: true,
+      message: 'โค้ดพนักงานถูกส่งไปยังกลุ่มแอดมินแล้ว กรุณารอรับโค้ดจากแอดมิน',
+    });
+  } catch (error) {
+    console.error('Error requesting staff code:', error);
+    return res.status(500).json({
+      success: false,
+      error: {
+        code: 'REQUEST_ERROR',
+        message: 'เกิดข้อผิดพลาดในการขอโค้ดพนักงาน',
+      },
+    });
+  }
+});
+
+// Admin Register - Step 2: ยืนยันโค้ดและสมัคร
+router.post('/admin/register', async (req, res) => {
+  try {
+    const { email, staffCode } = req.body;
+
+    if (!email || !staffCode) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'MISSING_FIELDS',
+          message: 'กรุณากรอกอีเมลและโค้ดพนักงาน',
+        },
+      });
+    }
+
+    // ตรวจสอบ pending registration
+    const pending = pendingRegistrations.get(email);
+
+    if (!pending) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'NO_PENDING_REGISTRATION',
+          message: 'ไม่พบการขอสมัคร กรุณาขอโค้ดใหม่',
+        },
+      });
+    }
+
+    // ตรวจสอบว่าหมดอายุหรือไม่
+    if (new Date() > pending.expiresAt) {
+      pendingRegistrations.delete(email);
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'CODE_EXPIRED',
+          message: 'โค้ดหมดอายุแล้ว กรุณาขอโค้ดใหม่',
+        },
+      });
+    }
+
+    // ตรวจสอบโค้ด
+    if (staffCode !== pending.code) {
+      return res.status(403).json({
+        success: false,
+        error: {
+          code: 'INVALID_STAFF_CODE',
+          message: 'โค้ดพนักงานไม่ถูกต้อง',
+        },
+      });
+    }
+
+    const prisma = (await import('../lib/prisma')).default;
+    const bcrypt = (await import('bcryptjs')).default;
+
+    // Hash password from pending registration
+    const hashedPassword = await bcrypt.hash(pending.password, 10);
+
+    // สร้าง user ใหม่
+    const newUser = await prisma.user.create({
+      data: {
+        email: pending.email,
+        fullName: pending.fullName,
+        password: hashedPassword,
+        role: 'staff', // สมัครใหม่เป็น staff ไม่ใช่ admin
+      },
+    });
+
+    // ลบ pending registration
+    pendingRegistrations.delete(email);
+
+    // Generate JWT token
+    const token = jwt.sign(
+      {
+        userId: newUser.id,
+        email: newUser.email,
+        role: newUser.role,
+      },
+      jwtConfig.secret,
+      { expiresIn: '7d' }
+    );
+
+    // Set admin cookie
+    res.cookie('admin_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/',
+    });
+
+    return res.json({
+      success: true,
+      data: {
+        user: {
+          id: newUser.id,
+          email: newUser.email,
+          fullName: newUser.fullName,
+          role: newUser.role,
+        },
+        token,
+      },
+    });
+  } catch (error) {
+    console.error('Error in admin register:', error);
+    return res.status(500).json({
+      success: false,
+      error: {
+        code: 'REGISTER_ERROR',
+        message: 'เกิดข้อผิดพลาดในการสมัครสมาชิก',
+      },
+    });
+  }
+});
+
 // Admin Logout
 router.post('/admin/logout', async (req, res) => {
   try {
@@ -154,7 +433,7 @@ router.post('/admin/logout', async (req, res) => {
 
     if (token) {
       try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret-key') as any;
+        const decoded = jwt.verify(token, jwtConfig.secret) as any;
         const prisma = (await import('../lib/prisma')).default;
 
         // อัพเดท logoutAt ใน LoginHistory ล่าสุดของ user นี้
@@ -173,15 +452,25 @@ router.post('/admin/logout', async (req, res) => {
       }
     }
 
-    // Clear admin cookie
-    res.clearCookie('admin_token', { path: '/' });
+    // Clear admin cookie - must match options used when setting
+    res.clearCookie('admin_token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+    });
     res.json({
       success: true,
       message: 'Logged out successfully',
     });
   } catch (error) {
     console.error('Error in admin logout:', error);
-    res.clearCookie('admin_token', { path: '/' });
+    res.clearCookie('admin_token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+    });
     res.json({
       success: true,
       message: 'Logged out successfully',
@@ -225,7 +514,7 @@ router.get(
           email: user.email,
           role: user.role,
         },
-        process.env.JWT_SECRET || 'dev-secret-key',
+        jwtConfig.secret,
         { expiresIn: '7d' }
       );
 
@@ -277,7 +566,7 @@ router.get('/me', async (req, res) => {
     }
 
     const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret-key') as any;
+    const decoded = jwt.verify(token, jwtConfig.secret) as any;
 
     const prisma = (await import('../lib/prisma')).default;
     const user = await prisma.user.findUnique({
@@ -354,7 +643,7 @@ router.post('/logout', async (req, res) => {
 
     if (token) {
       try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret-key') as any;
+        const decoded = jwt.verify(token, jwtConfig.secret) as any;
         const prisma = (await import('../lib/prisma')).default;
 
         // อัพเดท logoutAt ใน LoginHistory ล่าสุดของ user นี้

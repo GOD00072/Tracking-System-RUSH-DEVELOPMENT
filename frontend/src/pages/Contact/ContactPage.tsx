@@ -27,10 +27,10 @@ const ContactPage = () => {
       animate="animate"
       exit="exit"
       variants={pageTransition}
-      className="min-h-screen"
+      className="min-h-screen bg-[#FFFBF2]"
     >
       {/* Hero Section */}
-      <section className="relative py-20 md:py-28">
+      <section className="relative pt-32 pb-16 md:pt-40 md:pb-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div
             className="text-center max-w-3xl mx-auto"
@@ -39,20 +39,21 @@ const ContactPage = () => {
             transition={{ duration: 0.6 }}
           >
             <motion.div
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/70 backdrop-blur-sm border border-primary-200 text-primary-600 text-sm font-medium mb-6"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-orange-100 text-orange-600 text-sm font-medium mb-8"
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.1 }}
             >
               <Send className="w-4 h-4" />
-              {t('contact.badge')}
+              Contact Us
             </motion.div>
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 mb-4">
-              {t('contact.title')}
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 mb-8 leading-snug">
+              ติดต่อเรา<br />
+              <span className="text-orange-500 block mt-4 md:mt-6 font-normal">お問い合わせ</span>
             </h1>
-            <p className="text-lg text-gray-500 mb-2">{t('contact.subtitle')}</p>
-            <p className="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto">
-              {t('contact.tagline')}
+            <p className="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed">
+              พร้อมให้บริการและตอบคำถามทุกข้อสงสัย<br className="hidden md:block" />
+              ติดต่อเราได้ตลอดเวลา
             </p>
           </motion.div>
         </div>

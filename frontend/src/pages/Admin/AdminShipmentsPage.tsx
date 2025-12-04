@@ -6,7 +6,6 @@ import {
   Clock,
   CheckCircle2,
   AlertCircle,
-  Loader2,
   RefreshCw,
   Ship,
   Plane,
@@ -17,7 +16,11 @@ import {
   TrendingUp,
   Crown,
   XCircle,
+  Search,
+  ChevronLeft,
+  Eye,
 } from 'lucide-react';
+import LoadingSpinner from '../../components/LoadingSpinner';
 import { motion } from 'framer-motion';
 import {
   AreaChart,
@@ -116,6 +119,39 @@ const STATUS_LABELS: Record<string, { label: string; color: string; bgColor: str
   cancelled: { label: 'ยกเลิก', color: '#ef4444', bgColor: 'bg-red-100 text-red-700' },
 };
 
+const STATUS_STEP_COLORS: Record<number, string> = {
+  1: 'bg-gray-100 text-gray-700',
+  2: 'bg-yellow-100 text-yellow-700',
+  3: 'bg-blue-100 text-blue-700',
+  4: 'bg-indigo-100 text-indigo-700',
+  5: 'bg-purple-100 text-purple-700',
+  6: 'bg-violet-100 text-violet-700',
+  7: 'bg-cyan-100 text-cyan-700',
+  8: 'bg-orange-100 text-orange-700',
+  9: 'bg-green-100 text-green-700',
+};
+
+interface TrackingItem {
+  id: string;
+  trackingCode: string;
+  productCode: string;
+  productName: string;
+  priceYen: number;
+  priceBaht: number;
+  statusStep: number;
+  statusName: string;
+  trackingNumberJP: string | null;
+  trackingNumberTH: string | null;
+  orderId: string;
+  orderNumber: string;
+  shippingMethod: string;
+  customerId: string;
+  customerName: string;
+  customerTier: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 const AGE_COLORS: Record<string, string> = {
   today: '#10b981',
   thisWeek: '#3b82f6',
@@ -139,6 +175,17 @@ const AdminShipmentsPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Tab state
+  const [activeTab, setActiveTab] = useState<'overview' | 'tracking'>('overview');
+
+  // Tracking Orders state
+  const [trackingItems, setTrackingItems] = useState<TrackingItem[]>([]);
+  const [trackingLoading, setTrackingLoading] = useState(false);
+  const [trackingSearch, setTrackingSearch] = useState('');
+  const [trackingStatusFilter, setTrackingStatusFilter] = useState('all');
+  const [trackingPage, setTrackingPage] = useState(1);
+  const [trackingPagination, setTrackingPagination] = useState({ total: 0, totalPages: 0 });
+
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -155,17 +202,48 @@ const AdminShipmentsPage = () => {
     }
   };
 
+  const fetchTrackingOrders = async () => {
+    try {
+      setTrackingLoading(true);
+      const params = new URLSearchParams();
+      params.append('page', trackingPage.toString());
+      params.append('limit', '15');
+      if (trackingSearch) params.append('search', trackingSearch);
+      if (trackingStatusFilter !== 'all') params.append('statusStep', trackingStatusFilter);
+
+      const res = await api.get(`/statistics/tracking-orders?${params.toString()}`);
+      if (res.data.success) {
+        setTrackingItems(res.data.data.items);
+        setTrackingPagination(res.data.data.pagination);
+      }
+    } catch (err) {
+      console.error('Tracking orders fetch error:', err);
+    } finally {
+      setTrackingLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchData();
+    fetchTrackingOrders();
   }, []);
+
+  useEffect(() => {
+    fetchTrackingOrders();
+  }, [trackingPage, trackingStatusFilter]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setTrackingPage(1);
+      fetchTrackingOrders();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [trackingSearch]);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto" />
-          <p className="mt-4 text-gray-600">กำลังโหลดข้อมูลการจัดส่ง...</p>
-        </div>
+        <LoadingSpinner text="กำลังโหลดข้อมูลการจัดส่ง..." />
       </div>
     );
   }
@@ -222,17 +300,17 @@ const AdminShipmentsPage = () => {
     >
       {/* Header */}
       <motion.div
-        className="mb-8 flex items-center justify-between"
+        className="mb-6 flex items-center justify-between"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
       >
         <div>
           <h1 className="text-3xl font-bold text-gray-900">การจัดส่ง</h1>
-          <p className="text-gray-600 mt-2">ภาพรวมสถานะการจัดส่งและออเดอร์ค้างส่ง</p>
+          <p className="text-gray-600 mt-2">ภาพรวมสถานะการจัดส่งและติดตามสินค้า</p>
         </div>
         <button
-          onClick={fetchData}
+          onClick={() => { fetchData(); fetchTrackingOrders(); }}
           className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-white rounded-lg transition-colors border border-gray-200"
         >
           <RefreshCw className="w-4 h-4" />
@@ -240,6 +318,51 @@ const AdminShipmentsPage = () => {
         </button>
       </motion.div>
 
+      {/* Tabs */}
+      <motion.div
+        className="mb-6 border-b border-gray-200"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.1 }}
+      >
+        <div className="flex gap-1">
+          <button
+            onClick={() => setActiveTab('overview')}
+            className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'overview'
+                ? 'border-primary-500 text-primary-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4" />
+              ภาพรวม
+            </div>
+          </button>
+          <button
+            onClick={() => setActiveTab('tracking')}
+            className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'tracking'
+                ? 'border-primary-500 text-primary-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Package className="w-4 h-4" />
+              Tracking Orders
+              {trackingPagination.total > 0 && (
+                <span className="bg-primary-100 text-primary-700 text-xs px-2 py-0.5 rounded-full">
+                  {trackingPagination.total}
+                </span>
+              )}
+            </div>
+          </button>
+        </div>
+      </motion.div>
+
+      {/* Overview Tab Content */}
+      {activeTab === 'overview' && (
+        <>
       {/* Summary Cards */}
       <motion.div
         className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8"
@@ -625,17 +748,18 @@ const AdminShipmentsPage = () => {
             <table className="w-full">
               <thead>
                 <tr className="text-left text-xs text-gray-500 border-b border-gray-100">
-                  <th className="pb-3 font-medium">ออเดอร์</th>
-                  <th className="pb-3 font-medium">ลูกค้า</th>
-                  <th className="pb-3 font-medium">วิธีส่ง</th>
-                  <th className="pb-3 font-medium">รอ (วัน)</th>
-                  <th className="pb-3 font-medium">สถานะ</th>
+                  <th className="pb-3 font-medium">Order Number</th>
+                  <th className="pb-3 font-medium">Customer</th>
+                  <th className="pb-3 font-medium">Route</th>
+                  <th className="pb-3 font-medium">Method</th>
+                  <th className="pb-3 font-medium">Status</th>
+                  <th className="pb-3 font-medium text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {data.pendingOrders.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-gray-400">
+                    <td colSpan={6} className="py-8 text-center text-gray-400">
                       <CheckCircle2 className="w-12 h-12 mx-auto mb-2 text-green-400" />
                       <p>ไม่มีออเดอร์ค้างส่ง</p>
                     </td>
@@ -644,8 +768,7 @@ const AdminShipmentsPage = () => {
                   data.pendingOrders.slice(0, 10).map((order) => (
                     <tr
                       key={order.id}
-                      className="hover:bg-gray-50 cursor-pointer transition-colors"
-                      onClick={() => navigate(`/admin/orders/${order.id}`)}
+                      className="hover:bg-gray-50 transition-colors"
                     >
                       <td className="py-3">
                         <span className="font-medium text-gray-900 text-sm">{order.orderNumber}</span>
@@ -663,24 +786,22 @@ const AdminShipmentsPage = () => {
                         </div>
                       </td>
                       <td className="py-3">
-                        {order.shippingMethod === 'sea' ? (
-                          <Ship className="w-4 h-4 text-blue-500" />
-                        ) : (
-                          <Plane className="w-4 h-4 text-purple-500" />
-                        )}
+                        <span className="text-sm text-gray-600">JP → TH</span>
                       </td>
                       <td className="py-3">
-                        <span
-                          className={`text-sm font-medium ${
-                            order.ageInDays > 30
-                              ? 'text-red-600'
-                              : order.ageInDays > 7
-                              ? 'text-amber-600'
-                              : 'text-gray-600'
-                          }`}
-                        >
-                          {order.ageInDays}
-                        </span>
+                        <div className="flex items-center gap-1">
+                          {order.shippingMethod === 'sea' ? (
+                            <>
+                              <Ship className="w-4 h-4 text-blue-500" />
+                              <span className="text-xs text-gray-500">เรือ</span>
+                            </>
+                          ) : (
+                            <>
+                              <Plane className="w-4 h-4 text-purple-500" />
+                              <span className="text-xs text-gray-500">อากาศ</span>
+                            </>
+                          )}
+                        </div>
                       </td>
                       <td className="py-3">
                         <span
@@ -690,6 +811,20 @@ const AdminShipmentsPage = () => {
                         >
                           Step {order.statusStep}
                         </span>
+                        {order.ageInDays > 7 && (
+                          <span className={`ml-1 text-xs ${order.ageInDays > 30 ? 'text-red-500' : 'text-amber-500'}`}>
+                            ({order.ageInDays}d)
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 text-right">
+                        <button
+                          onClick={() => navigate(`/admin/orders/${order.id}`)}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+                        >
+                          ดูรายละเอียด
+                          <ChevronRight className="w-3 h-3" />
+                        </button>
                       </td>
                     </tr>
                   ))
@@ -796,6 +931,187 @@ const AdminShipmentsPage = () => {
           </motion.div>
         </div>
       </div>
+        </>
+      )}
+
+      {/* Tracking Orders Tab Content */}
+      {activeTab === 'tracking' && (
+      <motion.div
+        className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+          <div className="flex items-center gap-2">
+            <Package className="w-5 h-5 text-primary-500" />
+            <h2 className="text-xl font-bold text-gray-900">Tracking Orders</h2>
+            <span className="text-sm text-gray-500">({trackingPagination.total} รายการ)</span>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3">
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="ค้นหา Tracking, Order, ลูกค้า..."
+                value={trackingSearch}
+                onChange={(e) => setTrackingSearch(e.target.value)}
+                className="pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+            {/* Status Filter */}
+            <select
+              value={trackingStatusFilter}
+              onChange={(e) => {
+                setTrackingStatusFilter(e.target.value);
+                setTrackingPage(1);
+              }}
+              className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            >
+              <option value="all">ทุกสถานะ</option>
+              <option value="1">1. รับออเดอร์</option>
+              <option value="2">2. ชำระเงินงวดแรก</option>
+              <option value="3">3. สั่งซื้อจากญี่ปุ่น</option>
+              <option value="4">4. ของถึงโกดังญี่ปุ่น</option>
+              <option value="5">5. จัดรอบส่งกลับ</option>
+              <option value="6">6. ส่งออกจากญี่ปุ่น</option>
+              <option value="7">7. ของถึงไทย</option>
+              <option value="8">8. กำลังจัดส่ง</option>
+              <option value="9">9. ส่งมอบสำเร็จ</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="text-left text-xs text-gray-500 border-b border-gray-200">
+                <th className="pb-3 font-medium">Tracking Code</th>
+                <th className="pb-3 font-medium">Customer</th>
+                <th className="pb-3 font-medium">Route</th>
+                <th className="pb-3 font-medium">Method</th>
+                <th className="pb-3 font-medium">Status</th>
+                <th className="pb-3 font-medium text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {trackingLoading ? (
+                <tr>
+                  <td colSpan={6} className="py-8 text-center">
+                    <RefreshCw className="w-6 h-6 animate-spin mx-auto text-gray-400" />
+                    <p className="text-gray-400 mt-2">กำลังโหลด...</p>
+                  </td>
+                </tr>
+              ) : trackingItems.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-8 text-center text-gray-400">
+                    <Package className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                    <p>ไม่พบรายการ</p>
+                  </td>
+                </tr>
+              ) : (
+                trackingItems.map((item) => (
+                  <tr key={item.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="py-3">
+                      <div className="flex flex-col">
+                        <code className="text-sm font-medium text-primary-700 bg-primary-50 px-2 py-1 rounded w-fit">
+                          {item.trackingCode || '-'}
+                        </code>
+                        <span className="text-xs text-gray-400 mt-1">{item.orderNumber}</span>
+                      </div>
+                    </td>
+                    <td className="py-3">
+                      <div className="flex items-center gap-1">
+                        <span className="text-sm text-gray-700 truncate max-w-[150px]">{item.customerName}</span>
+                        {item.customerTier !== 'member' && (
+                          <Crown
+                            className={`w-3 h-3 flex-shrink-0 ${
+                              item.customerTier === 'vvip' ? 'text-purple-500' : 'text-amber-500'
+                            }`}
+                          />
+                        )}
+                      </div>
+                      {item.productName && (
+                        <p className="text-xs text-gray-400 truncate max-w-[150px]" title={item.productName}>
+                          {item.productName}
+                        </p>
+                      )}
+                    </td>
+                    <td className="py-3">
+                      <div className="flex items-center gap-1">
+                        <span className="text-lg">🇯🇵</span>
+                        <span className="text-gray-400">→</span>
+                        <span className="text-lg">🇹🇭</span>
+                      </div>
+                    </td>
+                    <td className="py-3">
+                      <div className="flex items-center gap-1">
+                        {item.shippingMethod === 'sea' ? (
+                          <>
+                            <Ship className="w-4 h-4 text-blue-500" />
+                            <span className="text-xs text-gray-500">ทางเรือ</span>
+                          </>
+                        ) : (
+                          <>
+                            <Plane className="w-4 h-4 text-purple-500" />
+                            <span className="text-xs text-gray-500">ทางอากาศ</span>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-3">
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          STATUS_STEP_COLORS[item.statusStep] || 'bg-gray-100 text-gray-700'
+                        }`}
+                      >
+                        {item.statusStep}. {item.statusName}
+                      </span>
+                    </td>
+                    <td className="py-3 text-right">
+                      <button
+                        onClick={() => navigate(`/admin/orders/${item.orderId}`)}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+                      >
+                        <Eye className="w-3 h-3" />
+                        ดูรายละเอียด
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination */}
+        {trackingPagination.totalPages > 1 && (
+          <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
+            <p className="text-sm text-gray-500">
+              หน้า {trackingPage} จาก {trackingPagination.totalPages} ({trackingPagination.total} รายการ)
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setTrackingPage((p) => Math.max(1, p - 1))}
+                disabled={trackingPage === 1}
+                className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setTrackingPage((p) => Math.min(trackingPagination.totalPages, p + 1))}
+                disabled={trackingPage === trackingPagination.totalPages}
+                className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
+      </motion.div>
+      )}
 
       {/* Last Updated */}
       <motion.div

@@ -1,7 +1,7 @@
 import { useState, useCallback, createContext, useContext, ReactNode } from 'react';
 import ConfirmModal from '../components/ConfirmModal';
 
-type ConfirmType = 'danger' | 'warning' | 'info' | 'confirm';
+type ConfirmType = 'danger' | 'warning' | 'info' | 'confirm' | 'pin';
 
 interface ConfirmOptions {
   title?: string;
@@ -10,12 +10,17 @@ interface ConfirmOptions {
   cancelText?: string;
   type?: ConfirmType;
   icon?: ReactNode;
+  showInput?: boolean;
+  inputPlaceholder?: string;
+  inputType?: string;
+  expectedValue?: string;
 }
 
 interface ConfirmContextType {
   confirm: (options: ConfirmOptions) => Promise<boolean>;
   confirmDelete: (itemName?: string) => Promise<boolean>;
   confirmAction: (message: string) => Promise<boolean>;
+  confirmWithPin: (message: string, pin: string) => Promise<boolean>;
 }
 
 const ConfirmContext = createContext<ConfirmContextType | null>(null);
@@ -58,6 +63,20 @@ export const ConfirmProvider = ({ children }: { children: ReactNode }) => {
     });
   }, [confirm]);
 
+  const confirmWithPin = useCallback((message: string, pin: string): Promise<boolean> => {
+    return confirm({
+      title: 'ต้องใส่ PIN เพื่อดำเนินการ',
+      message,
+      confirmText: 'ยืนยัน',
+      cancelText: 'ยกเลิก',
+      type: 'pin',
+      showInput: true,
+      inputPlaceholder: 'กรุณาใส่ PIN',
+      inputType: 'password',
+      expectedValue: pin
+    });
+  }, [confirm]);
+
   const handleClose = useCallback(() => {
     if (resolvePromise) {
       resolvePromise(false);
@@ -78,7 +97,7 @@ export const ConfirmProvider = ({ children }: { children: ReactNode }) => {
   }, [resolvePromise]);
 
   return (
-    <ConfirmContext.Provider value={{ confirm, confirmDelete, confirmAction }}>
+    <ConfirmContext.Provider value={{ confirm, confirmDelete, confirmAction, confirmWithPin }}>
       {children}
       <ConfirmModal
         isOpen={isOpen}
@@ -91,6 +110,10 @@ export const ConfirmProvider = ({ children }: { children: ReactNode }) => {
         type={options.type}
         loading={loading}
         icon={options.icon}
+        showInput={options.showInput}
+        inputPlaceholder={options.inputPlaceholder}
+        inputType={options.inputType}
+        expectedValue={options.expectedValue}
       />
     </ConfirmContext.Provider>
   );

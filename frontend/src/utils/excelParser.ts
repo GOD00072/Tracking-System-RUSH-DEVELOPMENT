@@ -1,5 +1,15 @@
 import * as XLSX from 'xlsx';
 
+// ⚠️ SECURITY NOTE: xlsx library (v0.18.5) has known vulnerabilities (CVE-2024-22363, CVE-2024-22362)
+// Mitigations applied:
+// 1. File size limit (10MB max)
+// 2. Only process trusted user-uploaded files
+// 3. Input validation after parsing
+// Consider migrating to 'exceljs' when possible
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB max file size
+const MAX_ROWS = 10000; // Max rows to process
+
 export interface AirTrackingData {
   trackingNumber: string;
   flightNumber: string;
@@ -15,6 +25,20 @@ export interface AirTrackingData {
 }
 
 export const parseExcelFile = async (file: File): Promise<AirTrackingData[]> => {
+  // Security: Validate file size before processing
+  if (file.size > MAX_FILE_SIZE) {
+    throw new Error(`ไฟล์มีขนาดใหญ่เกินไป (สูงสุด ${MAX_FILE_SIZE / 1024 / 1024}MB)`);
+  }
+
+  // Security: Validate file type
+  const allowedTypes = [
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+    'application/vnd.ms-excel', // .xls
+  ];
+  if (!allowedTypes.includes(file.type) && !file.name.match(/\.(xlsx|xls)$/i)) {
+    throw new Error('กรุณาอัพโหลดไฟล์ Excel (.xlsx หรือ .xls) เท่านั้น');
+  }
+
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
 
@@ -32,6 +56,12 @@ export const parseExcelFile = async (file: File): Promise<AirTrackingData[]> => 
           raw: false,
           dateNF: 'yyyy-mm-dd'
         });
+
+        // Security: Limit number of rows to prevent DoS
+        if (jsonData.length > MAX_ROWS) {
+          reject(new Error(`ไฟล์มีข้อมูลมากเกินไป (สูงสุด ${MAX_ROWS.toLocaleString()} แถว)`));
+          return;
+        }
 
         // Map to AirTrackingData format
         const parsedData: AirTrackingData[] = jsonData.map((row: any) => {

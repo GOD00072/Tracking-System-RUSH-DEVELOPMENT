@@ -22,6 +22,12 @@ export type OrderItem = {
   trackingNumber?: string;
   storePage?: string;
   remarks?: string;
+  // Price lock fields
+  priceBahtLocked?: boolean;
+  lockedTierCode?: string;
+  lockedExchangeRate?: number;
+  lockedBy?: string;
+  lockedAt?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -165,6 +171,78 @@ export const useBulkCreateOrderItems = () => {
     },
     onError: (error: any) => {
       const message = error?.response?.data?.error?.message || 'เกิดข้อผิดพลาดในการเพิ่มรายการสินค้า';
+      toast.error(message);
+    },
+  });
+};
+
+// Lock price for order item (based on customer tier)
+export const useLockPrice = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, priceYen }: { id: string; priceYen?: number }) => {
+      const response = await api.post(`/order-items/${id}/lock-price`, { priceYen });
+      return response.data;
+    },
+    onSuccess: (data) => {
+      const orderId = data.data?.orderId;
+      if (orderId) {
+        queryClient.invalidateQueries({ queryKey: ['order-items', orderId] });
+        queryClient.invalidateQueries({ queryKey: ['order', orderId] });
+      }
+      queryClient.invalidateQueries({ queryKey: ['order-items-list'] });
+      toast.success(data.message || 'ล็อคราคาบาทสำเร็จ');
+    },
+    onError: (error: any) => {
+      const message = error?.response?.data?.error?.message || 'เกิดข้อผิดพลาดในการล็อคราคา';
+      toast.error(message);
+    },
+  });
+};
+
+// Unlock price for order item
+export const useUnlockPrice = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await api.post(`/order-items/${id}/unlock-price`);
+      return response.data;
+    },
+    onSuccess: (data) => {
+      const orderId = data.data?.orderId;
+      if (orderId) {
+        queryClient.invalidateQueries({ queryKey: ['order-items', orderId] });
+        queryClient.invalidateQueries({ queryKey: ['order', orderId] });
+      }
+      queryClient.invalidateQueries({ queryKey: ['order-items-list'] });
+      toast.success('ปลดล็อคราคาบาทสำเร็จ');
+    },
+    onError: (error: any) => {
+      const message = error?.response?.data?.error?.message || 'เกิดข้อผิดพลาดในการปลดล็อคราคา';
+      toast.error(message);
+    },
+  });
+};
+
+// Bulk lock prices for multiple items
+export const useBulkLockPrice = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (itemIds: string[]) => {
+      const response = await api.post('/order-items/bulk-lock-price', { itemIds });
+      return response.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['order-items'] });
+      queryClient.invalidateQueries({ queryKey: ['order-items-list'] });
+      queryClient.invalidateQueries({ queryKey: ['order'] });
+      toast.success(data.message || `ล็อคราคาสำเร็จ ${data.data?.lockedCount || 0} รายการ`);
+    },
+    onError: (error: any) => {
+      const message = error?.response?.data?.error?.message || 'เกิดข้อผิดพลาดในการล็อคราคา';
       toast.error(message);
     },
   });

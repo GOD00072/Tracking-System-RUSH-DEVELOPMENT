@@ -1,11 +1,11 @@
 import express from 'express';
 import prisma from '../lib/prisma';
-import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { authenticateToken, authenticateAdmin, AuthRequest } from '../middleware/auth';
 
 const router = express.Router();
 
-// GET /api/v1/orders/all - Get all orders (no auth, for admin/debug)
-router.get('/all', async (req, res) => {
+// GET /api/v1/orders/all - Get all orders (admin only)
+router.get('/all', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     const orders = await prisma.order.findMany({
       select: {
@@ -287,8 +287,8 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res) => {
   }
 });
 
-// POST /api/v1/orders
-router.post('/', async (req, res) => {
+// POST /api/v1/orders (admin only)
+router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     // Auto-generate order number if not provided
     const orderNumber = req.body.orderNumber || await generateOrderNumber();
@@ -364,8 +364,8 @@ router.post('/', async (req, res) => {
   }
 });
 
-// PATCH /api/v1/orders/:id
-router.patch('/:id', async (req, res) => {
+// PATCH /api/v1/orders/:id (admin only)
+router.patch('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     // Prepare update data with proper type conversions
     const updateData: any = {
@@ -428,8 +428,8 @@ router.patch('/:id', async (req, res) => {
   }
 });
 
-// DELETE /api/v1/orders/:id
-router.delete('/:id', async (req, res) => {
+// DELETE /api/v1/orders/:id (admin only)
+router.delete('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     await prisma.order.delete({
       where: { id: req.params.id },

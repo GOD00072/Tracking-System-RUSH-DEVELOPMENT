@@ -12,7 +12,7 @@ router.post('/cloudinary', authenticateAdmin, async (req: AuthRequest, res) => {
     const folder = (req.query.folder as string) || (req.body?.folder as string) || 'general';
 
     // Validate folder name
-    const allowedFolders = ['customer-profiles', 'products', 'payments', 'reviews', 'schedules', 'general'];
+    const allowedFolders = ['customer-profiles', 'products', 'payments', 'reviews', 'schedules', 'portfolio', 'general'];
     const finalFolder = allowedFolders.includes(folder) ? folder : 'general';
 
     // Create dynamic upload handler for the specified folder
@@ -111,8 +111,8 @@ router.post('/profile', authenticateAdmin, profileUpload.single('file'), async (
   }
 });
 
-// POST /api/v1/upload/image - Simple image upload (accepts 'file' field)
-router.post('/image', productUpload.single('file'), async (req, res) => {
+// POST /api/v1/upload/image - Simple image upload (accepts 'file' field) - Admin/Staff only
+router.post('/image', authenticateAdmin, productUpload.single('file'), async (req: AuthRequest, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({

@@ -236,6 +236,7 @@
     "firstPayment": "初回支払い",
     "orderedFromJP": "日本で注文済み",
     "arrivedJPWarehouse": "日本倉庫到着",
+    "shippingRoundAssigned": "配送便確定",
     "shippedFromJP": "日本から出荷",
     "arrivedThailand": "タイ到着",
     "outForDelivery": "配達中",
@@ -444,10 +445,11 @@
     "step2": "初回支払い",
     "step3": "日本で注文済み",
     "step4": "日本倉庫到着",
-    "step5": "日本から出荷",
-    "step6": "タイ到着",
-    "step7": "配達中",
-    "step8": "配達完了"
+    "step5": "配送便確定",
+    "step6": "日本から出荷",
+    "step7": "タイ到着",
+    "step8": "配達中",
+    "step9": "配達完了"
   },
   "tierLabels": {
     "regular": "一般",

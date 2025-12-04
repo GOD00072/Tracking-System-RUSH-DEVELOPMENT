@@ -1,204 +1,134 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Search, Package, MapPin, Truck, CheckCircle, Phone, ExternalLink, Sparkles, Shield, Lock, ClipboardList, CreditCard, ShoppingCart, Warehouse, Plane, Ship, PackageCheck } from 'lucide-react';
+import { Search, Package, Truck, CheckCircle, Sparkles, ClipboardList, CreditCard, ShoppingCart, Warehouse, Plane, CalendarCheck, PackageCheck, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { pageTransition, staggerContainer, staggerItem } from '../lib/animations';
+import { pageTransition } from '../lib/animations';
 import api from '../lib/api';
 
-// 8-step status timeline with Lucide icons
+// 9-step status timeline with Lucide icons and descriptions
 const STATUS_STEPS = [
-  { step: 1, name: 'รับออเดอร์', Icon: ClipboardList },
-  { step: 2, name: 'ชำระเงินงวดแรก', Icon: CreditCard },
-  { step: 3, name: 'สั่งซื้อจากญี่ปุ่น', Icon: ShoppingCart },
-  { step: 4, name: 'ของถึงโกดังญี่ปุ่น', Icon: Warehouse },
-  { step: 5, name: 'ส่งออกจากญี่ปุ่น', Icon: Plane },
-  { step: 6, name: 'ของถึงไทย', Icon: Package },
-  { step: 7, name: 'กำลังจัดส่ง', Icon: Truck },
-  { step: 8, name: 'ส่งมอบสำเร็จ', Icon: PackageCheck },
+  { step: 1, name: 'รับออเดอร์', Icon: ClipboardList, description: 'รอยืนยันรายละเอียดและราคา' },
+  { step: 2, name: 'ชำระเงินงวดแรก', Icon: CreditCard, description: 'ชำระมัดจำเรียบร้อย' },
+  { step: 3, name: 'สั่งซื้อจากญี่ปุ่น', Icon: ShoppingCart, description: 'กดสั่งซื้อจากร้านค้าแล้ว' },
+  { step: 4, name: 'ของถึงโกดังญี่ปุ่น', Icon: Warehouse, description: 'ตรวจสอบและรวมพัสดุ' },
+  { step: 5, name: 'จัดรอบส่งกลับ', Icon: CalendarCheck, description: 'กำหนดรอบเรือ/เครื่องบิน' },
+  { step: 6, name: 'ส่งออกจากญี่ปุ่น', Icon: Plane, description: 'กำลังเดินทางมาไทย' },
+  { step: 7, name: 'ของถึงไทย', Icon: Package, description: 'ผ่านพิธีการศุลกากร' },
+  { step: 8, name: 'กำลังจัดส่ง', Icon: Truck, description: 'จัดส่งผ่านขนส่งเอกชน' },
+  { step: 9, name: 'ส่งมอบสำเร็จ', Icon: PackageCheck, description: 'ลูกค้ารับสินค้าแล้ว' },
 ];
 
-interface OrderItem {
-  sequenceNumber: number | null;
-  productCode: string;
+// Item details
+interface ItemData {
+  trackingCode: string | null;
+  productCode: string | null;
   productName: string | null;
-  productUrl: string | null;
   productImage: string | null;
-  priceYen: number | null;
-  priceBaht: number | null;
-  statusStep: number | null;
-  statusName: string | null;
+  productImages: string[];
+  statusStep: number;
+  statusName: string;
   trackingNumber: string | null;
+  shippingRound: string | null;
+  statusDetails?: {
+    jpOrderNumber: string | null;
+    jpOrderDate: string | null;
+    warehouseDate: string | null;
+    shipmentBatch: string | null;
+    exportDate: string | null;
+    arrivalDate: string | null;
+    courierName: string | null;
+    deliveryDate: string | null;
+    remarks: Record<string, string>;
+  };
+  statusHistory: Array<{
+    statusStep: number;
+    statusName: string;
+    timestamp: string;
+  }>;
 }
 
-interface Order {
-  orderNumber: string;
-  status: string;
+// Result when searching - can be 'order' (multiple items) or 'item' (single item)
+interface TrackingResult {
+  type: 'order' | 'item';
+  trackingCode: string;
+  // For type === 'order'
+  orderNumber?: string;
   statusStep: number;
   statusName: string;
   shippingMethod: string;
-  origin: string;
-  destination: string;
+  origin?: string;
+  destination?: string;
   customerName: string;
   createdAt: string;
-  items: OrderItem[];
-  summary: {
-    totalItems: number;
+  items?: ItemData[];
+  totalItems?: number;
+  // For type === 'item' (single item result)
+  productCode?: string | null;
+  productName?: string | null;
+  productImage?: string | null;
+  productImages?: string[];
+  trackingNumber?: string | null;
+  shippingRound?: string | null;
+  statusDetails?: ItemData['statusDetails'];
+  statusHistory?: ItemData['statusHistory'];
+  order?: {
+    orderNumber: string;
+    trackingCode?: string;
+    shippingMethod: string;
+    createdAt: string;
+    customerName: string;
   };
-}
-
-interface VerificationData {
-  orderNumber: string;
-  customerName: string;
-  shippingMethod: string;
-  createdAt: string;
-  requiresVerification: boolean;
-  maskedPhone: string;
 }
 
 const TrackingPortal = () => {
   const { t } = useTranslation();
-  const { orderNumber: urlOrderNumber } = useParams<{ orderNumber?: string }>();
-  const [searchType, setSearchType] = useState<'phone' | 'order'>('phone');
+  const { productCode: urlTrackingCode } = useParams<{ productCode?: string }>();
   const [searchValue, setSearchValue] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ orders: Order[]; customerName?: string } | null>(null);
-  const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
+  const [trackingResult, setTrackingResult] = useState<TrackingResult | null>(null);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<ItemData | null>(null); // For viewing item details in order result
 
-  // Verification state
-  const [verificationData, setVerificationData] = useState<VerificationData | null>(null);
-  const [phoneLast4, setPhoneLast4] = useState('');
-  const [verifying, setVerifying] = useState(false);
-  const [verificationError, setVerificationError] = useState<string | null>(null);
-
-  // Auto-check when orderNumber is in URL
+  // Auto-search when trackingCode is in URL
   useEffect(() => {
-    if (urlOrderNumber) {
-      setSearchType('order');
-      setSearchValue(urlOrderNumber);
-      checkOrderVerification(urlOrderNumber);
+    if (urlTrackingCode) {
+      setSearchValue(urlTrackingCode);
+      searchByTrackingCode(urlTrackingCode);
     }
-  }, [urlOrderNumber]);
+  }, [urlTrackingCode]);
 
-  const checkOrderVerification = async (orderNum: string) => {
+  const searchByTrackingCode = async (code: string) => {
     setLoading(true);
     setError(null);
-    setVerificationData(null);
-    setResult(null);
+    setTrackingResult(null);
+    setSelectedImageIndex(0);
+    setLightboxOpen(false);
+    setSelectedItem(null);
 
     try {
-      const response = await api.get(`/tracking/${orderNum}`);
+      const response = await api.get(`/tracking/item/${code.trim()}`);
 
       if (response.data.success) {
-        const data = response.data.data;
-        if (data.requiresVerification) {
-          // Show verification form
-          setVerificationData(data);
-        } else {
-          // No verification needed, fetch full details
-          await fetchOrderDetails(orderNum);
-        }
+        setTrackingResult(response.data.data);
       } else {
-        setError(response.data.error?.message || 'ไม่พบข้อมูล');
+        setError(response.data.error?.message || 'ไม่พบรหัสติดตามนี้');
       }
     } catch (err: any) {
-      setError(err.response?.data?.error?.message || 'ไม่พบออเดอร์นี้');
+      setError(err.response?.data?.error?.message || 'ไม่พบรหัสติดตามนี้ในระบบ');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchOrderDetails = async (orderNum: string) => {
-    try {
-      // For orders without verification, we need to verify with empty or skip
-      const response = await api.post('/tracking/verify', {
-        orderNumber: orderNum,
-        phoneLast4: '0000', // Placeholder for orders without phone
-      });
-
-      if (response.data.success) {
-        setResult({
-          orders: [response.data.data],
-          customerName: response.data.data.customerName,
-        });
-        setExpandedOrder(response.data.data.orderNumber);
-      }
-    } catch (err: any) {
-      // If verification fails, still show error
-      setError(err.response?.data?.error?.message || 'ไม่พบออเดอร์นี้');
-    }
-  };
-
-  const handleVerification = async () => {
-    if (!verificationData || phoneLast4.length !== 4) {
-      setVerificationError('กรุณากรอกเบอร์โทร 4 ตัวหลัง');
-      return;
-    }
-
-    setVerifying(true);
-    setVerificationError(null);
-
-    try {
-      const response = await api.post('/tracking/verify', {
-        orderNumber: verificationData.orderNumber,
-        phoneLast4,
-      });
-
-      if (response.data.success) {
-        setVerificationData(null);
-        setResult({
-          orders: [response.data.data],
-          customerName: response.data.data.customerName,
-        });
-        setExpandedOrder(response.data.data.orderNumber);
-      } else {
-        setVerificationError(response.data.error?.message || 'ยืนยันไม่สำเร็จ');
-      }
-    } catch (err: any) {
-      setVerificationError(err.response?.data?.error?.message || 'เบอร์โทร 4 ตัวหลังไม่ถูกต้อง');
-    } finally {
-      setVerifying(false);
     }
   };
 
   const handleSearch = async () => {
     if (!searchValue.trim()) {
-      setError('กรุณากรอกข้อมูลเพื่อค้นหา');
+      setError('กรุณากรอกรหัสติดตามเพื่อค้นหา');
       return;
     }
-
-    setLoading(true);
-    setError(null);
-    setVerificationData(null);
-
-    try {
-      let response;
-      if (searchType === 'phone') {
-        response = await api.get('/tracking/lookup', {
-          params: { phone: searchValue },
-        });
-
-        if (response.data.success) {
-          setResult(response.data.data);
-          if (response.data.data.orders.length === 1) {
-            setExpandedOrder(response.data.data.orders[0].orderNumber);
-          }
-        } else {
-          setError(response.data.error?.message || 'ไม่พบข้อมูล');
-          setResult(null);
-        }
-      } else {
-        // For order number search, check verification first
-        await checkOrderVerification(searchValue);
-        return;
-      }
-    } catch (err: any) {
-      setError(err.response?.data?.error?.message || 'เกิดข้อผิดพลาดในการค้นหา');
-      setResult(null);
-    } finally {
-      setLoading(false);
-    }
+    await searchByTrackingCode(searchValue);
   };
 
   const StatusTimeline = ({ currentStep }: { currentStep: number }) => (
@@ -281,145 +211,20 @@ const TrackingPortal = () => {
             </p>
           </motion.div>
 
-          {/* Verification Form */}
-          <AnimatePresence mode="wait">
-            {verificationData && (
-              <motion.div
-                key="verification"
-                className="max-w-md mx-auto mb-8"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ duration: 0.3 }}
-              >
-                <div className="bg-white/70 backdrop-blur-xl rounded-3xl p-6 md:p-8 border border-white/50 shadow-xl">
-                  {/* Lock Icon */}
-                  <div className="flex justify-center mb-6">
-                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center shadow-lg shadow-primary-500/25">
-                      <Shield className="w-8 h-8 text-white" />
-                    </div>
-                  </div>
-
-                  <h2 className="text-xl font-bold text-gray-800 text-center mb-2">ยืนยันตัวตน</h2>
-                  <p className="text-gray-500 text-center mb-6 text-sm">
-                    กรุณากรอกเบอร์โทร 4 ตัวหลังเพื่อดูรายละเอียดออเดอร์
-                  </p>
-
-                  {/* Order Preview */}
-                  <div className="bg-gradient-to-r from-primary-50/50 to-orange-50/50 rounded-xl p-4 mb-6">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center">
-                        <Package className="w-5 h-5 text-white" />
-                      </div>
-                      <div>
-                        <p className="font-bold text-gray-800">{verificationData.orderNumber}</p>
-                        <p className="text-sm text-gray-500">{verificationData.customerName}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Phone className="w-4 h-4 text-primary-500" />
-                      <span>เบอร์โทร: {verificationData.maskedPhone}</span>
-                    </div>
-                  </div>
-
-                  {/* Phone Input */}
-                  <div className="mb-6">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      เบอร์โทร 4 ตัวหลัง
-                    </label>
-                    <div className="relative">
-                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                      <input
-                        type="text"
-                        maxLength={4}
-                        value={phoneLast4}
-                        onChange={(e) => setPhoneLast4(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                        onKeyDown={(e) => e.key === 'Enter' && handleVerification()}
-                        placeholder="XXXX"
-                        className="w-full pl-12 pr-4 py-4 bg-white/80 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-center text-2xl font-bold tracking-[0.5em] transition-all duration-300"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Error */}
-                  {verificationError && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="mb-4 p-3 bg-red-50/80 border border-red-200 rounded-xl text-red-700 text-sm text-center"
-                    >
-                      {verificationError}
-                    </motion.div>
-                  )}
-
-                  {/* Verify Button */}
-                  <motion.button
-                    onClick={handleVerification}
-                    disabled={verifying || phoneLast4.length !== 4}
-                    className="w-full bg-gradient-to-br from-primary-500 to-primary-600 text-white py-4 rounded-xl hover:from-primary-600 hover:to-primary-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-primary-500/25 transition-all duration-300 font-semibold"
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    {verifying ? (
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <>
-                        <Shield className="w-5 h-5" />
-                        ยืนยันและดูออเดอร์
-                      </>
-                    )}
-                  </motion.button>
-
-                  {/* Back Button */}
-                  <button
-                    onClick={() => {
-                      setVerificationData(null);
-                      setPhoneLast4('');
-                      setVerificationError(null);
-                    }}
-                    className="w-full mt-3 py-3 text-gray-500 hover:text-gray-700 text-sm transition-colors"
-                  >
-                    ← ค้นหาใหม่
-                  </button>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Search Card - Show only if no verification in progress */}
-          {!verificationData && (
-            <motion.div
+          {/* Search Card */}
+          <motion.div
               className="max-w-2xl mx-auto"
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.2 }}
             >
               <div className="bg-white/70 backdrop-blur-xl rounded-3xl p-6 md:p-8 border border-white/50 shadow-xl">
-                <h2 className="text-lg font-semibold text-gray-800 mb-6">ค้นหาออเดอร์</h2>
-
-                {/* Search Type Toggle */}
-                <div className="flex gap-2 mb-6">
-                  <button
-                    onClick={() => setSearchType('phone')}
-                    className={`flex-1 py-3 px-4 rounded-xl font-medium transition-all duration-300 ${
-                      searchType === 'phone'
-                        ? 'bg-gradient-to-br from-primary-500 to-primary-600 text-white shadow-lg shadow-primary-500/25'
-                        : 'bg-white/80 text-gray-600 hover:bg-white border border-gray-200'
-                    }`}
-                  >
-                    <Phone className="w-4 h-4 inline mr-2" />
-                    ค้นหาด้วยเบอร์โทร
-                  </button>
-                  <button
-                    onClick={() => setSearchType('order')}
-                    className={`flex-1 py-3 px-4 rounded-xl font-medium transition-all duration-300 ${
-                      searchType === 'order'
-                        ? 'bg-gradient-to-br from-primary-500 to-primary-600 text-white shadow-lg shadow-primary-500/25'
-                        : 'bg-white/80 text-gray-600 hover:bg-white border border-gray-200'
-                    }`}
-                  >
-                    <Package className="w-4 h-4 inline mr-2" />
-                    ค้นหาด้วยเลขออเดอร์
-                  </button>
+                <div className="text-center mb-6">
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-500 to-primary-600 mb-4 shadow-lg shadow-primary-500/25">
+                    <Package className="w-8 h-8 text-white" />
+                  </div>
+                  <h2 className="text-lg font-semibold text-gray-800">กรอกรหัสติดตาม</h2>
+                  <p className="text-sm text-gray-500 mt-1">ตรวจสอบสถานะจากรหัสที่ได้รับจากร้าน</p>
                 </div>
 
                 {/* Search Input */}
@@ -427,15 +232,15 @@ const TrackingPortal = () => {
                   <input
                     type="text"
                     value={searchValue}
-                    onChange={(e) => setSearchValue(e.target.value)}
+                    onChange={(e) => setSearchValue(e.target.value.toUpperCase())}
                     onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                    placeholder={searchType === 'phone' ? 'กรอกเบอร์โทรศัพท์...' : 'กรอกหมายเลขออเดอร์...'}
-                    className="flex-1 px-5 py-4 bg-white/80 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-300"
+                    placeholder="PKN-ORD001-01-A3B"
+                    className="flex-1 px-5 py-4 bg-white/80 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-300 text-center font-mono text-lg tracking-wider"
                   />
                   <motion.button
                     onClick={handleSearch}
                     disabled={loading}
-                    className="bg-gradient-to-br from-primary-500 to-primary-600 text-white px-8 py-4 rounded-xl hover:from-primary-600 hover:to-primary-700 disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-primary-500/25 transition-all duration-300"
+                    className="bg-gradient-to-br from-primary-500 to-primary-600 text-white px-6 py-4 rounded-xl hover:from-primary-600 hover:to-primary-700 disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-primary-500/25 transition-all duration-300"
                     whileTap={{ scale: 0.95 }}
                   >
                     {loading ? (
@@ -443,7 +248,7 @@ const TrackingPortal = () => {
                     ) : (
                       <>
                         <Search className="w-5 h-5" />
-                        ค้นหา
+                        <span className="hidden sm:inline">ค้นหา</span>
                       </>
                     )}
                   </motion.button>
@@ -461,254 +266,488 @@ const TrackingPortal = () => {
                 )}
               </div>
             </motion.div>
-          )}
         </div>
       </section>
 
-      {/* Results Section */}
+      {/* Tracking Result */}
       <AnimatePresence>
-        {result && result.orders.length > 0 && (
+        {trackingResult && (
           <motion.section
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
             className="py-8"
           >
-            <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-              {/* Customer Info */}
-              {result.customerName && (
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+              {/* Order Result - แสดงรายการสินค้าทั้งหมด */}
+              {trackingResult.type === 'order' && (
                 <motion.div
-                  className="mb-8 text-center"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.2 }}
+                  className="bg-white/70 backdrop-blur-xl rounded-3xl border border-white/50 shadow-xl overflow-hidden"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
                 >
-                  <div className="inline-flex items-center gap-3 px-6 py-3 bg-white/70 backdrop-blur-xl rounded-2xl border border-white/50 shadow-lg">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center">
-                      <Package className="w-5 h-5 text-white" />
+                  {/* Order Header */}
+                  <div className="p-6 bg-gradient-to-r from-primary-500 to-primary-600 text-white">
+                    <div className="flex items-center gap-4">
+                      <div className="w-16 h-16 rounded-xl bg-white/20 flex items-center justify-center">
+                        <Package className="w-8 h-8 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm text-white/80 font-mono">รหัสติดตาม: {trackingResult.trackingCode}</p>
+                        <h3 className="text-xl font-bold mt-1">
+                          ออเดอร์ {trackingResult.orderNumber}
+                        </h3>
+                        <p className="text-sm text-white/80 mt-1">
+                          {trackingResult.customerName} • {trackingResult.shippingMethod}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm text-white/80">สินค้า</p>
+                        <p className="text-2xl font-bold">{trackingResult.totalItems || 0}</p>
+                        <p className="text-xs text-white/60">รายการ</p>
+                      </div>
                     </div>
-                    <div className="text-left">
-                      <p className="text-sm text-gray-500">ลูกค้า</p>
-                      <p className="font-semibold text-gray-800">{result.customerName}</p>
+                  </div>
+
+                  {/* Order Status Timeline */}
+                  <div className="p-6 border-b border-gray-100">
+                    <h4 className="text-sm font-semibold text-gray-600 mb-4">สถานะออเดอร์</h4>
+                    <StatusTimeline currentStep={trackingResult.statusStep} />
+                  </div>
+
+                  {/* Items List */}
+                  <div className="p-6">
+                    <h4 className="text-sm font-semibold text-gray-600 mb-4">รายการสินค้า ({trackingResult.items?.length || 0} รายการ)</h4>
+                    <div className="space-y-3">
+                      {trackingResult.items?.map((item, idx) => (
+                        <div
+                          key={idx}
+                          onClick={() => setSelectedItem(item)}
+                          className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl hover:bg-gray-100 cursor-pointer transition-colors"
+                        >
+                          {item.productImage ? (
+                            <img
+                              src={item.productImage}
+                              alt={item.productName || 'สินค้า'}
+                              className="w-16 h-16 rounded-lg object-cover"
+                            />
+                          ) : (
+                            <div className="w-16 h-16 rounded-lg bg-gray-200 flex items-center justify-center">
+                              <Package className="w-6 h-6 text-gray-400" />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-gray-900 truncate">
+                              {item.productName || 'สินค้า'}
+                            </p>
+                            {item.productCode && (
+                              <p className="text-xs text-gray-500">SKU: {item.productCode}</p>
+                            )}
+                            <p className="text-xs text-gray-400 mt-1">
+                              {item.trackingCode && <span className="font-mono">{item.trackingCode}</span>}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
+                              item.statusStep === 9 ? 'bg-green-100 text-green-700' :
+                              item.statusStep >= 6 ? 'bg-indigo-100 text-indigo-700' :
+                              item.statusStep >= 3 ? 'bg-yellow-100 text-yellow-700' :
+                              'bg-gray-100 text-gray-700'
+                            }`}>
+                              {item.statusName}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                    <div className="h-8 w-px bg-gray-200 mx-2" />
-                    <div className="text-left">
-                      <p className="text-sm text-gray-500">พบ</p>
-                      <p className="font-semibold text-primary-600">{result.orders.length} ออเดอร์</p>
-                    </div>
+
+                    {(!trackingResult.items || trackingResult.items.length === 0) && (
+                      <div className="text-center py-8 text-gray-500">
+                        <Package className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                        <p>ยังไม่มีสินค้าในออเดอร์นี้</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Search Again */}
+                  <div className="p-4 text-center border-t border-gray-100">
+                    <button
+                      onClick={() => {
+                        setTrackingResult(null);
+                        setSearchValue('');
+                      }}
+                      className="text-primary-600 hover:text-primary-700 text-sm font-medium"
+                    >
+                      ← ค้นหาใหม่
+                    </button>
                   </div>
                 </motion.div>
               )}
 
-              {/* Orders List */}
-              <motion.div
-                className="space-y-6"
-                variants={staggerContainer}
-                initial="initial"
-                animate="animate"
-              >
-                {result.orders.map((order) => (
-                  <motion.div
-                    key={order.orderNumber}
-                    className="bg-white/70 backdrop-blur-xl rounded-3xl border border-white/50 shadow-xl overflow-hidden hover:shadow-2xl transition-all duration-300"
-                    variants={staggerItem}
-                  >
-                    {/* Order Header */}
-                    <button
-                      onClick={() =>
-                        setExpandedOrder(expandedOrder === order.orderNumber ? null : order.orderNumber)
-                      }
-                      className="w-full p-6 flex items-center justify-between hover:bg-white/50 transition-all duration-300"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center shadow-lg shadow-primary-500/25">
-                          {order.shippingMethod === 'ทางอากาศ' ? (
-                            <Plane className="w-7 h-7 text-white" />
-                          ) : (
-                            <Ship className="w-7 h-7 text-white" />
-                          )}
-                        </div>
-                        <div className="text-left">
-                          <h3 className="font-bold text-gray-800 text-lg">{order.orderNumber}</h3>
-                          <p className="text-gray-500 text-sm">
-                            {order.shippingMethod} • {order.summary.totalItems} รายการ
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium mb-1 ${
-                          order.statusStep === 8
-                            ? 'bg-green-100 text-green-700'
-                            : order.statusStep >= 5
-                            ? 'bg-primary-100 text-primary-700'
-                            : 'bg-yellow-100 text-yellow-700'
-                        }`}>
-                          {order.statusName}
-                        </span>
-                        <p className="text-xs text-gray-400">
-                          {new Date(order.createdAt).toLocaleDateString('th-TH')}
-                        </p>
-                      </div>
-                    </button>
-
-                    {/* Order Details (Expanded) */}
-                    <AnimatePresence>
-                      {expandedOrder === order.orderNumber && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: 'auto', opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          className="border-t border-gray-100"
-                        >
-                          {/* Status Timeline - ใช้สถานะ Order */}
-                          <div className="p-6 bg-gradient-to-r from-primary-50/50 to-orange-50/50 backdrop-blur-sm overflow-x-auto">
-                            <StatusTimeline currentStep={order.statusStep || 1} />
+              {/* Single Item Result */}
+              {trackingResult.type === 'item' && (
+                <motion.div
+                  className="bg-white/70 backdrop-blur-xl rounded-3xl border border-white/50 shadow-xl overflow-hidden"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                >
+                  {/* Item Header */}
+                  <div className="p-6 bg-gradient-to-r from-primary-500 to-primary-600 text-white">
+                    <div className="flex items-start gap-4">
+                      {/* Product Images Gallery */}
+                      {(trackingResult.productImages && trackingResult.productImages.length > 0) || trackingResult.productImage ? (
+                        <div className="flex flex-col gap-2">
+                          {/* Main Image */}
+                          <div
+                            className="relative cursor-pointer group"
+                            onClick={() => setLightboxOpen(true)}
+                          >
+                            <img
+                              src={trackingResult.productImages?.[selectedImageIndex] || trackingResult.productImage || ''}
+                              alt={trackingResult.productName || 'สินค้า'}
+                              className="w-24 h-24 md:w-28 md:h-28 rounded-xl object-cover border-2 border-white/30 transition-transform group-hover:scale-105"
+                            />
+                            {trackingResult.productImages && trackingResult.productImages.length > 1 && (
+                              <div className="absolute bottom-1 right-1 bg-black/50 text-white text-xs px-1.5 py-0.5 rounded">
+                                {selectedImageIndex + 1}/{trackingResult.productImages.length}
+                              </div>
+                            )}
                           </div>
-
-                          {/* Shipping Info */}
-                          <div className="p-6 grid grid-cols-2 gap-4 border-b border-gray-100">
-                            <div className="group flex items-center gap-4 p-4 bg-white/60 backdrop-blur-sm rounded-xl border border-white/50">
-                              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300">
-                                <MapPin className="w-5 h-5 text-white" />
-                              </div>
-                              <div>
-                                <p className="text-xs text-gray-500">ต้นทาง</p>
-                                <p className="font-medium text-gray-800">{order.origin || 'ญี่ปุ่น'}</p>
-                              </div>
-                            </div>
-                            <div className="group flex items-center gap-4 p-4 bg-white/60 backdrop-blur-sm rounded-xl border border-white/50">
-                              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300">
-                                <Truck className="w-5 h-5 text-white" />
-                              </div>
-                              <div>
-                                <p className="text-xs text-gray-500">ปลายทาง</p>
-                                <p className="font-medium text-gray-800">{order.destination || 'ไทย'}</p>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Items List */}
-                          <div className="p-6">
-                            <h4 className="font-semibold text-gray-800 mb-4">รายการสินค้า</h4>
-                            <div className="space-y-4">
-                              {order.items.map((item, idx) => (
-                                <div
+                          {/* Thumbnail Strip */}
+                          {trackingResult.productImages && trackingResult.productImages.length > 1 && (
+                            <div className="flex gap-1 overflow-x-auto max-w-28 md:max-w-32">
+                              {trackingResult.productImages.map((img, idx) => (
+                                <button
                                   key={idx}
-                                  className="group flex items-center gap-4 p-4 bg-white/60 backdrop-blur-sm rounded-xl border border-white/50 hover:bg-white/80 transition-all duration-300"
+                                  onClick={() => setSelectedImageIndex(idx)}
+                                  className={`flex-shrink-0 w-6 h-6 rounded border-2 overflow-hidden transition-all ${
+                                    idx === selectedImageIndex
+                                      ? 'border-white scale-110'
+                                      : 'border-white/30 opacity-70 hover:opacity-100'
+                                  }`}
                                 >
-                                  {/* Product Image */}
-                                  {item.productImage ? (
-                                    <img
-                                      src={item.productImage}
-                                      alt={item.productCode || 'Product'}
-                                      className="w-16 h-16 object-cover rounded-xl shadow-md"
-                                    />
-                                  ) : (
-                                    <div className="w-16 h-16 bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl flex items-center justify-center">
-                                      <Package className="w-6 h-6 text-gray-400" />
-                                    </div>
-                                  )}
-
-                                  {/* Product Info */}
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      {item.sequenceNumber && (
-                                        <span className="text-sm text-gray-500">#{item.sequenceNumber}</span>
-                                      )}
-                                      {item.productCode && (
-                                        <code className="text-sm bg-gray-100 px-2 py-0.5 rounded-lg">
-                                          {item.productCode}
-                                        </code>
-                                      )}
-                                    </div>
-                                    {item.productName && (
-                                      <p className="text-sm font-medium text-gray-800 mt-1 line-clamp-2">
-                                        {item.productName}
-                                      </p>
-                                    )}
-                                    {item.statusName && (
-                                      <div className="flex items-center gap-2 mt-1">
-                                        <span
-                                          className={`text-xs px-2 py-0.5 rounded-full ${
-                                            item.statusStep === 8
-                                              ? 'bg-green-100 text-green-700'
-                                              : (item.statusStep || 0) >= 5
-                                              ? 'bg-primary-100 text-primary-700'
-                                              : 'bg-yellow-100 text-yellow-700'
-                                          }`}
-                                        >
-                                          {item.statusName}
-                                        </span>
-                                      </div>
-                                    )}
-                                    {item.trackingNumber && (
-                                      <p className="text-xs text-gray-500 mt-1">
-                                        Tracking: <code className="bg-gray-100 px-1 rounded">{item.trackingNumber}</code>
-                                      </p>
-                                    )}
-                                  </div>
-
-                                  {/* Price */}
-                                  <div className="text-right">
-                                    {item.priceYen && Number(item.priceYen) > 0 && (
-                                      <p className="text-sm text-gray-500">¥{Number(item.priceYen).toLocaleString()}</p>
-                                    )}
-                                    {item.priceBaht && Number(item.priceBaht) > 0 && (
-                                      <p className="font-semibold text-primary-600">฿{Number(item.priceBaht).toLocaleString()}</p>
-                                    )}
-                                  </div>
-
-                                  {/* Product Link */}
-                                  {item.productUrl && (
-                                    <a
-                                      href={item.productUrl}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="p-2 text-gray-400 hover:text-primary-600 transition-colors"
-                                    >
-                                      <ExternalLink className="w-5 h-5" />
-                                    </a>
-                                  )}
-                                </div>
+                                  <img
+                                    src={img}
+                                    alt={`รูปที่ ${idx + 1}`}
+                                    className="w-full h-full object-cover"
+                                  />
+                                </button>
                               ))}
                             </div>
-                          </div>
-
-                          {/* Summary */}
-                          <div className="p-6 bg-gradient-to-r from-primary-50/50 to-orange-50/50 backdrop-blur-sm border-t border-gray-100">
-                            <div className="flex justify-between items-center">
-                              <span className="text-gray-600 font-medium">สินค้าทั้งหมด</span>
-                              <span className="text-lg font-bold text-primary-600">
-                                {order.summary.totalItems} รายการ
-                              </span>
-                            </div>
-                          </div>
-                        </motion.div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="w-24 h-24 md:w-28 md:h-28 rounded-xl bg-white/20 flex items-center justify-center">
+                          <Package className="w-10 h-10 text-white/70" />
+                        </div>
                       )}
-                    </AnimatePresence>
-                  </motion.div>
-                ))}
-              </motion.div>
+                      <div className="flex-1">
+                        <p className="text-sm text-white/80 font-mono">{trackingResult.trackingCode}</p>
+                        <h3 className="text-xl font-bold mt-1">
+                          {trackingResult.productName || 'สินค้า'}
+                        </h3>
+                        <p className="text-sm text-white/80 mt-1">
+                          ออเดอร์: {trackingResult.order?.orderNumber} • {trackingResult.order?.customerName}
+                        </p>
+                        {trackingResult.productCode && (
+                          <p className="text-xs text-white/60 mt-1">SKU: {trackingResult.productCode}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Status Timeline */}
+                  <div className="p-6 border-b border-gray-100">
+                    <h4 className="text-sm font-semibold text-gray-600 mb-4">สถานะการจัดส่ง</h4>
+                    <StatusTimeline currentStep={trackingResult.statusStep} />
+                  </div>
+
+                  {/* Status Details */}
+                  <div className="p-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="text-center p-4 bg-gray-50 rounded-xl">
+                      <p className="text-xs text-gray-500 mb-1">สถานะปัจจุบัน</p>
+                      <p className={`font-bold ${
+                        trackingResult.statusStep === 9 ? 'text-green-600' :
+                        trackingResult.statusStep >= 6 ? 'text-indigo-600' :
+                        trackingResult.statusStep >= 3 ? 'text-yellow-600' :
+                        'text-gray-600'
+                      }`}>
+                        {trackingResult.statusName}
+                      </p>
+                    </div>
+                    <div className="text-center p-4 bg-gray-50 rounded-xl">
+                      <p className="text-xs text-gray-500 mb-1">วิธีจัดส่ง</p>
+                      <p className="font-bold text-gray-700">{trackingResult.order?.shippingMethod || trackingResult.shippingMethod}</p>
+                    </div>
+                    {trackingResult.shippingRound && (
+                      <div className="text-center p-4 bg-gray-50 rounded-xl">
+                        <p className="text-xs text-gray-500 mb-1">รอบส่งกลับ</p>
+                        <p className="font-bold text-gray-700">{trackingResult.shippingRound}</p>
+                      </div>
+                    )}
+                    {trackingResult.trackingNumber && (
+                      <div className="text-center p-4 bg-gray-50 rounded-xl">
+                        <p className="text-xs text-gray-500 mb-1">เลข Tracking</p>
+                        <p className="font-bold text-primary-600 font-mono text-sm">{trackingResult.trackingNumber}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Status History */}
+                  {trackingResult.statusHistory && trackingResult.statusHistory.length > 0 && (
+                    <div className="p-6 bg-gray-50 border-t border-gray-100">
+                      <h4 className="text-sm font-semibold text-gray-600 mb-3">ประวัติสถานะ</h4>
+                      <div className="space-y-2">
+                        {trackingResult.statusHistory.map((h, idx) => (
+                          <div key={idx} className="flex items-center gap-3 text-sm">
+                            <div className={`w-2 h-2 rounded-full ${idx === 0 ? 'bg-primary-500' : 'bg-gray-300'}`} />
+                            <span className="text-gray-500 w-32">
+                              {new Date(h.timestamp).toLocaleDateString('th-TH', {
+                                day: 'numeric',
+                                month: 'short',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </span>
+                            <span className={idx === 0 ? 'font-medium text-gray-800' : 'text-gray-600'}>
+                              {h.statusName}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Search Again */}
+                  <div className="p-4 text-center border-t border-gray-100">
+                    <button
+                      onClick={() => {
+                        setTrackingResult(null);
+                        setSearchValue('');
+                      }}
+                      className="text-primary-600 hover:text-primary-700 text-sm font-medium"
+                    >
+                      ← ค้นหาใหม่
+                    </button>
+                  </div>
+                </motion.div>
+              )}
             </div>
           </motion.section>
         )}
       </AnimatePresence>
 
-      {/* No Results */}
-      {result && result.orders.length === 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="max-w-2xl mx-auto px-4 text-center py-12"
+      {/* Item Detail Modal - สำหรับดูรายละเอียดสินค้าแต่ละชิ้นในผลลัพธ์ Order */}
+      <AnimatePresence>
+        {selectedItem && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+            onClick={() => setSelectedItem(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Item Header */}
+              <div className="p-6 bg-gradient-to-r from-primary-500 to-primary-600 text-white relative">
+                <button
+                  onClick={() => setSelectedItem(null)}
+                  className="absolute top-4 right-4 p-1 hover:bg-white/20 rounded-full"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+                <div className="flex items-start gap-4">
+                  {selectedItem.productImage ? (
+                    <img
+                      src={selectedItem.productImage}
+                      alt={selectedItem.productName || 'สินค้า'}
+                      className="w-20 h-20 rounded-xl object-cover border-2 border-white/30"
+                    />
+                  ) : (
+                    <div className="w-20 h-20 rounded-xl bg-white/20 flex items-center justify-center">
+                      <Package className="w-8 h-8 text-white/70" />
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <h3 className="text-lg font-bold">
+                      {selectedItem.productName || 'สินค้า'}
+                    </h3>
+                    {selectedItem.productCode && (
+                      <p className="text-sm text-white/80">SKU: {selectedItem.productCode}</p>
+                    )}
+                    {selectedItem.trackingCode && (
+                      <p className="text-xs text-white/60 font-mono mt-1">{selectedItem.trackingCode}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Status Timeline */}
+              <div className="p-4 border-b border-gray-100">
+                <h4 className="text-sm font-semibold text-gray-600 mb-3">สถานะ</h4>
+                <div className="flex items-center gap-2 overflow-x-auto pb-2">
+                  {STATUS_STEPS.map((step) => {
+                    const StepIcon = step.Icon;
+                    return (
+                      <div key={step.step} className="flex flex-col items-center min-w-[50px]">
+                        <div
+                          className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                            selectedItem.statusStep > step.step
+                              ? 'bg-green-500 text-white'
+                              : selectedItem.statusStep === step.step
+                              ? 'bg-primary-500 text-white'
+                              : 'bg-gray-200 text-gray-400'
+                          }`}
+                        >
+                          {selectedItem.statusStep > step.step ? (
+                            <CheckCircle className="w-4 h-4" />
+                          ) : (
+                            <StepIcon className="w-4 h-4" />
+                          )}
+                        </div>
+                        <span className="text-[10px] text-gray-500 mt-1 text-center">{step.name}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Details */}
+              <div className="p-4 grid grid-cols-2 gap-3">
+                <div className="p-3 bg-gray-50 rounded-xl">
+                  <p className="text-xs text-gray-500">สถานะ</p>
+                  <p className={`font-bold ${
+                    selectedItem.statusStep === 9 ? 'text-green-600' :
+                    selectedItem.statusStep >= 6 ? 'text-indigo-600' :
+                    'text-gray-700'
+                  }`}>
+                    {selectedItem.statusName}
+                  </p>
+                </div>
+                {selectedItem.shippingRound && (
+                  <div className="p-3 bg-gray-50 rounded-xl">
+                    <p className="text-xs text-gray-500">รอบส่ง</p>
+                    <p className="font-bold text-gray-700">{selectedItem.shippingRound}</p>
+                  </div>
+                )}
+                {selectedItem.trackingNumber && (
+                  <div className="p-3 bg-gray-50 rounded-xl col-span-2">
+                    <p className="text-xs text-gray-500">เลข Tracking</p>
+                    <p className="font-bold text-primary-600 font-mono">{selectedItem.trackingNumber}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Status History */}
+              {selectedItem.statusHistory && selectedItem.statusHistory.length > 0 && (
+                <div className="p-4 border-t border-gray-100">
+                  <h4 className="text-sm font-semibold text-gray-600 mb-2">ประวัติ</h4>
+                  <div className="space-y-2">
+                    {selectedItem.statusHistory.map((h, idx) => (
+                      <div key={idx} className="flex items-center gap-2 text-sm">
+                        <div className={`w-2 h-2 rounded-full ${idx === 0 ? 'bg-primary-500' : 'bg-gray-300'}`} />
+                        <span className="text-gray-500 text-xs">
+                          {new Date(h.timestamp).toLocaleDateString('th-TH', {
+                            day: 'numeric',
+                            month: 'short',
+                          })}
+                        </span>
+                        <span className="text-gray-700">{h.statusName}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="p-4 border-t border-gray-100">
+                <button
+                  onClick={() => setSelectedItem(null)}
+                  className="w-full py-2 text-gray-600 hover:text-gray-800 text-sm font-medium"
+                >
+                  ปิด
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Preview Modal - Outside of all containers for fullscreen */}
+      {lightboxOpen && trackingResult?.productImages && trackingResult.productImages.length > 0 && (
+        <div
+          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
+          onClick={() => setLightboxOpen(false)}
         >
-          <div className="bg-white/70 backdrop-blur-xl rounded-3xl p-12 border border-white/50 shadow-xl">
-            <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
-              <Package className="w-10 h-10 text-gray-400" />
+          {/* Close button */}
+          <button
+            className="absolute top-4 right-4 p-2 bg-white rounded-full text-gray-800 hover:bg-gray-100"
+            onClick={() => setLightboxOpen(false)}
+          >
+            <X className="w-6 h-6" />
+          </button>
+
+          {/* Navigation arrows */}
+          {trackingResult.productImages.length > 1 && (
+            <>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedImageIndex((prev) =>
+                    prev === 0 ? trackingResult.productImages!.length - 1 : prev - 1
+                  );
+                }}
+                className="absolute left-4 p-2 bg-white rounded-full text-gray-800 hover:bg-gray-100"
+              >
+                <ChevronLeft className="w-6 h-6" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedImageIndex((prev) =>
+                    prev === trackingResult.productImages!.length - 1 ? 0 : prev + 1
+                  );
+                }}
+                className="absolute right-4 p-2 bg-white rounded-full text-gray-800 hover:bg-gray-100"
+              >
+                <ChevronRight className="w-6 h-6" />
+              </button>
+            </>
+          )}
+
+          {/* Main image */}
+          <img
+            src={trackingResult.productImages[selectedImageIndex]}
+            alt={`รูปสินค้า ${selectedImageIndex + 1}`}
+            className="max-w-full max-h-full object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
+
+          {/* Image counter */}
+          {trackingResult.productImages.length > 1 && (
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+              {trackingResult.productImages.map((_, idx) => (
+                <button
+                  key={idx}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedImageIndex(idx);
+                  }}
+                  className={`w-2.5 h-2.5 rounded-full transition-all ${
+                    idx === selectedImageIndex
+                      ? 'bg-white scale-125'
+                      : 'bg-white/50 hover:bg-white/80'
+                  }`}
+                />
+              ))}
             </div>
-            <h3 className="text-xl font-semibold text-gray-600 mb-2">ไม่พบออเดอร์</h3>
-            <p className="text-gray-400">กรุณาตรวจสอบข้อมูลและลองอีกครั้ง</p>
-          </div>
-        </motion.div>
+          )}
+        </div>
       )}
     </motion.div>
   );

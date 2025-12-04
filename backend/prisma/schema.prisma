@@ -11,6 +11,7 @@ datasource db {
 model User {
   id             String         @id @default(uuid()) @db.Uuid
   email          String?        @unique @db.VarChar(255)
+  password       String?        @db.VarChar(255)
   fullName       String?        @map("full_name") @db.VarChar(255)
   phone          String?        @db.VarChar(20)
   googleId       String?        @unique @map("google_id") @db.VarChar(255)
@@ -78,12 +79,18 @@ model Customer {
   @@index([email])
   @@index([isActive])
   @@index([deletedAt])
+  @@index([companyName])
+  @@index([contactPerson])
+  @@index([phone])
+  @@index([lineId])
+  @@index([createdAt(sort: Desc)])
   @@map("customers")
 }
 
 model Order {
   id                String          @id @default(uuid()) @db.Uuid
   orderNumber       String          @unique @map("order_number") @db.VarChar(50)
+  trackingCode      String?         @unique @map("tracking_code") @db.VarChar(20)  // รหัสติดตามสำหรับลูกค้า (สุ่ม 8 ตัวอักษร)
   customerId        String?         @map("customer_id") @db.Uuid
   shippingMethod    String          @map("shipping_method") @db.VarChar(20)
   status            String          @default("pending") @db.VarChar(50)
@@ -110,9 +117,13 @@ model Order {
 
   @@index([customerId])
   @@index([orderNumber])
+  @@index([trackingCode])
   @@index([status])
   @@index([statusStep])
   @@index([deletedAt])
+  @@index([createdAt(sort: Desc)])
+  @@index([shippingMethod])
+  @@index([paymentStatus])
   @@map("orders")
 }
 
@@ -125,6 +136,8 @@ model OrderItem {
   clickerName      String?             @map("clicker_name") @db.VarChar(255)
   customerName     String?             @map("customer_name") @db.VarChar(255)
   productCode      String?             @map("product_code") @db.VarChar(100)
+  itemCode         String?             @map("item_code") @db.VarChar(100)
+  trackingCode     String?             @unique @map("tracking_code") @db.VarChar(100)
   productName      String?             @map("product_name") @db.VarChar(500)
   productUrl       String?             @map("product_url")
   priceYen         Decimal?            @map("price_yen") @db.Decimal(10, 2)
@@ -143,6 +156,22 @@ model OrderItem {
   trackingNumberTH String?             @map("tracking_number_th") @db.VarChar(100)
   shippingCost     Decimal?            @map("shipping_cost") @db.Decimal(10, 2)
   weight           Decimal?            @db.Decimal(10, 2)
+  // Status Detail Fields - รายละเอียดแต่ละสถานะ
+  jpOrderNumber    String?             @map("jp_order_number") @db.VarChar(100)    // เลขที่ออเดอร์ญี่ปุ่น (step 3)
+  jpOrderDate      DateTime?           @map("jp_order_date") @db.Date              // วันที่สั่งซื้อ JP
+  warehouseDate    DateTime?           @map("warehouse_date") @db.Date             // วันที่ถึงโกดัง JP (step 4)
+  shipmentBatch    String?             @map("shipment_batch") @db.VarChar(100)     // เลขตู้/เที่ยวบิน (step 5-6)
+  exportDate       DateTime?           @map("export_date") @db.Date                // วันที่ส่งออกจาก JP (step 6)
+  arrivalDate      DateTime?           @map("arrival_date") @db.Date               // วันที่ถึงไทย (step 7)
+  courierName      String?             @map("courier_name") @db.VarChar(100)       // ชื่อขนส่งในไทย (step 8)
+  deliveryDate     DateTime?           @map("delivery_date") @db.Date              // วันที่ส่งมอบ (step 9)
+  statusRemarks    Json?               @map("status_remarks")                      // หมายเหตุแต่ละสถานะ {step1: "...", step2: "..."}
+  // Price Lock System - ระบบล็อคราคาบาทตาม Customer Tier
+  priceBahtLocked     Boolean   @default(false) @map("price_baht_locked")       // ล็อคราคาแล้วหรือยัง
+  lockedTierCode      String?   @map("locked_tier_code") @db.VarChar(20)        // tier ที่ใช้คำนวณ (member/vip/vvip)
+  lockedExchangeRate  Decimal?  @map("locked_exchange_rate") @db.Decimal(10, 4) // rate ที่ใช้คำนวณ
+  lockedBy            String?   @map("locked_by") @db.VarChar(255)              // ชื่อคนล็อค
+  lockedAt            DateTime? @map("locked_at") @db.Timestamp(6)              // เวลาที่ล็อค
   // Soft Delete
   deletedAt        DateTime?           @map("deleted_at") @db.Timestamp(6)
   deletedBy        String?             @map("deleted_by") @db.VarChar(255)
@@ -152,6 +181,8 @@ model OrderItem {
 
   @@index([orderId])
   @@index([productCode])
+  @@index([itemCode])
+  @@index([trackingCode])
   @@index([trackingNumberJP])
   @@index([trackingNumberTH])
   @@index([trackingNumber])
@@ -219,6 +250,10 @@ model Schedule {
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
 
+  @@index([scheduleType])
+  @@index([status])
+  @@index([departureDate])
+  @@index([arrivalDate])
   @@map("schedules")
 }
 
@@ -239,7 +274,11 @@ model Review {
   order         Order?    @relation(fields: [orderId], references: [id])
 
   @@index([customerId])
+  @@index([orderId])
+  @@index([rating])
   @@index([isApproved])
+  @@index([isFeatured])
+  @@index([createdAt(sort: Desc)])
   @@map("reviews")
 }
 
@@ -256,6 +295,11 @@ model PortfolioItem {
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
   order        Order?   @relation(fields: [orderId], references: [id])
 
+  @@index([orderId])
+  @@index([category])
+  @@index([isFeatured])
+  @@index([displayOrder])
+  @@index([createdAt(sort: Desc)])
   @@map("portfolio_items")
 }
 
@@ -272,6 +316,10 @@ model RateCalculator {
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
+  @@index([shippingMethod])
+  @@index([origin])
+  @@index([destination])
+  @@index([isActive])
   @@map("rate_calculator")
 }
 
@@ -290,7 +338,10 @@ model Notification {
   user         User?     @relation(fields: [userId], references: [id])
 
   @@index([userId])
+  @@index([customerId])
+  @@index([type])
   @@index([status])
+  @@index([createdAt(sort: Desc)])
   @@map("notifications")
 }
 
@@ -305,6 +356,9 @@ model ContactMessage {
   repliedAt DateTime? @map("replied_at") @db.Timestamp(6)
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
 
+  @@index([email])
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
   @@map("contact_messages")
 }
 
@@ -317,6 +371,8 @@ model Statistic {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
 
   @@unique([statType, statDate])
+  @@index([statType])
+  @@index([statDate])
   @@map("statistics")
 }
 
@@ -355,6 +411,7 @@ model Payment {
   installmentName   String?   @map("installment_name") @db.VarChar(100)
   amountYen         Decimal?  @map("amount_yen") @db.Decimal(10, 2)
   amountBaht        Decimal?  @map("amount_baht") @db.Decimal(10, 2)
+  slipAmount        Decimal?  @map("slip_amount") @db.Decimal(10, 2)
   exchangeRate      Decimal?  @map("exchange_rate") @db.Decimal(10, 4)
   status            String    @default("pending") @db.VarChar(50)
   paymentMethod     String?   @map("payment_method") @db.VarChar(50)

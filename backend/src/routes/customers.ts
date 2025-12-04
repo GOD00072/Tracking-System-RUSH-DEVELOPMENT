@@ -109,42 +109,158 @@ router.get('/search-line-users', async (req, res) => {
   }
 });
 
-// GET /api/v1/customers - Get all customers
+// GET /api/v1/customers/stats - Get customer statistics
+router.get('/stats', async (req, res) => {
+  try {
+    // Total customers
+    const totalCustomers = await prisma.customer.count();
+
+    // New this month
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const newThisMonth = await prisma.customer.count({
+      where: {
+        createdAt: { gte: startOfMonth }
+      }
+    });
+
+    // Active customers (isActive = true or isActive is not set - default active)
+    const activeCount = await prisma.customer.count({
+      where: {
+        NOT: { isActive: false }
+      }
+    });
+
+    // VIP count (vip or vvip or premium)
+    const vipCount = await prisma.customer.count({
+      where: {
+        tier: { in: ['vip', 'vvip', 'premium'] }
+      }
+    });
+
+    // Has LINE count
+    const hasLineCount = await prisma.customer.count({
+      where: {
+        AND: [
+          { lineId: { not: null } },
+          { lineId: { not: '' } }
+        ]
+      }
+    });
+
+    res.json({
+      success: true,
+      data: {
+        totalCustomers,
+        newThisMonth,
+        activeCount,
+        vipCount,
+        hasLineCount,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching customer stats:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'FETCH_ERROR',
+        message: 'Failed to fetch customer statistics',
+      },
+    });
+  }
+});
+
+// GET /api/v1/customers - Get all customers with search and filters
 router.get('/', async (req, res) => {
   try {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
     const skip = (page - 1) * limit;
 
+    // Search query
+    const search = req.query.search as string;
+
+    // Filters
+    const tier = req.query.tier as string;
+    const isActive = req.query.isActive as string;
+    const hasLine = req.query.hasLine as string;
+
+    // Build where clause - simplified for better performance
+    const conditions: any[] = [];
+
+    // Search filter - use single field search first for speed
+    if (search && search.trim()) {
+      conditions.push({
+        OR: [
+          { companyName: { contains: search, mode: 'insensitive' } },
+          { contactPerson: { contains: search, mode: 'insensitive' } },
+          { phone: { contains: search } },
+          { lineId: { contains: search, mode: 'insensitive' } },
+        ],
+      });
+    }
+
+    // Tier filter
+    if (tier) {
+      conditions.push({ tier });
+    }
+
+    // Active status filter
+    if (isActive === 'true') {
+      conditions.push({
+        OR: [{ isActive: true }, { isActive: null }]
+      });
+    } else if (isActive === 'false') {
+      conditions.push({ isActive: false });
+    }
+
+    // Has LINE filter
+    if (hasLine === 'true') {
+      conditions.push({
+        lineId: { not: null },
+      });
+      conditions.push({
+        NOT: { lineId: '' }
+      });
+    } else if (hasLine === 'false') {
+      conditions.push({
+        OR: [{ lineId: null }, { lineId: '' }]
+      });
+    }
+
+    const where = conditions.length > 0 ? { AND: conditions } : {};
+
+    // Run queries in parallel - include order count for display
     const [customers, total] = await Promise.all([
       prisma.customer.findMany({
+        where,
         skip,
         take: limit,
-        include: {
-          user: {
-            select: {
-              id: true,
-              email: true,
-              fullName: true,
-            },
-          },
-          orders: {
-            select: {
-              id: true,
-              orderNumber: true,
-              status: true,
-            },
-            take: 5,
-            orderBy: {
-              createdAt: 'desc',
-            },
+        select: {
+          id: true,
+          companyName: true,
+          contactPerson: true,
+          phone: true,
+          lineId: true,
+          email: true,
+          tier: true,
+          totalSpent: true,
+          isActive: true,
+          profileImageUrl: true,
+          createdAt: true,
+          province: true,
+          tags: true,
+          _count: {
+            select: { orders: true },
           },
         },
         orderBy: {
           createdAt: 'desc',
         },
       }),
-      prisma.customer.count(),
+      prisma.customer.count({ where }),
     ]);
 
     res.json({
@@ -200,6 +316,16 @@ router.get('/:id', async (req, res) => {
       },
     });
 
+    // Transform orderItems to round prices
+    const transformedOrders = customer?.orders.map(order => ({
+      ...order,
+      orderItems: order.orderItems.map(item => ({
+        ...item,
+        priceYen: item.priceYen ? Math.round(Number(item.priceYen)) : null,
+        priceBaht: item.priceBaht ? Math.round(Number(item.priceBaht)) : null,
+      })),
+    }));
+
     // Calculate customer statistics
     if (customer) {
       const orderStats = await prisma.orderItem.aggregate({
@@ -250,14 +376,14 @@ router.get('/:id', async (req, res) => {
       (customer as any).stats = {
         totalOrders: customer.orders.length,
         totalItems: orderStats._count,
-        totalYen: orderStats._sum.priceYen || 0,
-        totalBaht: orderStats._sum.priceBaht || 0,
+        totalYen: Math.round(Number(orderStats._sum.priceYen || 0)),
+        totalBaht: Math.round(Number(orderStats._sum.priceBaht || 0)),
         // Verified payment amounts
-        verifiedBaht: verifiedPayments._sum.amountBaht || 0,
-        verifiedYen: verifiedPayments._sum.amountYen || 0,
+        verifiedBaht: Math.round(Number(verifiedPayments._sum.amountBaht || 0)),
+        verifiedYen: Math.round(Number(verifiedPayments._sum.amountYen || 0)),
         // Pending payment amounts
-        pendingBaht: pendingPayments._sum.amountBaht || 0,
-        pendingYen: pendingPayments._sum.amountYen || 0,
+        pendingBaht: Math.round(Number(pendingPayments._sum.amountBaht || 0)),
+        pendingYen: Math.round(Number(pendingPayments._sum.amountYen || 0)),
       };
     }
 
@@ -273,7 +399,10 @@ router.get('/:id', async (req, res) => {
 
     res.json({
       success: true,
-      data: customer,
+      data: {
+        ...customer,
+        orders: transformedOrders,
+      },
     });
   } catch (error) {
     console.error('Error fetching customer:', error);

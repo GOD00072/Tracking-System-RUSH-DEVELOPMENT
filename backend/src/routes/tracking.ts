@@ -3,6 +3,284 @@ import prisma from '../lib/prisma';
 
 const router = express.Router();
 
+// GET /api/v1/tracking/item/:trackingCode - Public lookup by tracking code
+// รองรับทั้ง:
+// 1. Order trackingCode (8 ตัวอักษร เช่น C6CT69YU) - แสดงสินค้าทั้งหมดใน Order
+// 2. OrderItem trackingCode (PKN-ORD001-01) - แสดงสินค้าชิ้นเดียว
+router.get('/item/:trackingCode', async (req, res) => {
+  try {
+    const { trackingCode } = req.params;
+
+    if (!trackingCode) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'INVALID_INPUT',
+          message: 'กรุณาระบุรหัสติดตาม',
+        },
+      });
+    }
+
+    // ตรวจสอบว่าเป็น Order trackingCode หรือไม่ (8 ตัวอักษร uppercase+numbers)
+    const isOrderCode = /^[A-Z0-9]{8}$/.test(trackingCode.trim().toUpperCase());
+
+    if (isOrderCode) {
+      // ค้นหา Order โดยใช้ trackingCode
+      const order = await prisma.order.findFirst({
+        where: {
+          trackingCode: {
+            equals: trackingCode.trim().toUpperCase(),
+            mode: 'insensitive',
+          },
+        },
+        select: {
+          id: true,
+          orderNumber: true,
+          trackingCode: true,
+          status: true,
+          statusStep: true,
+          shippingMethod: true,
+          origin: true,
+          destination: true,
+          createdAt: true,
+          customer: {
+            select: {
+              companyName: true,
+              contactPerson: true,
+            },
+          },
+          orderItems: {
+            where: {
+              deletedAt: null,
+            },
+            select: {
+              id: true,
+              sequenceNumber: true,
+              productCode: true,
+              trackingCode: true,
+              productName: true,
+              productUrl: true,
+              productImages: true,
+              priceYen: true,
+              priceBaht: true,
+              statusStep: true,
+              itemStatus: true,
+              trackingNumber: true,
+              trackingNumberJP: true,
+              trackingNumberTH: true,
+              shippingRound: true,
+              jpOrderNumber: true,
+              jpOrderDate: true,
+              warehouseDate: true,
+              shipmentBatch: true,
+              exportDate: true,
+              arrivalDate: true,
+              courierName: true,
+              deliveryDate: true,
+              statusRemarks: true,
+              statusHistory: {
+                select: {
+                  statusStep: true,
+                  statusName: true,
+                  timestamp: true,
+                },
+                orderBy: { timestamp: 'desc' },
+                take: 5,
+              },
+            },
+            orderBy: { sequenceNumber: 'asc' },
+          },
+        },
+      });
+
+      if (!order) {
+        return res.status(404).json({
+          success: false,
+          error: {
+            code: 'NOT_FOUND',
+            message: 'ไม่พบรหัสติดตามนี้ในระบบ',
+          },
+        });
+      }
+
+      // Transform data - แสดงสินค้าทั้งหมดใน Order
+      const publicOrder = {
+        type: 'order', // บอกว่าเป็นผลลัพธ์ระดับ Order
+        trackingCode: order.trackingCode,
+        orderNumber: order.orderNumber,
+        statusStep: order.statusStep || 1,
+        statusName: getStatusName(order.statusStep || 1),
+        shippingMethod: order.shippingMethod === 'air' ? 'ทางอากาศ' : 'ทางเรือ',
+        origin: order.origin,
+        destination: order.destination,
+        customerName: order.customer?.companyName || order.customer?.contactPerson || '-',
+        createdAt: order.createdAt,
+        items: order.orderItems
+          .filter(item => item.productCode !== 'FEE')
+          .map((item) => ({
+            trackingCode: item.trackingCode,
+            productCode: item.productCode,
+            productName: item.productName,
+            productImage: Array.isArray(item.productImages) && item.productImages.length > 0 ? item.productImages[0] : null,
+            productImages: Array.isArray(item.productImages) ? item.productImages : [],
+            statusStep: item.statusStep || 1,
+            statusName: getStatusName(item.statusStep || 1),
+            trackingNumber: item.trackingNumberTH || item.trackingNumberJP || item.trackingNumber,
+            shippingRound: item.shippingRound,
+            statusDetails: {
+              jpOrderNumber: item.jpOrderNumber,
+              jpOrderDate: item.jpOrderDate,
+              warehouseDate: item.warehouseDate,
+              shipmentBatch: item.shipmentBatch,
+              exportDate: item.exportDate,
+              arrivalDate: item.arrivalDate,
+              courierName: item.courierName,
+              deliveryDate: item.deliveryDate,
+              remarks: item.statusRemarks || {},
+            },
+            statusHistory: item.statusHistory?.map(h => ({
+              statusStep: h.statusStep,
+              statusName: h.statusName,
+              timestamp: h.timestamp,
+            })) || [],
+          })),
+        totalItems: order.orderItems.filter(i => i.productCode !== 'FEE').length,
+      };
+
+      return res.json({
+        success: true,
+        data: publicOrder,
+      });
+    }
+
+    // ค้นหา OrderItem โดยใช้ trackingCode (รหัสสินค้า)
+    const item = await prisma.orderItem.findFirst({
+      where: {
+        trackingCode: {
+          equals: trackingCode,
+          mode: 'insensitive',
+        },
+      },
+      select: {
+        id: true,
+        sequenceNumber: true,
+        productCode: true,
+        trackingCode: true,
+        productName: true,
+        productUrl: true,
+        productImages: true,
+        priceYen: true,
+        priceBaht: true,
+        statusStep: true,
+        itemStatus: true,
+        trackingNumber: true,
+        trackingNumberJP: true,
+        trackingNumberTH: true,
+        shippingRound: true,
+        remarks: true,
+        // Status detail fields
+        jpOrderNumber: true,
+        jpOrderDate: true,
+        warehouseDate: true,
+        shipmentBatch: true,
+        exportDate: true,
+        arrivalDate: true,
+        courierName: true,
+        deliveryDate: true,
+        statusRemarks: true,
+        statusHistory: {
+          select: {
+            statusStep: true,
+            statusName: true,
+            timestamp: true,
+          },
+          orderBy: { timestamp: 'desc' },
+          take: 10,
+        },
+        order: {
+          select: {
+            orderNumber: true,
+            trackingCode: true,
+            status: true,
+            shippingMethod: true,
+            origin: true,
+            destination: true,
+            createdAt: true,
+            customer: {
+              select: {
+                companyName: true,
+                contactPerson: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!item) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'ไม่พบรหัสติดตามนี้ในระบบ',
+        },
+      });
+    }
+
+    // Transform data for public view (single item)
+    const publicItem = {
+      type: 'item', // บอกว่าเป็นผลลัพธ์ระดับ Item
+      trackingCode: item.trackingCode,
+      productCode: item.productCode,
+      productName: item.productName,
+      productImage: Array.isArray(item.productImages) && item.productImages.length > 0 ? item.productImages[0] : null,
+      productImages: Array.isArray(item.productImages) ? item.productImages : [],
+      statusStep: item.statusStep || 1,
+      statusName: getStatusName(item.statusStep || 1),
+      trackingNumber: item.trackingNumberTH || item.trackingNumberJP || item.trackingNumber,
+      shippingRound: item.shippingRound,
+      // Status detail fields
+      statusDetails: {
+        jpOrderNumber: item.jpOrderNumber,
+        jpOrderDate: item.jpOrderDate,
+        warehouseDate: item.warehouseDate,
+        shipmentBatch: item.shipmentBatch,
+        exportDate: item.exportDate,
+        arrivalDate: item.arrivalDate,
+        courierName: item.courierName,
+        deliveryDate: item.deliveryDate,
+        remarks: item.statusRemarks || {},
+      },
+      order: {
+        orderNumber: item.order?.orderNumber,
+        trackingCode: item.order?.trackingCode,
+        shippingMethod: item.order?.shippingMethod === 'air' ? 'ทางอากาศ' : 'ทางเรือ',
+        createdAt: item.order?.createdAt,
+        customerName: item.order?.customer?.companyName || item.order?.customer?.contactPerson || '-',
+      },
+      statusHistory: item.statusHistory?.map(h => ({
+        statusStep: h.statusStep,
+        statusName: h.statusName,
+        timestamp: h.timestamp,
+      })) || [],
+    };
+
+    res.json({
+      success: true,
+      data: publicItem,
+    });
+  } catch (error: any) {
+    console.error('Error looking up item:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'LOOKUP_ERROR',
+        message: 'เกิดข้อผิดพลาดในการค้นหา กรุณาลองใหม่อีกครั้ง',
+      },
+    });
+  }
+});
+
 // GET /api/v1/tracking/lookup - Public order lookup by phone/LINE ID
 router.get('/lookup', async (req, res) => {
   try {
@@ -143,6 +421,7 @@ router.get('/lookup', async (req, res) => {
             productName: item.productName,
             productUrl: item.productUrl,
             productImage: Array.isArray(item.productImages) && item.productImages.length > 0 ? item.productImages[0] : null,
+            productImages: Array.isArray(item.productImages) ? item.productImages : [],
             priceYen: item.priceYen,
             priceBaht: item.priceBaht,
             statusStep: item.statusStep,

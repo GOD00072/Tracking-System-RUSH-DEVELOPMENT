@@ -11,7 +11,8 @@ interface ReviewImage {
 }
 
 const ReviewPage = () => {
-  const { data: reviewsData, isLoading } = useReviews(1, 50, true);
+  // Fetch all reviews (temporarily disabled filter for debugging)
+  const { data: reviewsData, isLoading } = useReviews(1, 50);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxImages, setLightboxImages] = useState<string[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState(0);
@@ -71,7 +72,7 @@ const ReviewPage = () => {
   }));
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-orange-50/50 to-white">
+    <div className="min-h-screen bg-[#FFFBF2]">
       {/* Hero Section */}
       <section className="relative py-16 md:py-24 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-r from-primary-500/10 to-orange-500/10" />

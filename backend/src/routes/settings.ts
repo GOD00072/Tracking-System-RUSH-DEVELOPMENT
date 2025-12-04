@@ -20,9 +20,23 @@ const defaultCalculatorSettings = {
     dhl: 26,
     best: 35,
     lalamove: 50,
+    thaipost: 40,
+    pickup: 0,
   },
   additional_services: [
     { id: '1', name: 'Repack/Bubble', price: 50, isActive: true },
+  ],
+  weight_price_ranges: [
+    { id: '1', minWeight: 0, maxWeight: 1, price: 500 },
+    { id: '2', minWeight: 1, maxWeight: 3, price: 700 },
+    { id: '3', minWeight: 3, maxWeight: 5, price: 900 },
+    { id: '4', minWeight: 5, maxWeight: 10, price: 1200 },
+  ],
+  length_price_ranges: [
+    { id: '1', minLength: 0, maxLength: 30, price: 0 },
+    { id: '2', minLength: 30, maxLength: 60, price: 100 },
+    { id: '3', minLength: 60, maxLength: 100, price: 200 },
+    { id: '4', minLength: 100, maxLength: 150, price: 400 },
   ],
   company_info: {
     name: 'Ship Tracking Company',

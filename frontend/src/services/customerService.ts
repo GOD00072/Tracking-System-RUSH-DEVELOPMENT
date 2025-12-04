@@ -33,6 +33,21 @@ export type CreateCustomerInput = {
   lineId?: string;
   address?: string;
   notes?: string;
+  email?: string;
+  tier?: string;
+  discount?: number;
+  profileImageUrl?: string;
+  taxId?: string;
+  shippingAddress?: string;
+  billingAddress?: string;
+  province?: string;
+  postalCode?: string;
+  country?: string;
+  dateOfBirth?: string;
+  preferredContact?: string;
+  referralSource?: string;
+  tags?: string[];
+  isActive?: boolean;
 };
 
 export interface PaginatedResponse<T> {
@@ -46,10 +61,41 @@ export interface PaginatedResponse<T> {
   };
 }
 
-// Get all customers
-export const getCustomers = async (page = 1, limit = 20): Promise<PaginatedResponse<Customer>> => {
-  const response = await api.get('/customers', { params: { page, limit } });
+// Get all customers with optional search and filters
+export const getCustomers = async (
+  page = 1,
+  limit = 20,
+  search?: string,
+  filters?: { tier?: string; status?: string; hasLine?: string }
+): Promise<PaginatedResponse<Customer>> => {
+  const params: any = { page, limit };
+  if (search && search.trim()) {
+    params.search = search.trim();
+  }
+  if (filters?.tier) {
+    params.tier = filters.tier;
+  }
+  if (filters?.status) {
+    // Send 'true' or 'false' as string
+    params.isActive = filters.status === 'active' ? 'true' : 'false';
+  }
+  if (filters?.hasLine) {
+    // Send 'true' or 'false' as string
+    params.hasLine = filters.hasLine === 'yes' ? 'true' : 'false';
+  }
+  const response = await api.get('/customers', { params });
   return response.data;
+};
+
+// Get customer statistics
+export const getCustomerStats = async (): Promise<{
+  totalCustomers: number;
+  newThisMonth: number;
+  vipCount: number;
+  activeCount: number;
+}> => {
+  const response = await api.get('/customers/stats');
+  return response.data.data;
 };
 
 // Get single customer

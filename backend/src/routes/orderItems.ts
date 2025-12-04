@@ -167,16 +167,17 @@ router.get('/export', authenticateAdmin, async (req: AuthRequest, res) => {
       orderBy: { sequenceNumber: 'asc' },
     });
 
-    // Status step names
+    // Status step names (9 steps)
     const STATUS_STEP_NAMES: Record<number, string> = {
       1: 'รับออเดอร์',
       2: 'ชำระเงินงวดแรก',
       3: 'สั่งซื้อจากญี่ปุ่น',
       4: 'ของถึงโกดังญี่ปุ่น',
-      5: 'ส่งออกจากญี่ปุ่น',
-      6: 'ของถึงไทย',
-      7: 'กำลังจัดส่ง',
-      8: 'ส่งมอบสำเร็จ',
+      5: 'จัดรอบส่งกลับ',
+      6: 'ส่งออกจากญี่ปุ่น',
+      7: 'ของถึงไทย',
+      8: 'กำลังจัดส่ง',
+      9: 'ส่งมอบสำเร็จ',
     };
 
     // Transform data for export
@@ -291,26 +292,101 @@ router.get('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
   }
 });
 
+// Generate random suffix for tracking code (3 characters: letters and numbers)
+const generateRandomSuffix = (): string => {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Exclude confusing chars: I, O, 0, 1
+  let result = '';
+  for (let i = 0; i < 3; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+};
+
+// Generate tracking code based on order number, sequence, and random suffix
+// Format: PKN-{YYMMDD}-{orderSeq}-{itemSeq}-{random} e.g., PKN-241204-002-01-A3B
+// trackingCode = รหัสติดตาม (auto-generated for customers to track)
+// productCode = รหัสสินค้า (admin can manually enter, e.g. SKU from JP store)
+const generateTrackingCode = async (orderId: string, sequenceNumber: number): Promise<string> => {
+  const randomSuffix = generateRandomSuffix();
+
+  // Get order number from order
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { orderNumber: true, createdAt: true },
+  });
+
+  // Extract short format from order number or use date
+  // Order number format: 20251204-ORD-002 → extract 241204-002
+  let shortCode = '';
+  if (order?.orderNumber) {
+    // Try to extract date and sequence from order number
+    const match = order.orderNumber.match(/(\d{4})(\d{2})(\d{2})-ORD-(\d+)/);
+    if (match) {
+      const yy = match[1].slice(-2); // 2025 → 25
+      const mm = match[2];
+      const dd = match[3];
+      const seq = match[4];
+      shortCode = `${yy}${mm}${dd}-${seq}`;
+    } else {
+      // Fallback: use last 6 chars of order number
+      shortCode = order.orderNumber.replace(/-/g, '').slice(-6);
+    }
+  } else {
+    // Fallback: use date-based format
+    const now = new Date();
+    const yy = now.getFullYear().toString().slice(-2);
+    const mm = (now.getMonth() + 1).toString().padStart(2, '0');
+    const dd = now.getDate().toString().padStart(2, '0');
+    shortCode = `${yy}${mm}${dd}-001`;
+  }
+
+  // Format: PKN-{shortCode}-{itemSeq}-{random}
+  // e.g., PKN-241204-002-01-A3B
+  return `PKN-${shortCode}-${sequenceNumber.toString().padStart(2, '0')}-${randomSuffix}`;
+};
+
 // POST /api/v1/order-items - Create order item
 router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
+    const orderId = req.body.orderId;
+
+    // Get next sequence number if not provided
+    let sequenceNumber = req.body.sequenceNumber;
+    if (sequenceNumber === undefined) {
+      const maxSeq = await prisma.orderItem.aggregate({
+        where: { orderId },
+        _max: { sequenceNumber: true },
+      });
+      sequenceNumber = (maxSeq._max.sequenceNumber || 0) + 1;
+    } else {
+      sequenceNumber = parseInt(sequenceNumber);
+    }
+
+    // Auto-generate tracking code (for customers to track) - not for FEE items
+    let trackingCode = null;
+    if (req.body.productCode !== 'FEE') {
+      trackingCode = await generateTrackingCode(orderId, sequenceNumber);
+    }
+
     const itemData: any = {
-      orderId: req.body.orderId,
+      orderId: orderId,
+      trackingCode: trackingCode,
+      sequenceNumber: sequenceNumber,
     };
 
-    // Optional fields
-    if (req.body.sequenceNumber !== undefined) itemData.sequenceNumber = parseInt(req.body.sequenceNumber);
+    // productCode is manually entered by admin (e.g., SKU from JP store)
+    if (req.body.productCode) itemData.productCode = req.body.productCode;
+    if (req.body.itemCode) itemData.itemCode = req.body.itemCode;
     if (req.body.clickDate) itemData.clickDate = new Date(req.body.clickDate);
     if (req.body.clickChannel) itemData.clickChannel = req.body.clickChannel;
     if (req.body.clickerName) itemData.clickerName = req.body.clickerName;
     if (req.body.customerName) itemData.customerName = req.body.customerName;
-    if (req.body.productCode) itemData.productCode = req.body.productCode;
     if (req.body.productName) itemData.productName = req.body.productName;
     if (req.body.productUrl) itemData.productUrl = req.body.productUrl;
-    if (req.body.priceYen !== undefined) itemData.priceYen = parseFloat(req.body.priceYen);
-    if (req.body.priceBaht !== undefined) itemData.priceBaht = parseFloat(req.body.priceBaht);
+    if (req.body.priceYen !== undefined) itemData.priceYen = Math.round(parseFloat(req.body.priceYen));
+    if (req.body.priceBaht !== undefined) itemData.priceBaht = Math.ceil(parseFloat(req.body.priceBaht)); // ปัดเศษขึ้น
     if (req.body.weight !== undefined) itemData.weight = parseFloat(req.body.weight);
-    if (req.body.shippingCost !== undefined) itemData.shippingCost = parseFloat(req.body.shippingCost);
+    if (req.body.shippingCost !== undefined) itemData.shippingCost = Math.ceil(parseFloat(req.body.shippingCost)); // ปัดเศษขึ้น
     if (req.body.itemStatus) itemData.itemStatus = req.body.itemStatus;
     if (req.body.paymentStatus) itemData.paymentStatus = req.body.paymentStatus;
     if (req.body.shippingRound) itemData.shippingRound = req.body.shippingRound;
@@ -323,6 +399,17 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
     if (req.body.trackingNumberTH) itemData.trackingNumberTH = req.body.trackingNumberTH;
     if (req.body.productImages) itemData.productImages = req.body.productImages;
     if (req.body.statusStep !== undefined) itemData.statusStep = parseInt(req.body.statusStep);
+
+    // 🆕 Status detail fields - รายละเอียดแต่ละสถานะ
+    if (req.body.jpOrderNumber) itemData.jpOrderNumber = req.body.jpOrderNumber;
+    if (req.body.jpOrderDate) itemData.jpOrderDate = new Date(req.body.jpOrderDate);
+    if (req.body.warehouseDate) itemData.warehouseDate = new Date(req.body.warehouseDate);
+    if (req.body.shipmentBatch) itemData.shipmentBatch = req.body.shipmentBatch;
+    if (req.body.exportDate) itemData.exportDate = new Date(req.body.exportDate);
+    if (req.body.arrivalDate) itemData.arrivalDate = new Date(req.body.arrivalDate);
+    if (req.body.courierName) itemData.courierName = req.body.courierName;
+    if (req.body.deliveryDate) itemData.deliveryDate = new Date(req.body.deliveryDate);
+    if (req.body.statusRemarks) itemData.statusRemarks = req.body.statusRemarks;
 
     const item = await prisma.orderItem.create({
       data: itemData,
@@ -357,16 +444,17 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
   }
 });
 
-// Status step names for timeline (Thai)
+// Status step names for timeline (Thai) - 9 steps
 const STATUS_STEP_NAMES: Record<number, string> = {
   1: 'รับออเดอร์',
   2: 'ชำระเงินงวดแรก',
   3: 'สั่งซื้อจากญี่ปุ่น',
   4: 'ของถึงโกดังญี่ปุ่น',
-  5: 'ส่งออกจากญี่ปุ่น',
-  6: 'ของถึงไทย',
-  7: 'กำลังจัดส่ง',
-  8: 'ส่งมอบสำเร็จ',
+  5: 'จัดรอบส่งกลับ',
+  6: 'ส่งออกจากญี่ปุ่น',
+  7: 'ของถึงไทย',
+  8: 'กำลังจัดส่ง',
+  9: 'ส่งมอบสำเร็จ',
 };
 
 // PATCH /api/v1/order-items/:id - Update order item
@@ -407,18 +495,24 @@ router.patch('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
     };
 
     // Update all fields if provided
-    if (req.body.sequenceNumber !== undefined) updateData.sequenceNumber = parseInt(req.body.sequenceNumber);
+    // trackingCode จะไม่เปลี่ยนเมื่อแก้ไข - ใช้รหัสเดิมตลอด
+    if (req.body.sequenceNumber !== undefined) {
+      updateData.sequenceNumber = parseInt(req.body.sequenceNumber);
+    }
+
+    // productCode can be manually updated by admin (e.g., SKU from JP store)
+    if (req.body.productCode !== undefined) updateData.productCode = req.body.productCode;
+    if (req.body.itemCode !== undefined) updateData.itemCode = req.body.itemCode;
     if (req.body.clickDate !== undefined) updateData.clickDate = req.body.clickDate ? new Date(req.body.clickDate) : null;
     if (req.body.clickChannel !== undefined) updateData.clickChannel = req.body.clickChannel;
     if (req.body.clickerName !== undefined) updateData.clickerName = req.body.clickerName;
     if (req.body.customerName !== undefined) updateData.customerName = req.body.customerName;
-    if (req.body.productCode !== undefined) updateData.productCode = req.body.productCode;
     if (req.body.productName !== undefined) updateData.productName = req.body.productName;
     if (req.body.productUrl !== undefined) updateData.productUrl = req.body.productUrl;
-    if (req.body.priceYen !== undefined) updateData.priceYen = req.body.priceYen ? parseFloat(req.body.priceYen) : null;
-    if (req.body.priceBaht !== undefined) updateData.priceBaht = req.body.priceBaht ? parseFloat(req.body.priceBaht) : null;
+    if (req.body.priceYen !== undefined) updateData.priceYen = req.body.priceYen ? Math.round(parseFloat(req.body.priceYen)) : null;
+    if (req.body.priceBaht !== undefined) updateData.priceBaht = req.body.priceBaht ? Math.ceil(parseFloat(req.body.priceBaht)) : null; // ปัดเศษขึ้น
     if (req.body.weight !== undefined) updateData.weight = req.body.weight ? parseFloat(req.body.weight) : null;
-    if (req.body.shippingCost !== undefined) updateData.shippingCost = req.body.shippingCost ? parseFloat(req.body.shippingCost) : null;
+    if (req.body.shippingCost !== undefined) updateData.shippingCost = req.body.shippingCost ? Math.ceil(parseFloat(req.body.shippingCost)) : null; // ปัดเศษขึ้น
     if (req.body.itemStatus !== undefined) updateData.itemStatus = req.body.itemStatus;
     if (req.body.paymentStatus !== undefined) updateData.paymentStatus = req.body.paymentStatus;
     if (req.body.shippingRound !== undefined) updateData.shippingRound = req.body.shippingRound;
@@ -430,6 +524,17 @@ router.patch('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
     if (req.body.trackingNumberJP !== undefined) updateData.trackingNumberJP = req.body.trackingNumberJP;
     if (req.body.trackingNumberTH !== undefined) updateData.trackingNumberTH = req.body.trackingNumberTH;
     if (req.body.productImages !== undefined) updateData.productImages = req.body.productImages;
+
+    // 🆕 Status detail fields - รายละเอียดแต่ละสถานะ
+    if (req.body.jpOrderNumber !== undefined) updateData.jpOrderNumber = req.body.jpOrderNumber || null;
+    if (req.body.jpOrderDate !== undefined) updateData.jpOrderDate = req.body.jpOrderDate ? new Date(req.body.jpOrderDate) : null;
+    if (req.body.warehouseDate !== undefined) updateData.warehouseDate = req.body.warehouseDate ? new Date(req.body.warehouseDate) : null;
+    if (req.body.shipmentBatch !== undefined) updateData.shipmentBatch = req.body.shipmentBatch || null;
+    if (req.body.exportDate !== undefined) updateData.exportDate = req.body.exportDate ? new Date(req.body.exportDate) : null;
+    if (req.body.arrivalDate !== undefined) updateData.arrivalDate = req.body.arrivalDate ? new Date(req.body.arrivalDate) : null;
+    if (req.body.courierName !== undefined) updateData.courierName = req.body.courierName || null;
+    if (req.body.deliveryDate !== undefined) updateData.deliveryDate = req.body.deliveryDate ? new Date(req.body.deliveryDate) : null;
+    if (req.body.statusRemarks !== undefined) updateData.statusRemarks = req.body.statusRemarks;
 
     // Handle status step change with history logging
     // Only send notification if status ACTUALLY changed (not same as current)
@@ -496,15 +601,15 @@ router.patch('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
         const statusKey = statusStepToKey[newStatusStep] || 'order_received';
 
         // Build items array for Flex Message
-        // Use productCode if available, otherwise use productName/customerName (not UUID)
+        // Use trackingCode for customer tracking, or fallback to productName/customerName
         const itemsForFlex = [{
-          productCode: item.productCode || item.productName || item.customerName || 'สินค้า',
+          productCode: item.trackingCode || item.productCode || item.productName || item.customerName || 'สินค้า',
           productName: item.productName || item.customerName || undefined,
         }];
 
-        // Build tracking URL
+        // Build tracking URL using trackingCode
         const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5001';
-        const trackingUrl = `${frontendUrl}/tracking/${orderNumber}`;
+        const trackingUrl = `${frontendUrl}/tracking/${item.trackingCode || orderNumber}`;
 
         // Send LINE Flex Message notification (non-blocking)
         lineService
@@ -597,12 +702,12 @@ router.post('/bulk-status', authenticateAdmin, async (req: AuthRequest, res) => 
       });
     }
 
-    if (statusStep === undefined || statusStep < 1 || statusStep > 8) {
+    if (statusStep === undefined || statusStep < 1 || statusStep > 9) {
       return res.status(400).json({
         success: false,
         error: {
           code: 'INVALID_INPUT',
-          message: 'statusStep must be between 1 and 8',
+          message: 'statusStep must be between 1 and 9',
         },
       });
     }
@@ -669,16 +774,17 @@ router.post('/bulk-status', authenticateAdmin, async (req: AuthRequest, res) => 
     // Send LINE notifications if enabled AND there are items that actually changed
     let notificationsSent = 0;
     if (sendNotification && itemsToUpdate.length > 0) {
-      // Map statusStep to status key for Flex Message
+      // Map statusStep to status key for Flex Message (9 steps)
       const statusStepToKey: Record<number, string> = {
         1: 'order_received',
         2: 'first_payment',
         3: 'ordered_from_japan',
         4: 'arrived_jp_warehouse',
-        5: 'shipped_from_japan',
-        6: 'arrived_thailand',
-        7: 'out_for_delivery',
-        8: 'delivered',
+        5: 'shipping_round_assigned',
+        6: 'shipped_from_japan',
+        7: 'arrived_thailand',
+        8: 'out_for_delivery',
+        9: 'delivered',
       };
 
       // Group items by customer
@@ -705,7 +811,7 @@ router.post('/bulk-status', authenticateAdmin, async (req: AuthRequest, res) => 
             });
           }
           customerNotifications.get(lineId)!.items.push({
-            productCode: item.productCode || item.productName || item.customerName || 'สินค้า',
+            productCode: item.trackingCode || item.productCode || item.productName || item.customerName || 'สินค้า',
             productName: item.productName || item.customerName || undefined,
           });
         }
@@ -759,6 +865,322 @@ router.post('/bulk-status', authenticateAdmin, async (req: AuthRequest, res) => 
   }
 });
 
+// POST /api/v1/order-items/:id/lock-price - Lock price based on customer tier
+router.post('/:id/lock-price', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { priceYen } = req.body;
+    const adminEmail = (req as any).user?.email || (req as any).admin?.email || 'admin';
+
+    // Get order item with order and customer info
+    const item = await prisma.orderItem.findUnique({
+      where: { id: req.params.id },
+      include: {
+        order: {
+          include: {
+            customer: true,
+          },
+        },
+      },
+    });
+
+    if (!item) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Order item not found' },
+      });
+    }
+
+    // Check if already locked
+    if (item.priceBahtLocked) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'ALREADY_LOCKED',
+          message: 'Price is already locked',
+          data: {
+            priceBaht: item.priceBaht,
+            lockedTierCode: item.lockedTierCode,
+            lockedExchangeRate: item.lockedExchangeRate,
+            lockedBy: item.lockedBy,
+            lockedAt: item.lockedAt,
+          },
+        },
+      });
+    }
+
+    // Get customer tier
+    const customerTier = item.order?.customer?.tier || 'member';
+
+    // Get exchange rate from CustomerTier table
+    let tierInfo = await prisma.customerTier.findUnique({
+      where: { tierCode: customerTier },
+    });
+
+    // Fallback to default rates if tier not found
+    if (!tierInfo) {
+      const defaultRates: Record<string, number> = {
+        member: 0.25,
+        vip: 0.24,
+        vvip: 0.23,
+      };
+      const exchangeRate = defaultRates[customerTier] || 0.25;
+
+      // Use provided priceYen or existing one
+      const yenPrice = priceYen !== undefined ? parseFloat(priceYen) : Number(item.priceYen || 0);
+      const calculatedBaht = yenPrice * exchangeRate;
+
+      const updatedItem = await prisma.orderItem.update({
+        where: { id: req.params.id },
+        data: {
+          priceYen: yenPrice,
+          priceBaht: calculatedBaht,
+          priceBahtLocked: true,
+          lockedTierCode: customerTier,
+          lockedExchangeRate: exchangeRate,
+          lockedBy: adminEmail,
+          lockedAt: new Date(),
+        },
+        include: {
+          order: {
+            include: {
+              customer: true,
+            },
+          },
+        },
+      });
+
+      return res.json({
+        success: true,
+        data: updatedItem,
+        message: `Price locked: ¥${yenPrice} × ${exchangeRate} = ฿${calculatedBaht.toFixed(2)} (${customerTier} tier - default rate)`,
+      });
+    }
+
+    const exchangeRate = Number(tierInfo.exchangeRate);
+    const yenPrice = priceYen !== undefined ? parseFloat(priceYen) : Number(item.priceYen || 0);
+    const calculatedBaht = yenPrice * exchangeRate;
+
+    const updatedItem = await prisma.orderItem.update({
+      where: { id: req.params.id },
+      data: {
+        priceYen: yenPrice,
+        priceBaht: calculatedBaht,
+        priceBahtLocked: true,
+        lockedTierCode: customerTier,
+        lockedExchangeRate: exchangeRate,
+        lockedBy: adminEmail,
+        lockedAt: new Date(),
+      },
+      include: {
+        order: {
+          include: {
+            customer: true,
+          },
+        },
+      },
+    });
+
+    // Recalculate order totals
+    await recalculateOrderTotals(updatedItem.orderId);
+
+    res.json({
+      success: true,
+      data: updatedItem,
+      message: `Price locked: ¥${yenPrice} × ${exchangeRate} = ฿${calculatedBaht.toFixed(2)} (${tierInfo.tierName} tier)`,
+    });
+  } catch (error: any) {
+    console.error('Error locking price:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'LOCK_PRICE_ERROR',
+        message: 'Failed to lock price',
+        details: error.message,
+      },
+    });
+  }
+});
+
+// POST /api/v1/order-items/:id/unlock-price - Unlock price (admin only)
+router.post('/:id/unlock-price', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const item = await prisma.orderItem.findUnique({
+      where: { id: req.params.id },
+    });
+
+    if (!item) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Order item not found' },
+      });
+    }
+
+    if (!item.priceBahtLocked) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'NOT_LOCKED', message: 'Price is not locked' },
+      });
+    }
+
+    const updatedItem = await prisma.orderItem.update({
+      where: { id: req.params.id },
+      data: {
+        priceBahtLocked: false,
+        lockedTierCode: null,
+        lockedExchangeRate: null,
+        lockedBy: null,
+        lockedAt: null,
+      },
+      include: {
+        order: {
+          include: {
+            customer: true,
+          },
+        },
+      },
+    });
+
+    res.json({
+      success: true,
+      data: updatedItem,
+      message: 'Price unlocked successfully',
+    });
+  } catch (error: any) {
+    console.error('Error unlocking price:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'UNLOCK_PRICE_ERROR',
+        message: 'Failed to unlock price',
+        details: error.message,
+      },
+    });
+  }
+});
+
+// POST /api/v1/order-items/bulk-lock-price - Bulk lock prices for multiple items
+router.post('/bulk-lock-price', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { itemIds } = req.body;
+    const adminEmail = (req as any).user?.email || (req as any).admin?.email || 'admin';
+
+    if (!Array.isArray(itemIds) || itemIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'INVALID_INPUT',
+          message: 'itemIds array is required',
+        },
+      });
+    }
+
+    // Get all items with customer info
+    const items = await prisma.orderItem.findMany({
+      where: { id: { in: itemIds } },
+      include: {
+        order: {
+          include: {
+            customer: true,
+          },
+        },
+      },
+    });
+
+    // Get all tiers
+    const tiers = await prisma.customerTier.findMany({
+      where: { isActive: true },
+    });
+
+    const tierRates: Record<string, number> = {};
+    tiers.forEach(t => {
+      tierRates[t.tierCode] = Number(t.exchangeRate);
+    });
+
+    // Default rates fallback
+    const defaultRates: Record<string, number> = {
+      member: 0.25,
+      vip: 0.24,
+      vvip: 0.23,
+    };
+
+    let lockedCount = 0;
+    let skippedCount = 0;
+    const results: any[] = [];
+
+    for (const item of items) {
+      // Skip already locked items
+      if (item.priceBahtLocked) {
+        skippedCount++;
+        results.push({
+          id: item.id,
+          status: 'skipped',
+          reason: 'already_locked',
+        });
+        continue;
+      }
+
+      // Skip items without priceYen
+      if (!item.priceYen) {
+        skippedCount++;
+        results.push({
+          id: item.id,
+          status: 'skipped',
+          reason: 'no_price_yen',
+        });
+        continue;
+      }
+
+      const customerTier = item.order?.customer?.tier || 'member';
+      const exchangeRate = tierRates[customerTier] || defaultRates[customerTier] || 0.25;
+      const yenPrice = Number(item.priceYen);
+      const calculatedBaht = yenPrice * exchangeRate;
+
+      await prisma.orderItem.update({
+        where: { id: item.id },
+        data: {
+          priceBaht: calculatedBaht,
+          priceBahtLocked: true,
+          lockedTierCode: customerTier,
+          lockedExchangeRate: exchangeRate,
+          lockedBy: adminEmail,
+          lockedAt: new Date(),
+        },
+      });
+
+      lockedCount++;
+      results.push({
+        id: item.id,
+        status: 'locked',
+        priceYen: yenPrice,
+        priceBaht: calculatedBaht,
+        tier: customerTier,
+        exchangeRate,
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        totalItems: items.length,
+        lockedCount,
+        skippedCount,
+        results,
+      },
+      message: `Locked ${lockedCount} items, skipped ${skippedCount} items`,
+    });
+  } catch (error: any) {
+    console.error('Error bulk locking prices:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'BULK_LOCK_ERROR',
+        message: 'Failed to bulk lock prices',
+        details: error.message,
+      },
+    });
+  }
+});
+
 // POST /api/v1/order-items/bulk - Bulk create order items
 router.post('/bulk', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
@@ -789,8 +1211,8 @@ router.post('/bulk', authenticateAdmin, async (req: AuthRequest, res) => {
         if (item.productCode) itemData.productCode = item.productCode;
         if (item.productName) itemData.productName = item.productName;
         if (item.productUrl) itemData.productUrl = item.productUrl;
-        if (item.priceYen) itemData.priceYen = parseFloat(item.priceYen);
-        if (item.priceBaht) itemData.priceBaht = parseFloat(item.priceBaht);
+        if (item.priceYen) itemData.priceYen = Math.round(parseFloat(item.priceYen));
+        if (item.priceBaht) itemData.priceBaht = Math.ceil(parseFloat(item.priceBaht)); // ปัดเศษขึ้น
         if (item.itemStatus) itemData.itemStatus = item.itemStatus;
         if (item.paymentStatus) itemData.paymentStatus = item.paymentStatus;
         if (item.shippingRound) itemData.shippingRound = item.shippingRound;

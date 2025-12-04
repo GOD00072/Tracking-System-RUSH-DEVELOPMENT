@@ -815,10 +815,11 @@ router.get('/order-items-summary', authenticateAdmin, async (req: AuthRequest, r
       2: 'ชำระเงินงวดแรก',
       3: 'สั่งซื้อจาก JP',
       4: 'ของถึงโกดัง JP',
-      5: 'ส่งออกจาก JP',
-      6: 'ของถึงไทย',
-      7: 'กำลังจัดส่ง',
-      8: 'ส่งมอบสำเร็จ',
+      5: 'จัดรอบส่งกลับ',
+      6: 'ส่งออกจาก JP',
+      7: 'ของถึงไทย',
+      8: 'กำลังจัดส่ง',
+      9: 'ส่งมอบสำเร็จ',
     };
 
     const summary = statusStepCounts.map((item) => ({
@@ -827,8 +828,8 @@ router.get('/order-items-summary', authenticateAdmin, async (req: AuthRequest, r
       count: item._count.statusStep,
     }));
 
-    // Fill in missing steps with 0
-    const fullSummary = Array.from({ length: 8 }, (_, i) => {
+    // Fill in missing steps with 0 (9 steps)
+    const fullSummary = Array.from({ length: 9 }, (_, i) => {
       const step = i + 1;
       const existing = summary.find((s) => s.step === step);
       return existing || { step, name: STATUS_NAMES[step], count: 0 };
@@ -1028,19 +1029,20 @@ router.get('/shipments', authenticateAdmin, async (req: AuthRequest, res) => {
       };
     });
 
-    // Process status step counts
+    // Process status step counts (9 steps)
     const STATUS_STEP_NAMES: Record<number, string> = {
       1: 'รับออเดอร์',
       2: 'ชำระเงินงวดแรก',
       3: 'สั่งซื้อจาก JP',
       4: 'ของถึงโกดัง JP',
-      5: 'ส่งออกจาก JP',
-      6: 'ของถึงไทย',
-      7: 'กำลังจัดส่ง',
-      8: 'ส่งมอบสำเร็จ',
+      5: 'จัดรอบส่งกลับ',
+      6: 'ส่งออกจาก JP',
+      7: 'ของถึงไทย',
+      8: 'กำลังจัดส่ง',
+      9: 'ส่งมอบสำเร็จ',
     };
 
-    const workflowProgress = Array.from({ length: 8 }, (_, i) => {
+    const workflowProgress = Array.from({ length: 9 }, (_, i) => {
       const step = i + 1;
       const orderCount = ordersByStatusStep.find((s) => s.statusStep === step)?._count.statusStep || 0;
       const itemCount = orderItemsByStep.find((s) => s.statusStep === step)?._count.statusStep || 0;
@@ -1136,6 +1138,127 @@ router.get('/shipments', authenticateAdmin, async (req: AuthRequest, res) => {
       error: {
         code: 'FETCH_ERROR',
         message: 'Failed to fetch shipments statistics',
+      },
+    });
+  }
+});
+
+// GET /api/v1/statistics/tracking-orders - All order items for tracking
+router.get('/tracking-orders', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { page = '1', limit = '20', search, statusStep } = req.query;
+    const pageNum = parseInt(page as string) || 1;
+    const limitNum = Math.min(parseInt(limit as string) || 20, 100);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Build where clause
+    const whereClause: any = {};
+
+    if (statusStep && statusStep !== 'all') {
+      whereClause.statusStep = parseInt(statusStep as string);
+    }
+
+    if (search) {
+      whereClause.OR = [
+        { trackingCode: { contains: search as string, mode: 'insensitive' } },
+        { productCode: { contains: search as string, mode: 'insensitive' } },
+        { productName: { contains: search as string, mode: 'insensitive' } },
+        { trackingNumberJP: { contains: search as string, mode: 'insensitive' } },
+        { trackingNumberTH: { contains: search as string, mode: 'insensitive' } },
+        { order: { orderNumber: { contains: search as string, mode: 'insensitive' } } },
+        { order: { customer: { companyName: { contains: search as string, mode: 'insensitive' } } } },
+      ];
+    }
+
+    const [items, total] = await Promise.all([
+      prisma.orderItem.findMany({
+        where: whereClause,
+        select: {
+          id: true,
+          trackingCode: true,
+          productCode: true,
+          productName: true,
+          priceYen: true,
+          priceBaht: true,
+          statusStep: true,
+          trackingNumberJP: true,
+          trackingNumberTH: true,
+          createdAt: true,
+          updatedAt: true,
+          order: {
+            select: {
+              id: true,
+              orderNumber: true,
+              shippingMethod: true,
+              customer: {
+                select: {
+                  id: true,
+                  companyName: true,
+                  contactPerson: true,
+                  tier: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limitNum,
+      }),
+      prisma.orderItem.count({ where: whereClause }),
+    ]);
+
+    // Status step names
+    const STATUS_STEP_NAMES: Record<number, string> = {
+      1: 'รับออเดอร์',
+      2: 'ชำระเงินงวดแรก',
+      3: 'สั่งซื้อจากญี่ปุ่น',
+      4: 'ของถึงโกดังญี่ปุ่น',
+      5: 'จัดรอบส่งกลับ',
+      6: 'ส่งออกจากญี่ปุ่น',
+      7: 'ของถึงไทย',
+      8: 'กำลังจัดส่ง',
+      9: 'ส่งมอบสำเร็จ',
+    };
+
+    res.json({
+      success: true,
+      data: {
+        items: items.map(item => ({
+          id: item.id,
+          trackingCode: item.trackingCode,
+          productCode: item.productCode,
+          productName: item.productName,
+          priceYen: Math.round(Number(item.priceYen || 0)),
+          priceBaht: Math.round(Number(item.priceBaht || 0)),
+          statusStep: item.statusStep || 1,
+          statusName: STATUS_STEP_NAMES[item.statusStep || 1] || 'รับออเดอร์',
+          trackingNumberJP: item.trackingNumberJP,
+          trackingNumberTH: item.trackingNumberTH,
+          orderId: item.order?.id,
+          orderNumber: item.order?.orderNumber,
+          shippingMethod: item.order?.shippingMethod || 'sea',
+          customerId: item.order?.customer?.id,
+          customerName: item.order?.customer?.companyName || item.order?.customer?.contactPerson || '-',
+          customerTier: item.order?.customer?.tier || 'member',
+          createdAt: item.createdAt,
+          updatedAt: item.updatedAt,
+        })),
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total,
+          totalPages: Math.ceil(total / limitNum),
+        },
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching tracking orders:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'FETCH_ERROR',
+        message: 'Failed to fetch tracking orders',
       },
     });
   }
@@ -1250,11 +1373,11 @@ router.get('/transactions', authenticateAdmin, async (req: AuthRequest, res) => 
       }
 
       if (payment.status === 'verified') {
-        dailySummaries[dateKey].verifiedBaht += Number(payment.amountBaht || 0);
-        dailySummaries[dateKey].verifiedYen += Number(payment.amountYen || 0);
+        dailySummaries[dateKey].verifiedBaht += Math.round(Number(payment.amountBaht || payment.orderItem.priceBaht || 0));
+        dailySummaries[dateKey].verifiedYen += Math.round(Number(payment.amountYen || payment.orderItem.priceYen || 0));
         dailySummaries[dateKey].verifiedCount += 1;
       } else if (payment.status === 'pending') {
-        dailySummaries[dateKey].pendingBaht += Number(payment.amountBaht || 0);
+        dailySummaries[dateKey].pendingBaht += Math.round(Number(payment.amountBaht || payment.orderItem.priceBaht || 0));
         dailySummaries[dateKey].pendingCount += 1;
       }
     }
@@ -1267,6 +1390,8 @@ router.get('/transactions', authenticateAdmin, async (req: AuthRequest, res) => 
       status: payment.status,
       description: payment.orderItem.productName || 'ไม่ระบุสินค้า',
       reference: payment.orderItem.order.orderNumber,
+      orderId: payment.orderItem.order.id,
+      orderItemId: payment.orderItem.id,
       trackingNumber: payment.orderItem.trackingNumber,
       customer: {
         id: payment.orderItem.order.customer?.id,
@@ -1277,8 +1402,8 @@ router.get('/transactions', authenticateAdmin, async (req: AuthRequest, res) => 
         tier: payment.orderItem.order.customer?.tier || 'member',
       },
       shippingMethod: payment.orderItem.order.shippingMethod,
-      amountBaht: Number(payment.amountBaht || 0),
-      amountYen: Number(payment.amountYen || 0),
+      amountBaht: Math.round(Number(payment.amountBaht || payment.orderItem.priceBaht || 0)),
+      amountYen: Math.round(Number(payment.amountYen || payment.orderItem.priceYen || 0)),
       paymentMethod: payment.paymentMethod,
       proofImageUrl: payment.proofImageUrl,
       notes: payment.notes,
@@ -1295,17 +1420,28 @@ router.get('/transactions', authenticateAdmin, async (req: AuthRequest, res) => 
       return { ...t, runningBalance };
     }).reverse();
 
+    // Calculate totals from dailySummaries (includes fallback to orderItem prices)
+    const dailySummaryValues = Object.values(dailySummaries);
+    const calculatedTotals = dailySummaryValues.reduce(
+      (acc, day) => ({
+        verifiedBaht: acc.verifiedBaht + day.verifiedBaht,
+        verifiedYen: acc.verifiedYen + day.verifiedYen,
+        verifiedCount: acc.verifiedCount + day.verifiedCount,
+      }),
+      { verifiedBaht: 0, verifiedYen: 0, verifiedCount: 0 }
+    );
+
     res.json({
       success: true,
       data: {
         transactions: transactionsWithBalance,
-        dailySummaries: Object.values(dailySummaries).sort((a, b) =>
+        dailySummaries: dailySummaryValues.sort((a, b) =>
           b.date.localeCompare(a.date)
         ),
         totals: {
-          verifiedBaht: Number(aggregates._sum.amountBaht || 0),
-          verifiedYen: Number(aggregates._sum.amountYen || 0),
-          verifiedCount: aggregates._count,
+          verifiedBaht: calculatedTotals.verifiedBaht,
+          verifiedYen: calculatedTotals.verifiedYen,
+          verifiedCount: calculatedTotals.verifiedCount,
           totalTransactions: totalCount,
         },
         pagination: {

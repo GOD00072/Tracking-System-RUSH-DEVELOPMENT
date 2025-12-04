@@ -1,3 +1,6 @@
+/* Leaflet Map Styles - Must be first */
+@import 'leaflet/dist/leaflet.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -8,13 +11,19 @@
   }
 
   body {
-    @apply text-gray-900;
+    @apply text-gray-900 dark:text-gray-100;
     font-family: 'Sarabun', sans-serif;
     background-image: url('/bg-mountain.png');
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
     background-attachment: fixed;
+  }
+
+  /* Dark mode base overrides */
+  .dark body,
+  .dark {
+    @apply bg-gray-900;
   }
 }
 
@@ -48,9 +57,6 @@
   }
 }
 
-/* Leaflet Map Styles */
-@import 'leaflet/dist/leaflet.css';
-
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
@@ -67,4 +73,412 @@
 
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-gray-500;
+}
+
+/* Bottom Sheet Animation */
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
+}
+
+/* Dark Mode Global Overrides for Admin */
+.dark .bg-white {
+  background-color: #1f2937 !important; /* gray-800 */
+}
+
+.dark .bg-gray-50 {
+  background-color: #111827 !important; /* gray-900 */
+}
+
+.dark .bg-gray-100 {
+  background-color: #1f2937 !important; /* gray-800 */
+}
+
+.dark .text-gray-900 {
+  color: #f9fafb !important; /* gray-50 */
+}
+
+.dark .text-gray-800 {
+  color: #f3f4f6 !important; /* gray-100 */
+}
+
+.dark .text-gray-700 {
+  color: #e5e7eb !important; /* gray-200 */
+}
+
+.dark .text-gray-600 {
+  color: #d1d5db !important; /* gray-300 */
+}
+
+.dark .text-gray-500 {
+  color: #9ca3af !important; /* gray-400 */
+}
+
+.dark .border-gray-200 {
+  border-color: #374151 !important; /* gray-700 */
+}
+
+.dark .border-gray-300 {
+  border-color: #4b5563 !important; /* gray-600 */
+}
+
+.dark .shadow-sm,
+.dark .shadow,
+.dark .shadow-md,
+.dark .shadow-lg {
+  --tw-shadow-color: rgba(0, 0, 0, 0.3);
+}
+
+/* Dark mode for cards and inputs */
+.dark .card {
+  @apply bg-gray-800 border-gray-700;
+}
+
+.dark .input-field {
+  @apply bg-gray-800 border-gray-600 text-gray-100;
+}
+
+/* Dark mode hover states */
+.dark .hover\:bg-gray-50:hover {
+  background-color: #374151 !important;
+}
+
+.dark .hover\:bg-gray-100:hover {
+  background-color: #4b5563 !important;
+}
+
+/* Dark mode for colored backgrounds */
+.dark .bg-blue-50 {
+  background-color: #1e3a5f !important;
+}
+
+.dark .bg-blue-100 {
+  background-color: #1e40af !important;
+}
+
+.dark .bg-purple-50 {
+  background-color: #3b1f5e !important;
+}
+
+.dark .bg-purple-100 {
+  background-color: #5b21b6 !important;
+}
+
+.dark .bg-green-50 {
+  background-color: #14412a !important;
+}
+
+.dark .bg-green-100 {
+  background-color: #166534 !important;
+}
+
+.dark .bg-amber-50 {
+  background-color: #4a3620 !important;
+}
+
+.dark .bg-amber-100 {
+  background-color: #78350f !important;
+}
+
+.dark .bg-cyan-50 {
+  background-color: #164e63 !important;
+}
+
+.dark .bg-cyan-100 {
+  background-color: #155e75 !important;
+}
+
+.dark .bg-yellow-50 {
+  background-color: #4a3f1a !important;
+}
+
+.dark .bg-yellow-100 {
+  background-color: #713f12 !important;
+}
+
+.dark .bg-red-50 {
+  background-color: #4c1d1d !important;
+}
+
+.dark .bg-red-100 {
+  background-color: #7f1d1d !important;
+}
+
+/* Dark mode text colors for stats cards */
+.dark .text-blue-600,
+.dark .text-blue-700 {
+  color: #93c5fd !important;
+}
+
+.dark .text-purple-600,
+.dark .text-purple-700 {
+  color: #c4b5fd !important;
+}
+
+.dark .text-green-600,
+.dark .text-green-700 {
+  color: #86efac !important;
+}
+
+.dark .text-amber-600,
+.dark .text-amber-700 {
+  color: #fcd34d !important;
+}
+
+.dark .text-cyan-600,
+.dark .text-cyan-700 {
+  color: #67e8f9 !important;
+}
+
+.dark .text-emerald-600,
+.dark .text-emerald-700 {
+  color: #6ee7b7 !important;
+}
+
+/* Dark mode for gradient backgrounds */
+.dark .from-blue-50 {
+  --tw-gradient-from: #1e3a5f !important;
+}
+.dark .to-blue-100 {
+  --tw-gradient-to: #1e40af !important;
+}
+.dark .from-blue-100 {
+  --tw-gradient-from: #1e40af !important;
+}
+.dark .to-blue-200 {
+  --tw-gradient-to: #2563eb !important;
+}
+
+.dark .from-purple-50 {
+  --tw-gradient-from: #3b1f5e !important;
+}
+.dark .to-purple-100 {
+  --tw-gradient-to: #5b21b6 !important;
+}
+.dark .from-purple-100 {
+  --tw-gradient-from: #5b21b6 !important;
+}
+.dark .to-purple-200 {
+  --tw-gradient-to: #7c3aed !important;
+}
+
+.dark .from-amber-50 {
+  --tw-gradient-from: #4a3620 !important;
+}
+.dark .to-amber-100 {
+  --tw-gradient-to: #78350f !important;
+}
+.dark .from-amber-100 {
+  --tw-gradient-from: #78350f !important;
+}
+.dark .to-amber-200 {
+  --tw-gradient-to: #b45309 !important;
+}
+
+.dark .from-emerald-50 {
+  --tw-gradient-from: #14412a !important;
+}
+.dark .to-emerald-100 {
+  --tw-gradient-to: #166534 !important;
+}
+.dark .from-emerald-100 {
+  --tw-gradient-from: #166534 !important;
+}
+.dark .to-emerald-200 {
+  --tw-gradient-to: #16a34a !important;
+}
+
+.dark .from-green-50 {
+  --tw-gradient-from: #14412a !important;
+}
+.dark .to-green-100 {
+  --tw-gradient-to: #166534 !important;
+}
+
+.dark .from-cyan-50 {
+  --tw-gradient-from: #164e63 !important;
+}
+.dark .to-cyan-100 {
+  --tw-gradient-to: #155e75 !important;
+}
+
+.dark .from-red-50 {
+  --tw-gradient-from: #4c1d1d !important;
+}
+.dark .to-red-100 {
+  --tw-gradient-to: #7f1d1d !important;
+}
+
+/* Dark mode for status badge text colors */
+.dark .text-yellow-800,
+.dark .text-yellow-700 {
+  color: #fef08a !important;
+}
+
+.dark .text-blue-800 {
+  color: #bfdbfe !important;
+}
+
+.dark .text-purple-800 {
+  color: #e9d5ff !important;
+}
+
+.dark .text-green-800 {
+  color: #bbf7d0 !important;
+}
+
+.dark .text-red-800 {
+  color: #fecaca !important;
+}
+
+.dark .text-gray-800 {
+  color: #f3f4f6 !important;
+}
+
+.dark .text-indigo-800 {
+  color: #c7d2fe !important;
+}
+
+/* Dark mode for more bg colors */
+.dark .bg-indigo-50 {
+  background-color: #312e81 !important;
+}
+
+.dark .bg-indigo-100 {
+  background-color: #3730a3 !important;
+}
+
+.dark .bg-primary-100 {
+  background-color: #7c2d12 !important;
+}
+
+.dark .bg-primary-50 {
+  background-color: #431407 !important;
+}
+
+/* Dark mode for light text on colored backgrounds */
+.dark .text-primary-600,
+.dark .text-primary-700 {
+  color: #fdba74 !important;
+}
+
+.dark .text-primary-500 {
+  color: #fb923c !important;
+}
+
+/* Dark mode for gray backgrounds in tables */
+.dark .bg-gray-200 {
+  background-color: #374151 !important;
+}
+
+.dark .divide-gray-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #374151 !important;
+}
+
+.dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #1f2937 !important;
+}
+
+/* Dark mode for ring colors */
+.dark .ring-primary-300 {
+  --tw-ring-color: #f97316 !important;
+}
+
+/* Dark mode for modals and forms */
+.dark .bg-white {
+  background-color: #1f2937 !important;
+}
+
+.dark input,
+.dark select,
+.dark textarea {
+  background-color: #374151 !important;
+  border-color: #4b5563 !important;
+  color: #f9fafb !important;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #9ca3af !important;
+}
+
+.dark input:focus,
+.dark select:focus,
+.dark textarea:focus {
+  border-color: #f97316 !important;
+  --tw-ring-color: #f97316 !important;
+}
+
+/* Dark mode for select dropdown */
+.dark select option {
+  background-color: #374151 !important;
+  color: #f9fafb !important;
+}
+
+/* Dark mode for labels */
+.dark label {
+  color: #e5e7eb !important;
+}
+
+/* Dark mode for modal borders */
+.dark .border-b {
+  border-color: #374151 !important;
+}
+
+.dark .border-t {
+  border-color: #374151 !important;
+}
+
+.dark .border {
+  border-color: #374151 !important;
+}
+
+/* Dark mode for orange/amber fee items */
+.dark .bg-orange-50 {
+  background-color: #431407 !important;
+}
+
+.dark .bg-orange-100 {
+  background-color: #7c2d12 !important;
+}
+
+.dark .text-orange-600,
+.dark .text-orange-700,
+.dark .text-orange-800 {
+  color: #fdba74 !important;
+}
+
+.dark .text-orange-500 {
+  color: #fb923c !important;
+}
+
+.dark .border-orange-200,
+.dark .border-orange-300 {
+  border-color: #9a3412 !important;
+}
+
+/* Dark mode for table rows */
+.dark tr {
+  border-color: #374151 !important;
+}
+
+.dark tbody tr:hover {
+  background-color: #374151 !important;
+}
+
+.dark th {
+  background-color: #1f2937 !important;
+  color: #d1d5db !important;
+}
+
+.dark td {
+  color: #e5e7eb !important;
 }

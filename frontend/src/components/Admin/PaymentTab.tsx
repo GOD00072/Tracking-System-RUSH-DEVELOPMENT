@@ -20,6 +20,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import api from '../../lib/api';
 import { BACKEND_URL } from '../../utils/apiConfig';
 import { toast } from 'sonner';
+import { useConfirm } from '../../hooks/useConfirm';
 
 interface PendingPaymentOperation {
   type: 'create' | 'update' | 'delete';
@@ -43,6 +44,7 @@ interface Payment {
   installmentName: string | null;
   amountYen: number | null;
   amountBaht: number | null;
+  slipAmount: number | null;
   exchangeRate: number | null;
   status: string;
   paymentMethod: string | null;
@@ -110,12 +112,14 @@ interface PaymentData {
 // Default installment templates for proxy buying business
 const DEFAULT_INSTALLMENTS = [
   { number: 1, name: 'มัดจำสินค้า', percentOfTotal: 50, description: 'ชำระก่อนสั่งซื้อจากญี่ปุ่น' },
-  { number: 2, name: 'ค่าขนส่งญี่ปุ่น-ไทย', percentOfTotal: 0, description: 'ชำระเมื่อสินค้าถึงโกดังญี่ปุ่น' },
-  { number: 3, name: 'ชำระส่วนที่เหลือ', percentOfTotal: 50, description: 'ชำระเมื่อได้รับสินค้า' },
-  { number: 4, name: 'อื่นๆ', percentOfTotal: 0, description: 'ระบุยอดเงินเอง' },
+  { number: 2, name: 'ชำระค่าสินค้า', percentOfTotal: 100, description: 'ชำระเต็มจำนวนค่าสินค้า' },
+  { number: 3, name: 'ค่าขนส่งญี่ปุ่น-ไทย', percentOfTotal: 0, description: 'ชำระเมื่อสินค้าถึงโกดังญี่ปุ่น' },
+  { number: 4, name: 'ชำระส่วนที่เหลือ', percentOfTotal: 50, description: 'ชำระเมื่อได้รับสินค้า' },
+  { number: 5, name: 'อื่นๆ', percentOfTotal: 0, description: 'ระบุยอดเงินเอง' },
 ];
 
 const PaymentTab = ({ orderId, orderNumber, onPendingChangesUpdate, onPaymentSummaryUpdate, saveVersion }: PaymentTabProps) => {
+  const { confirmDelete, confirmWithPin } = useConfirm();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<PaymentData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -188,12 +192,18 @@ const PaymentTab = ({ orderId, orderNumber, onPendingChangesUpdate, onPaymentSum
     show: boolean;
     paymentId: string | null;
     paymentMethod: string;
+    paidAmount: string;
+    slipAmount: string;
+    paidAt: string;
     proofFile: File | null;
     proofPreview: string | null;
   }>({
     show: false,
     paymentId: null,
     paymentMethod: 'transfer',
+    paidAmount: '',
+    slipAmount: '',
+    paidAt: '',
     proofFile: null,
     proofPreview: null,
   });
@@ -251,7 +261,9 @@ const PaymentTab = ({ orderId, orderNumber, onPendingChangesUpdate, onPaymentSum
     );
     const newTotal = existingPaymentsTotal + finalAmount;
 
-    if (newTotal > itemTotal) {
+    // Allow rounding up by 1 baht tolerance for decimal amounts
+    const tolerance = 1;
+    if (newTotal > itemTotal + tolerance) {
       const remaining = itemTotal - existingPaymentsTotal;
       toast.error(`ยอดรวมงวดชำระเกินยอดสินค้า! คงเหลือที่สร้างได้: ฿${remaining.toLocaleString()}`);
       return;
@@ -279,11 +291,22 @@ const PaymentTab = ({ orderId, orderNumber, onPendingChangesUpdate, onPaymentSum
   };
 
   // Open confirm payment modal
-  const openConfirmPayment = (paymentId: string) => {
+  const openConfirmPayment = (paymentId: string, expectedAmount?: number) => {
+    // Default to current datetime
+    const now = new Date();
+    const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+      .toISOString()
+      .slice(0, 16);
+
+    const amountStr = expectedAmount ? Math.ceil(expectedAmount).toString() : '';
+
     setConfirmPaymentModal({
       show: true,
       paymentId,
       paymentMethod: 'transfer',
+      paidAmount: amountStr,
+      slipAmount: amountStr,
+      paidAt: localDateTime,
       proofFile: null,
       proofPreview: null,
     });
@@ -292,6 +315,18 @@ const PaymentTab = ({ orderId, orderNumber, onPendingChangesUpdate, onPaymentSum
   // Handle confirm payment with proof - saves immediately
   const handleConfirmPayment = async () => {
     if (!confirmPaymentModal.paymentId) return;
+
+    // Validate: require proof image unless payment method is cash
+    if (confirmPaymentModal.paymentMethod !== 'cash' && !confirmPaymentModal.proofFile) {
+      toast.error('กรุณาอัพโหลดหลักฐานการชำระเงิน (สลิป)');
+      return;
+    }
+
+    // Validate: require paid amount
+    if (!confirmPaymentModal.paidAmount || parseFloat(confirmPaymentModal.paidAmount) <= 0) {
+      toast.error('กรุณากรอกจำนวนเงินที่ชำระ');
+      return;
+    }
 
     try {
       let proofImageUrl: string | undefined;
@@ -315,13 +350,15 @@ const PaymentTab = ({ orderId, orderNumber, onPendingChangesUpdate, onPaymentSum
       // Save immediately via API
       await api.patch(`/payments/${confirmPaymentModal.paymentId}`, {
         status: 'paid',
-        paidAt: new Date().toISOString(),
+        paidAt: confirmPaymentModal.paidAt ? new Date(confirmPaymentModal.paidAt).toISOString() : new Date().toISOString(),
         paymentMethod: confirmPaymentModal.paymentMethod,
+        amountBaht: parseFloat(confirmPaymentModal.paidAmount),
+        slipAmount: confirmPaymentModal.slipAmount ? parseFloat(confirmPaymentModal.slipAmount) : null,
         proofImageUrl,
       });
 
       toast.success('บันทึกการชำระเงินสำเร็จ');
-      setConfirmPaymentModal({ show: false, paymentId: null, paymentMethod: 'transfer', proofFile: null, proofPreview: null });
+      setConfirmPaymentModal({ show: false, paymentId: null, paymentMethod: 'transfer', paidAmount: '', slipAmount: '', paidAt: '', proofFile: null, proofPreview: null });
       fetchPayments(); // Refresh data
     } catch (err: any) {
       toast.error(err.response?.data?.error?.message || 'เกิดข้อผิดพลาด');
@@ -343,11 +380,18 @@ const PaymentTab = ({ orderId, orderNumber, onPendingChangesUpdate, onPaymentSum
   };
 
   // Delete payment - saves immediately
-  const handleDeletePayment = async (paymentId: string) => {
-    if (!confirm('ต้องการลบรายการชำระเงินนี้?')) return;
+  const handleDeletePayment = async (payment: Payment) => {
+    // ถ้า payment ยืนยันแล้ว ต้องใส่ PIN
+    if (payment.status === 'verified') {
+      const confirmed = await confirmWithPin('งวดนี้ยืนยันแล้ว กรุณาใส่ PIN เพื่อลบ', '2006');
+      if (!confirmed) return;
+    } else {
+      const confirmed = await confirmDelete('รายการชำระเงินนี้');
+      if (!confirmed) return;
+    }
 
     try {
-      await api.delete(`/payments/${paymentId}`);
+      await api.delete(`/payments/${payment.id}`);
       toast.success('ลบรายการสำเร็จ');
       fetchPayments(); // Refresh data
     } catch (err: any) {
@@ -482,15 +526,15 @@ const PaymentTab = ({ orderId, orderNumber, onPendingChangesUpdate, onPaymentSum
         <div className="grid grid-cols-3 gap-4 text-center">
           <div className="bg-white/10 rounded-lg p-3">
             <p className="text-xs text-gray-400">ยอดรวมทั้งหมด</p>
-            <p className="text-lg font-bold">฿{data.summary.grandTotal.toLocaleString()}</p>
+            <p className="text-lg font-bold">฿{Math.ceil(data.summary.grandTotal).toLocaleString()}</p>
           </div>
           <div className="bg-white/10 rounded-lg p-3">
             <p className="text-xs text-gray-400">ชำระแล้ว</p>
-            <p className="text-lg font-bold text-green-400">฿{data.summary.paidBaht.toLocaleString()}</p>
+            <p className="text-lg font-bold text-green-400">฿{Math.ceil(data.summary.paidBaht).toLocaleString()}</p>
           </div>
           <div className="bg-white/10 rounded-lg p-3">
             <p className="text-xs text-gray-400">ค้างชำระ</p>
-            <p className="text-lg font-bold text-yellow-400">฿{data.summary.remainingBaht.toLocaleString()}</p>
+            <p className="text-lg font-bold text-yellow-400">฿{Math.ceil(data.summary.remainingBaht).toLocaleString()}</p>
           </div>
         </div>
       </div>
@@ -508,7 +552,7 @@ const PaymentTab = ({ orderId, orderNumber, onPendingChangesUpdate, onPaymentSum
           <div className="space-y-4">
             {data.items.map((item) => {
               const isExpanded = expandedItems.has(item.id);
-              const defaultItemTotal = (Number(item.priceBaht) || 0) + (Number(item.shippingCost) || 0);
+              const defaultItemTotal = Math.ceil(Number(item.priceBaht) || 0) + Math.ceil(Number(item.shippingCost) || 0);
               const itemSummary = item.itemSummary || {
                 itemTotal: defaultItemTotal,
                 paidBaht: 0,
@@ -537,13 +581,13 @@ const PaymentTab = ({ orderId, orderNumber, onPendingChangesUpdate, onPaymentSum
                       </div>
                       <div className="flex items-center gap-4 text-sm">
                         <span className="text-gray-600">
-                          ยอดสินค้า: <span className="font-semibold">฿{itemSummary.itemTotal.toLocaleString()}</span>
+                          ยอดสินค้า: <span className="font-semibold">฿{Math.ceil(itemSummary.itemTotal).toLocaleString()}</span>
                         </span>
                         <span className="text-green-600">
-                          ชำระแล้ว: <span className="font-semibold">฿{itemSummary.paidBaht.toLocaleString()}</span>
+                          ชำระแล้ว: <span className="font-semibold">฿{Math.ceil(itemSummary.paidBaht).toLocaleString()}</span>
                         </span>
                         <span className="text-orange-600">
-                          ค้างชำระ: <span className="font-semibold">฿{itemSummary.remainingBaht.toLocaleString()}</span>
+                          ค้างชำระ: <span className="font-semibold">฿{Math.ceil(itemSummary.remainingBaht).toLocaleString()}</span>
                         </span>
                       </div>
                       {/* Progress bar */}
@@ -612,7 +656,7 @@ const PaymentTab = ({ orderId, orderNumber, onPendingChangesUpdate, onPaymentSum
                                     </div>
                                     <div className="text-sm text-gray-600 flex items-center gap-2 flex-wrap">
                                       <span className="font-semibold text-primary-600">
-                                        ฿{(Number(payment.amountBaht) || 0).toLocaleString()}
+                                        ฿{Math.ceil(Number(payment.amountBaht) || 0).toLocaleString()}
                                       </span>
                                       {payment.paymentMethod && (
                                         <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">
@@ -663,7 +707,7 @@ const PaymentTab = ({ orderId, orderNumber, onPendingChangesUpdate, onPaymentSum
 
                                     {payment.status === 'pending' && (
                                       <motion.button
-                                        onClick={() => openConfirmPayment(payment.id)}
+                                        onClick={() => openConfirmPayment(payment.id, payment.amountBaht || 0)}
                                         className="px-3 py-1.5 bg-blue-500 text-white rounded-lg text-xs font-medium hover:bg-blue-600"
                                         whileTap={{ scale: 0.95 }}
                                       >
@@ -680,7 +724,7 @@ const PaymentTab = ({ orderId, orderNumber, onPendingChangesUpdate, onPaymentSum
                                       </motion.button>
                                     )}
                                     <motion.button
-                                      onClick={() => handleDeletePayment(payment.id)}
+                                      onClick={() => handleDeletePayment(payment)}
                                       className="p-1.5 text-red-500 hover:bg-red-50 rounded"
                                       whileTap={{ scale: 0.95 }}
                                       title="ลบ"
@@ -750,16 +794,16 @@ const PaymentTab = ({ orderId, orderNumber, onPendingChangesUpdate, onPaymentSum
                     <div className="grid grid-cols-3 gap-2 text-sm">
                       <div className="text-center">
                         <p className="text-gray-500">ยอดสินค้า</p>
-                        <p className="font-bold text-gray-800">฿{itemTotal.toLocaleString()}</p>
+                        <p className="font-bold text-gray-800">฿{Math.ceil(itemTotal).toLocaleString()}</p>
                       </div>
                       <div className="text-center">
                         <p className="text-gray-500">สร้างงวดแล้ว</p>
-                        <p className="font-bold text-orange-600">฿{existingPaymentsTotal.toLocaleString()}</p>
+                        <p className="font-bold text-orange-600">฿{Math.ceil(existingPaymentsTotal).toLocaleString()}</p>
                       </div>
                       <div className="text-center">
                         <p className="text-gray-500">คงเหลือ</p>
                         <p className={`font-bold ${remainingBalance > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          ฿{remainingBalance.toLocaleString()}
+                          ฿{Math.ceil(remainingBalance).toLocaleString()}
                         </p>
                       </div>
                     </div>
@@ -941,7 +985,7 @@ const PaymentTab = ({ orderId, orderNumber, onPendingChangesUpdate, onPaymentSum
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-            onClick={() => setConfirmPaymentModal({ show: false, paymentId: null, paymentMethod: 'transfer', proofFile: null, proofPreview: null })}
+            onClick={() => setConfirmPaymentModal({ show: false, paymentId: null, paymentMethod: 'transfer', paidAmount: '', slipAmount: '', paidAt: '', proofFile: null, proofPreview: null })}
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
@@ -955,12 +999,71 @@ const PaymentTab = ({ orderId, orderNumber, onPendingChangesUpdate, onPaymentSum
                   <h3 className="text-lg font-bold">ยืนยันการชำระเงิน</h3>
                   <p className="text-sm text-gray-500">เลือกวิธีการชำระและแนบหลักฐาน</p>
                 </div>
-                <button onClick={() => setConfirmPaymentModal({ show: false, paymentId: null, paymentMethod: 'transfer', proofFile: null, proofPreview: null })}>
+                <button onClick={() => setConfirmPaymentModal({ show: false, paymentId: null, paymentMethod: 'transfer', paidAmount: '', slipAmount: '', paidAt: '', proofFile: null, proofPreview: null })}>
                   <X className="w-5 h-5 text-gray-400" />
                 </button>
               </div>
 
               <div className="p-6 space-y-4">
+                {/* Paid Amount */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    ยอดที่ต้องชำระ (บาท) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    value={confirmPaymentModal.paidAmount}
+                    onChange={(e) => setConfirmPaymentModal({ ...confirmPaymentModal, paidAmount: e.target.value })}
+                    className="w-full px-4 py-3 text-lg font-semibold border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-center"
+                    placeholder="0"
+                    min="0"
+                    step="1"
+                  />
+                </div>
+
+                {/* Slip Amount and DateTime */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      จำนวนเงินในสลิป (บาท) <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      value={confirmPaymentModal.slipAmount}
+                      onChange={(e) => setConfirmPaymentModal({ ...confirmPaymentModal, slipAmount: e.target.value })}
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-center"
+                      placeholder="0"
+                      min="0"
+                      step="1"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      วันเวลาในสลิป <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={confirmPaymentModal.paidAt}
+                      onChange={(e) => setConfirmPaymentModal({ ...confirmPaymentModal, paidAt: e.target.value })}
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Amount Difference Warning */}
+                {confirmPaymentModal.paidAmount && confirmPaymentModal.slipAmount &&
+                  parseFloat(confirmPaymentModal.paidAmount) !== parseFloat(confirmPaymentModal.slipAmount) && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm">
+                    <p className="text-yellow-800 font-medium">
+                      ยอดไม่ตรงกัน: ต้องชำระ ฿{parseFloat(confirmPaymentModal.paidAmount).toLocaleString()}
+                      แต่ในสลิป ฿{parseFloat(confirmPaymentModal.slipAmount).toLocaleString()}
+                    </p>
+                    <p className="text-yellow-600 text-xs mt-1">
+                      ส่วนต่าง: ฿{Math.abs(parseFloat(confirmPaymentModal.paidAmount) - parseFloat(confirmPaymentModal.slipAmount)).toLocaleString()}
+                    </p>
+                  </div>
+                )}
+
                 {/* Payment Method */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -987,7 +1090,8 @@ const PaymentTab = ({ orderId, orderNumber, onPendingChangesUpdate, onPaymentSum
                 {/* Proof Image Upload */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    หลักฐานการชำระเงิน (ไม่บังคับ)
+                    หลักฐานการชำระเงิน (สลิป) {confirmPaymentModal.paymentMethod !== 'cash' && <span className="text-red-500">*</span>}
+                    {confirmPaymentModal.paymentMethod === 'cash' && <span className="text-gray-400 text-xs ml-1">(ไม่บังคับ)</span>}
                   </label>
                   {confirmPaymentModal.proofPreview ? (
                     <div className="relative">
@@ -1034,7 +1138,7 @@ const PaymentTab = ({ orderId, orderNumber, onPendingChangesUpdate, onPaymentSum
 
               <div className="p-6 border-t bg-gray-50 flex justify-end gap-3">
                 <button
-                  onClick={() => setConfirmPaymentModal({ show: false, paymentId: null, paymentMethod: 'transfer', proofFile: null, proofPreview: null })}
+                  onClick={() => setConfirmPaymentModal({ show: false, paymentId: null, paymentMethod: 'transfer', paidAmount: '', slipAmount: '', paidAt: '', proofFile: null, proofPreview: null })}
                   className="px-4 py-2 text-gray-600 hover:text-gray-800"
                 >
                   ยกเลิก
@@ -1088,11 +1192,31 @@ const PaymentTab = ({ orderId, orderNumber, onPendingChangesUpdate, onPaymentSum
 
                 {/* Amount */}
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-600">ยอดเงิน:</span>
+                  <span className="text-gray-600">ยอดที่ต้องชำระ:</span>
                   <span className="font-bold text-lg text-primary-600">
-                    ฿{(viewPaymentDetail.amountBaht || 0).toLocaleString()}
+                    ฿{Math.ceil(viewPaymentDetail.amountBaht || 0).toLocaleString()}
                   </span>
                 </div>
+
+                {/* Slip Amount */}
+                {viewPaymentDetail.slipAmount !== null && viewPaymentDetail.slipAmount !== undefined && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600">จำนวนเงินในสลิป:</span>
+                    <span className={`font-semibold ${
+                      Number(viewPaymentDetail.slipAmount) !== Number(viewPaymentDetail.amountBaht)
+                        ? 'text-orange-600'
+                        : 'text-green-600'
+                    }`}>
+                      ฿{Math.ceil(Number(viewPaymentDetail.slipAmount) || 0).toLocaleString()}
+                      {Number(viewPaymentDetail.slipAmount) !== Number(viewPaymentDetail.amountBaht) && (
+                        <span className="text-xs ml-1">
+                          ({Number(viewPaymentDetail.slipAmount) > Number(viewPaymentDetail.amountBaht) ? '+' : ''}
+                          {Math.ceil(Number(viewPaymentDetail.slipAmount) - Number(viewPaymentDetail.amountBaht)).toLocaleString()})
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                )}
 
                 {/* Payment Method */}
                 {viewPaymentDetail.paymentMethod && (
@@ -1115,8 +1239,10 @@ const PaymentTab = ({ orderId, orderNumber, onPendingChangesUpdate, onPaymentSum
                 {/* Paid At */}
                 {viewPaymentDetail.paidAt && (
                   <div className="flex items-center justify-between">
-                    <span className="text-gray-600">ชำระเมื่อ:</span>
-                    <span className="text-green-600">{new Date(viewPaymentDetail.paidAt).toLocaleDateString('th-TH')}</span>
+                    <span className="text-gray-600">วันเวลาในสลิป:</span>
+                    <span className="text-green-600">
+                      {new Date(viewPaymentDetail.paidAt).toLocaleDateString('th-TH')} {new Date(viewPaymentDetail.paidAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
+                    </span>
                   </div>
                 )}
 
@@ -1124,7 +1250,9 @@ const PaymentTab = ({ orderId, orderNumber, onPendingChangesUpdate, onPaymentSum
                 {viewPaymentDetail.verifiedAt && (
                   <div className="flex items-center justify-between">
                     <span className="text-gray-600">ยืนยันเมื่อ:</span>
-                    <span className="text-green-600">{new Date(viewPaymentDetail.verifiedAt).toLocaleDateString('th-TH')}</span>
+                    <span className="text-green-600">
+                      {new Date(viewPaymentDetail.verifiedAt).toLocaleDateString('th-TH')} {new Date(viewPaymentDetail.verifiedAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
+                    </span>
                   </div>
                 )}
 

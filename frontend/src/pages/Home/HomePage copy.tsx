@@ -11,7 +11,7 @@ import { pageTransition, staggerContainer, staggerItem } from '../../lib/animati
 const HomePage = () => {
   const { t } = useTranslation();
 
-  // --- ข้อมูลสำหรับส่วน Services (ใหม่ - ตามรูปภาพที่แนบมา) ---
+
   const topServices = [
     {
       icon: ShoppingCart,

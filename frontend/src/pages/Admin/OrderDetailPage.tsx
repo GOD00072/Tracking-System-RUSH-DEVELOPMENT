@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Package, Save, Trash2, Plus, Edit, ExternalLink, ImageIcon, X, ChevronLeft, ChevronRight, Download, CheckSquare, Square, FileText, CreditCard } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Package, Save, Trash2, Plus, Edit, ExternalLink, ImageIcon, X, ChevronLeft, ChevronRight, Download, CheckSquare, Square, FileText, CreditCard, Search, User, Phone, Lock, Unlock, CheckCircle, Copy } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Lottie from 'lottie-react';
 import shipAnimation from '../../assets/Animation - ship.json';
 import { useAdminOrders, useAdminUpdateOrder, useAdminDeleteOrder } from '../../hooks/useAdminOrders';
 import { useCustomers } from '../../hooks/useCustomers';
-import { useOrderItems, useCreateOrderItem, useUpdateOrderItem, useDeleteOrderItem } from '../../hooks/useOrderItems';
+import { useOrderItems, useCreateOrderItem, useUpdateOrderItem, useDeleteOrderItem, useLockPrice, useUnlockPrice, useBulkLockPrice } from '../../hooks/useOrderItems';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { buttonTap } from '../../lib/animations';
 import api from '../../lib/api';
@@ -14,16 +14,37 @@ import { BACKEND_URL } from '../../utils/apiConfig';
 import PaymentTab from '../../components/Admin/PaymentTab';
 import { useConfirm } from '../../hooks/useConfirm';
 
-// 8-step status timeline (constant)
+// 9-step status timeline (constant) with descriptions
 const STATUS_STEPS = [
-  { step: 1, name: 'รับออเดอร์', short: '1' },
-  { step: 2, name: 'ชำระเงินงวดแรก', short: '2' },
-  { step: 3, name: 'สั่งซื้อจากญี่ปุ่น', short: '3' },
-  { step: 4, name: 'ของถึงโกดังญี่ปุ่น', short: '4' },
-  { step: 5, name: 'ส่งออกจากญี่ปุ่น', short: '5' },
-  { step: 6, name: 'ของถึงไทย', short: '6' },
-  { step: 7, name: 'กำลังจัดส่ง', short: '7' },
-  { step: 8, name: 'ส่งมอบสำเร็จ', short: '8' },
+  { step: 1, name: 'รับออเดอร์', short: '1', description: 'รอยืนยันรายละเอียดและราคา' },
+  { step: 2, name: 'ชำระเงินงวดแรก', short: '2', description: 'ลูกค้าชำระมัดจำเรียบร้อย' },
+  { step: 3, name: 'สั่งซื้อจากญี่ปุ่น', short: '3', description: 'กดสั่งซื้อจากร้านค้าแล้ว' },
+  { step: 4, name: 'ของถึงโกดังญี่ปุ่น', short: '4', description: 'ตรวจสอบและรวมพัสดุ' },
+  { step: 5, name: 'จัดรอบส่งกลับ', short: '5', description: 'กำหนดรอบเรือ/เครื่องบิน' },
+  { step: 6, name: 'ส่งออกจากญี่ปุ่น', short: '6', description: 'สินค้ากำลังเดินทางมาไทย' },
+  { step: 7, name: 'ของถึงไทย', short: '7', description: 'ผ่านพิธีการศุลกากร' },
+  { step: 8, name: 'กำลังจัดส่ง', short: '8', description: 'จัดส่งผ่านขนส่งเอกชน' },
+  { step: 9, name: 'ส่งมอบสำเร็จ', short: '9', description: 'ลูกค้ารับสินค้าแล้ว' },
+];
+
+// Country options for Origin/Destination
+const COUNTRIES = [
+  { code: 'JP', name: 'Japan', nameLocal: '🇯🇵 ญี่ปุ่น' },
+  { code: 'TH', name: 'Thailand', nameLocal: '🇹🇭 ไทย' },
+  { code: 'CN', name: 'China', nameLocal: '🇨🇳 จีน' },
+  { code: 'KR', name: 'South Korea', nameLocal: '🇰🇷 เกาหลีใต้' },
+  { code: 'TW', name: 'Taiwan', nameLocal: '🇹🇼 ไต้หวัน' },
+  { code: 'HK', name: 'Hong Kong', nameLocal: '🇭🇰 ฮ่องกง' },
+  { code: 'SG', name: 'Singapore', nameLocal: '🇸🇬 สิงคโปร์' },
+  { code: 'MY', name: 'Malaysia', nameLocal: '🇲🇾 มาเลเซีย' },
+  { code: 'VN', name: 'Vietnam', nameLocal: '🇻🇳 เวียดนาม' },
+  { code: 'ID', name: 'Indonesia', nameLocal: '🇮🇩 อินโดนีเซีย' },
+  { code: 'PH', name: 'Philippines', nameLocal: '🇵🇭 ฟิลิปปินส์' },
+  { code: 'US', name: 'United States', nameLocal: '🇺🇸 สหรัฐอเมริกา' },
+  { code: 'UK', name: 'United Kingdom', nameLocal: '🇬🇧 สหราชอาณาจักร' },
+  { code: 'DE', name: 'Germany', nameLocal: '🇩🇪 เยอรมนี' },
+  { code: 'FR', name: 'France', nameLocal: '🇫🇷 ฝรั่งเศส' },
+  { code: 'AU', name: 'Australia', nameLocal: '🇦🇺 ออสเตรเลีย' },
 ];
 
 // Image Viewer Modal Component
@@ -134,6 +155,9 @@ const OrderDetailPage = () => {
   const createItem = useCreateOrderItem();
   const updateItem = useUpdateOrderItem();
   const deleteItem = useDeleteOrderItem();
+  const lockPrice = useLockPrice();
+  const unlockPrice = useUnlockPrice();
+  const bulkLockPrice = useBulkLockPrice();
   const { confirm } = useConfirm();
 
   const order = ordersData?.data.find((o) => o.id === id);
@@ -142,6 +166,39 @@ const OrderDetailPage = () => {
   const [showItemForm, setShowItemForm] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [viewingImages, setViewingImages] = useState<{ images: string[]; index: number } | null>(null);
+
+  // Customer search modal state
+  const [showCustomerSearch, setShowCustomerSearch] = useState(false);
+  const [customerSearchQuery, setCustomerSearchQuery] = useState('');
+
+  // Filter customers based on search query
+  const filteredCustomers = useMemo(() => {
+    if (!customersData?.data) return [];
+    if (!customerSearchQuery.trim()) return customersData.data;
+
+    const query = customerSearchQuery.toLowerCase();
+    return customersData.data.filter((customer) => {
+      const companyName = (customer.companyName || '').toLowerCase();
+      const contactPerson = (customer.contactPerson || '').toLowerCase();
+      const phone = (customer.phone || '').toLowerCase();
+      const lineId = (customer.lineId || '').toLowerCase();
+
+      return (
+        companyName.includes(query) ||
+        contactPerson.includes(query) ||
+        phone.includes(query) ||
+        lineId.includes(query)
+      );
+    });
+  }, [customersData?.data, customerSearchQuery]);
+
+  // Get selected customer name
+  const getSelectedCustomerName = () => {
+    if (!orderForm.customerId || !customersData?.data) return null;
+    const customer = customersData.data.find((c) => c.id === orderForm.customerId);
+    if (!customer) return null;
+    return customer.companyName || customer.contactPerson || customer.phone || 'ไม่มีชื่อ';
+  };
 
   // Bulk selection state
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
@@ -153,8 +210,37 @@ const OrderDetailPage = () => {
   // Tab state for switching between items and payments
   const [activeTab, setActiveTab] = useState<'items' | 'payments'>('items');
 
-  // Pending status changes (itemId -> { statusStep, itemStatus })
-  const [pendingStatusChanges, setPendingStatusChanges] = useState<Map<string, { statusStep: number; itemStatus: string }>>(new Map());
+  // Pending status changes (itemId -> { statusStep, itemStatus, extraData })
+  const [pendingStatusChanges, setPendingStatusChanges] = useState<Map<string, { statusStep: number; itemStatus: string; extraData?: any }>>(new Map());
+
+  // Status Modal state
+  const [statusModal, setStatusModal] = useState<{
+    isOpen: boolean;
+    itemId: string;
+    itemName: string;
+    currentStep: number;
+    newStep: number;
+    extraData: {
+      jpOrderNumber: string;
+      shippingRound: string;
+      shipmentBatch: string;
+      trackingNumber: string;
+      courierName: string;
+    };
+  }>({
+    isOpen: false,
+    itemId: '',
+    itemName: '',
+    currentStep: 1,
+    newStep: 1,
+    extraData: {
+      jpOrderNumber: '',
+      shippingRound: '',
+      shipmentBatch: '',
+      trackingNumber: '',
+      courierName: '',
+    },
+  });
 
   // Pending new items (items to be created when saving)
   const [pendingNewItems, setPendingNewItems] = useState<any[]>([]);
@@ -307,7 +393,9 @@ const OrderDetailPage = () => {
     clickDate: '',
     clickChannel: '',
     clickerName: '',
-    productCode: '',
+    productCode: '', // รหัสสินค้า (manual, e.g. SKU from JP store)
+    itemCode: '', // ไอเทมโค้ด
+    trackingCode: '', // รหัสติดตาม (auto-generated: PKN-ORD001-01)
     productName: '',
     productUrl: '',
     priceYen: '',
@@ -321,6 +409,16 @@ const OrderDetailPage = () => {
     storePage: '',
     remarks: '',
     productImages: [] as string[],
+    // Dynamic status fields - รายละเอียดแต่ละสถานะ
+    jpOrderNumber: '', // เลขที่ออเดอร์ญี่ปุ่น (step 3)
+    jpOrderDate: '', // วันที่สั่งซื้อ JP (step 3)
+    warehouseDate: '', // วันที่ถึงโกดัง JP (step 4)
+    shipmentBatch: '', // เลขตู้/เที่ยวบิน (step 5-6)
+    exportDate: '', // วันที่ส่งออกจาก JP (step 6)
+    arrivalDate: '', // วันที่ถึงไทย (step 7)
+    courierName: '', // ชื่อขนส่งในไทย (step 8)
+    deliveryDate: '', // วันที่ส่งมอบ (step 9)
+    statusRemarks: {} as Record<string, string>, // หมายเหตุแต่ละสถานะ
   });
 
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -501,9 +599,10 @@ const OrderDetailPage = () => {
       clickerName: itemForm.clickerName || undefined,
       customerName: customerName, // Locked to order's customer
       productCode: itemForm.productCode || undefined,
+      itemCode: itemForm.itemCode || undefined,
       productName: itemForm.productName || undefined,
       productUrl: itemForm.productUrl || undefined,
-      priceYen: itemForm.priceYen ? parseFloat(itemForm.priceYen) : undefined,
+      priceYen: itemForm.priceYen ? Math.round(parseFloat(itemForm.priceYen)) : undefined,
       priceBaht: itemForm.priceBaht ? parseFloat(itemForm.priceBaht) : undefined,
       weight: itemForm.weight ? parseFloat(itemForm.weight) : undefined,
       shippingCost: itemForm.shippingCost ? parseFloat(itemForm.shippingCost) : undefined,
@@ -514,6 +613,16 @@ const OrderDetailPage = () => {
       storePage: companyName, // Locked to order's company name
       remarks: itemForm.remarks || undefined,
       productImages: itemForm.productImages, // Always send array (even empty) to allow removal
+      // Status detail fields
+      jpOrderNumber: itemForm.jpOrderNumber || undefined,
+      jpOrderDate: itemForm.jpOrderDate || undefined,
+      warehouseDate: itemForm.warehouseDate || undefined,
+      shipmentBatch: itemForm.shipmentBatch || undefined,
+      exportDate: itemForm.exportDate || undefined,
+      arrivalDate: itemForm.arrivalDate || undefined,
+      courierName: itemForm.courierName || undefined,
+      deliveryDate: itemForm.deliveryDate || undefined,
+      statusRemarks: Object.keys(itemForm.statusRemarks).length > 0 ? itemForm.statusRemarks : undefined,
     };
 
     if (editingItem) {
@@ -546,6 +655,8 @@ const OrderDetailPage = () => {
       clickChannel: item.clickChannel || '',
       clickerName: item.clickerName || '',
       productCode: item.productCode || '',
+      itemCode: item.itemCode || '',
+      trackingCode: item.trackingCode || '',
       productName: item.productName || '',
       productUrl: item.productUrl || '',
       priceYen: item.priceYen?.toString() || '',
@@ -559,6 +670,16 @@ const OrderDetailPage = () => {
       storePage: item.storePage || '',
       remarks: item.remarks || '',
       productImages: images,
+      // Status detail fields
+      jpOrderNumber: item.jpOrderNumber || '',
+      jpOrderDate: item.jpOrderDate ? new Date(item.jpOrderDate).toISOString().split('T')[0] : '',
+      warehouseDate: item.warehouseDate ? new Date(item.warehouseDate).toISOString().split('T')[0] : '',
+      shipmentBatch: item.shipmentBatch || '',
+      exportDate: item.exportDate ? new Date(item.exportDate).toISOString().split('T')[0] : '',
+      arrivalDate: item.arrivalDate ? new Date(item.arrivalDate).toISOString().split('T')[0] : '',
+      courierName: item.courierName || '',
+      deliveryDate: item.deliveryDate ? new Date(item.deliveryDate).toISOString().split('T')[0] : '',
+      statusRemarks: item.statusRemarks || {},
     });
     setShowItemForm(true);
   };
@@ -631,6 +752,8 @@ const OrderDetailPage = () => {
       clickChannel: '',
       clickerName: '',
       productCode: '',
+      itemCode: '',
+      trackingCode: '',
       productName: '',
       productUrl: '',
       priceYen: '',
@@ -644,6 +767,16 @@ const OrderDetailPage = () => {
       storePage: '',
       remarks: '',
       productImages: [],
+      // Status detail fields
+      jpOrderNumber: '',
+      jpOrderDate: '',
+      warehouseDate: '',
+      shipmentBatch: '',
+      exportDate: '',
+      arrivalDate: '',
+      courierName: '',
+      deliveryDate: '',
+      statusRemarks: {},
     });
   };
 
@@ -693,14 +826,92 @@ const OrderDetailPage = () => {
     }
   };
 
-  // Handle status change in dropdown (store pending change instead of immediate update)
+  // Lock price for single item
+  const handleLockPrice = async (itemId: string, priceYen?: number) => {
+    try {
+      await lockPrice.mutateAsync({ id: itemId, priceYen });
+    } catch (error) {
+      console.error('Lock price error:', error);
+    }
+  };
+
+  // Unlock price for single item
+  const handleUnlockPrice = async (itemId: string) => {
+    const confirmed = await confirm({
+      title: 'ปลดล็อคราคา',
+      message: 'คุณต้องการปลดล็อคราคาบาท? ราคาจะสามารถแก้ไขได้อีกครั้ง',
+      confirmText: 'ปลดล็อค',
+      cancelText: 'ยกเลิก',
+      variant: 'warning',
+    });
+    if (!confirmed) return;
+
+    try {
+      await unlockPrice.mutateAsync(itemId);
+    } catch (error) {
+      console.error('Unlock price error:', error);
+    }
+  };
+
+  // Bulk lock price for selected items
+  const handleBulkLockPrice = async () => {
+    if (selectedItems.size === 0) return;
+
+    try {
+      await bulkLockPrice.mutateAsync(Array.from(selectedItems));
+      setSelectedItems(new Set());
+    } catch (error) {
+      console.error('Bulk lock price error:', error);
+    }
+  };
+
+  // Handle status change in dropdown - open modal for status-specific data
   const handleStatusDropdownChange = (itemId: string, newStep: number) => {
+    // Find the item to get its current data
+    const item = items?.find((i: any) => i.id === itemId);
+    if (!item) return;
+
+    const currentStep = item.statusStep || 1;
+
+    // Open modal with item info and pre-fill existing data
+    setStatusModal({
+      isOpen: true,
+      itemId,
+      itemName: item.productName || item.description || 'สินค้า',
+      currentStep,
+      newStep,
+      extraData: {
+        jpOrderNumber: item.jpOrderNumber || '',
+        shippingRound: item.shippingRound || '',
+        shipmentBatch: item.shipmentBatch || '',
+        trackingNumber: item.trackingNumber || '',
+        courierName: item.courierName || '',
+      },
+    });
+  };
+
+  // Confirm status change from modal
+  const handleConfirmStatusChange = () => {
+    const { itemId, newStep, extraData } = statusModal;
     const statusName = STATUS_STEPS.find(s => s.step === newStep)?.name || '';
+
     setPendingStatusChanges(prev => {
       const newMap = new Map(prev);
-      newMap.set(itemId, { statusStep: newStep, itemStatus: statusName });
+      newMap.set(itemId, {
+        statusStep: newStep,
+        itemStatus: statusName,
+        extraData: { ...extraData }
+      });
       return newMap;
     });
+
+    // Close modal
+    setStatusModal(prev => ({ ...prev, isOpen: false }));
+  };
+
+  // Cancel status change modal
+  const handleCancelStatusModal = () => {
+    setStatusModal(prev => ({ ...prev, isOpen: false }));
   };
 
   // Get display status for an item (pending or actual)
@@ -947,7 +1158,7 @@ const OrderDetailPage = () => {
   const companyName = order.customer?.companyName || 'ไม่ระบุ';
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-gray-50 p-4 md:p-6 pb-24 md:pb-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6">
@@ -958,9 +1169,9 @@ const OrderDetailPage = () => {
             <ArrowLeft className="w-5 h-5" />
             ย้อนกลับ
           </button>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">รายละเอียด Order</h1>
+              <h1 className="text-xl md:text-3xl font-bold text-gray-900">รายละเอียด Order</h1>
               <div className="flex items-center gap-3 mt-1">
                 <p className="text-gray-600">Order Number: {order.orderNumber}</p>
                 {/* Payment Status Badge */}
@@ -980,11 +1191,11 @@ const OrderDetailPage = () => {
                 })()}
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
               <motion.button
                 onClick={handleGenerateInvoice}
                 disabled={generatingInvoice}
-                className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2 disabled:opacity-50"
+                className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center justify-center gap-2 disabled:opacity-50"
                 whileTap={buttonTap}
                 title="สร้างใบแจ้งหนี้ PDF"
               >
@@ -1003,7 +1214,7 @@ const OrderDetailPage = () => {
               <motion.button
                 onClick={handleUpdateOrder}
                 disabled={updateOrder.isPending}
-                className={`text-white px-4 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50 ${
+                className={`text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 disabled:opacity-50 ${
                   hasPendingChanges
                     ? 'bg-orange-500 hover:bg-orange-600 animate-pulse'
                     : 'bg-primary-600 hover:bg-primary-700'
@@ -1021,7 +1232,7 @@ const OrderDetailPage = () => {
               <motion.button
                 onClick={handleDeleteOrder}
                 disabled={deleteOrder.isPending}
-                className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 flex items-center gap-2"
+                className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 flex items-center justify-center gap-2"
                 whileTap={buttonTap}
               >
                 <Trash2 className="w-5 h-5" />
@@ -1032,7 +1243,7 @@ const OrderDetailPage = () => {
         </div>
 
         {/* Order Information */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+        <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 mb-6">
           <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
             <Package className="w-6 h-6 text-primary-600" />
             ข้อมูล Order
@@ -1050,19 +1261,30 @@ const OrderDetailPage = () => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">ลูกค้า</label>
-              <select
-                value={orderForm.customerId}
-                onChange={(e) => setOrderForm({ ...orderForm, customerId: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-              >
-                <option value="">-- เลือกลูกค้า --</option>
-                {customersData?.data.map((customer) => (
-                  <option key={customer.id} value={customer.id}>
-                    {customer.companyName || customer.contactPerson || customer.phone || 'ไม่มีชื่อ'}
-                    {customer.phone && ` (${customer.phone})`}
-                  </option>
-                ))}
-              </select>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustomerSearchQuery('');
+                    setShowCustomerSearch(true);
+                  }}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-left hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 flex items-center gap-2"
+                >
+                  <Search className="w-4 h-4 text-gray-400" />
+                  <span className={orderForm.customerId ? 'text-gray-900' : 'text-gray-400'}>
+                    {getSelectedCustomerName() || 'ค้นหาลูกค้า...'}
+                  </span>
+                </button>
+                {orderForm.customerId && (
+                  <button
+                    type="button"
+                    onClick={() => setOrderForm({ ...orderForm, customerId: '' })}
+                    className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-red-50 hover:border-red-300 text-gray-400 hover:text-red-500"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
             </div>
 
             <div>
@@ -1074,8 +1296,8 @@ const OrderDetailPage = () => {
                   const statusName = STATUS_STEPS.find(s => s.step === step)?.name || '';
                   // Update both statusStep and status based on step
                   let newStatus = 'pending';
-                  if (step >= 8) newStatus = 'delivered';
-                  else if (step >= 5) newStatus = 'shipped';
+                  if (step >= 9) newStatus = 'delivered';
+                  else if (step >= 6) newStatus = 'shipped';
                   else if (step >= 2) newStatus = 'processing';
                   setOrderForm({ ...orderForm, statusStep: step, status: newStatus });
                 }}
@@ -1116,24 +1338,34 @@ const OrderDetailPage = () => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">ต้นทาง</label>
-              <input
-                type="text"
+              <select
                 value={orderForm.origin}
                 onChange={(e) => setOrderForm({ ...orderForm, origin: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                placeholder="เช่น กรุงเทพ"
-              />
+              >
+                <option value="">-- เลือกประเทศต้นทาง --</option>
+                {COUNTRIES.map((country) => (
+                  <option key={country.code} value={country.name}>
+                    {country.nameLocal}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">ปลายทาง</label>
-              <input
-                type="text"
+              <select
                 value={orderForm.destination}
                 onChange={(e) => setOrderForm({ ...orderForm, destination: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                placeholder="เช่น โตเกียว"
-              />
+              >
+                <option value="">-- เลือกประเทศปลายทาง --</option>
+                {COUNTRIES.map((country) => (
+                  <option key={country.code} value={country.name}>
+                    {country.nameLocal}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>
@@ -1209,35 +1441,37 @@ const OrderDetailPage = () => {
           <div className="flex border-b bg-gray-50">
             <button
               onClick={() => setActiveTab('items')}
-              className={`flex-1 px-6 py-4 text-sm font-medium flex items-center justify-center gap-2 transition-colors ${
+              className={`flex-1 px-4 md:px-6 py-4 md:py-4 min-h-[56px] text-sm font-medium flex items-center justify-center gap-2 transition-colors ${
                 activeTab === 'items'
                   ? 'text-primary-600 border-b-2 border-primary-600 bg-white'
                   : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
               }`}
             >
               <Package className="w-5 h-5" />
-              รายการสินค้า ({items.length})
+              <span className="hidden sm:inline">รายการสินค้า ({items.length})</span>
+              <span className="sm:hidden">สินค้า ({items.length})</span>
             </button>
             <button
               onClick={() => setActiveTab('payments')}
-              className={`flex-1 px-6 py-4 text-sm font-medium flex items-center justify-center gap-2 transition-colors ${
+              className={`flex-1 px-4 md:px-6 py-4 md:py-4 min-h-[56px] text-sm font-medium flex items-center justify-center gap-2 transition-colors ${
                 activeTab === 'payments'
                   ? 'text-primary-600 border-b-2 border-primary-600 bg-white'
                   : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
               }`}
             >
               <CreditCard className="w-5 h-5" />
-              การชำระเงิน
+              <span className="hidden sm:inline">การชำระเงิน</span>
+              <span className="sm:hidden">ชำระเงิน</span>
             </button>
           </div>
 
-          <div className="p-6">
+          <div className="p-4 md:p-6">
             {/* Items Tab Content */}
             {activeTab === 'items' && (
               <>
-                <div className="flex items-center justify-between mb-6">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
                   <div>
-                    <h2 className="text-xl font-bold flex items-center gap-2">
+                    <h2 className="text-lg md:text-xl font-bold flex items-center gap-2">
                       <Package className="w-6 h-6 text-primary-600" />
                       รายการสินค้า
                     </h2>
@@ -1247,12 +1481,12 @@ const OrderDetailPage = () => {
                       <span className="text-xs text-gray-500 ml-1">(ล็อคอัตโนมัติ)</span>
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                     {/* Export Button */}
                     <motion.button
                       onClick={() => handleExport('csv')}
                       disabled={exporting || items.length === 0}
-                      className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2 disabled:opacity-50"
+                      className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center justify-center gap-2 disabled:opacity-50"
                       whileTap={buttonTap}
                       title="Export to CSV"
                     >
@@ -1266,7 +1500,7 @@ const OrderDetailPage = () => {
                         setItemFormType('product');
                         setShowItemForm(!showItemForm);
                       }}
-                      className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 flex items-center gap-2"
+                      className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 flex items-center justify-center gap-2"
                       whileTap={buttonTap}
                     >
                       <Plus className="w-5 h-5" />
@@ -1284,7 +1518,7 @@ const OrderDetailPage = () => {
                         }));
                         setShowItemForm(true);
                       }}
-                      className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 flex items-center gap-2"
+                      className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 flex items-center justify-center gap-2"
                       whileTap={buttonTap}
                     >
                       <Plus className="w-5 h-5" />
@@ -1341,13 +1575,523 @@ const OrderDetailPage = () => {
                     </>
                   )}
                 </motion.button>
+                {/* Bulk Lock Price Button */}
+                <motion.button
+                  onClick={handleBulkLockPrice}
+                  disabled={bulkLockPrice.isPending}
+                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2 disabled:opacity-50"
+                  whileTap={buttonTap}
+                  title="ล็อคราคาบาททั้งหมดตาม Tier ลูกค้า"
+                >
+                  {bulkLockPrice.isPending ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      กำลังล็อค...
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="w-4 h-4" />
+                      ล็อคราคา
+                    </>
+                  )}
+                </motion.button>
               </div>
             </motion.div>
           )}
 
-          {/* Item Form */}
+          {/* Item Form - Bottom Sheet on Mobile */}
+          <AnimatePresence>
           {showItemForm && (
-            <div className={`mb-6 p-6 rounded-lg border ${itemFormType === 'fee' ? 'bg-orange-50 border-orange-200' : 'bg-gray-50 border-gray-200'}`}>
+            <>
+              {/* Mobile Bottom Sheet */}
+              <div className="md:hidden">
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 bg-black/50 z-40"
+                  onClick={() => {
+                    setShowItemForm(false);
+                    resetItemForm();
+                    setItemFormType('product');
+                  }}
+                />
+                <motion.div
+                  initial={{ y: '100%' }}
+                  animate={{ y: 0 }}
+                  exit={{ y: '100%' }}
+                  transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+                  className={`fixed inset-x-0 bottom-0 z-50 max-h-[90vh] overflow-y-auto rounded-t-3xl shadow-2xl ${itemFormType === 'fee' ? 'bg-orange-50' : 'bg-white'}`}
+                >
+                  <div className="sticky top-0 bg-white border-b px-4 py-4 flex items-center justify-between rounded-t-3xl">
+                    <h3 className="font-semibold text-lg flex items-center gap-2">
+                      {itemFormType === 'fee' ? (
+                        <>
+                          <span className="w-8 h-8 bg-orange-500 text-white rounded-full flex items-center justify-center text-sm">฿</span>
+                          {editingItem ? 'แก้ไขค่าใช้จ่าย' : 'เพิ่มค่าจัดส่ง/อื่นๆ'}
+                        </>
+                      ) : (
+                        <>
+                          <Package className="w-5 h-5 text-primary-600" />
+                          {editingItem ? 'แก้ไขรายการสินค้า' : 'เพิ่มสินค้า'}
+                        </>
+                      )}
+                    </h3>
+                    <button
+                      onClick={() => {
+                        setShowItemForm(false);
+                        resetItemForm();
+                        setItemFormType('product');
+                      }}
+                      className="p-2 hover:bg-gray-100 rounded-full"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <div className="p-4">
+                    <form onSubmit={handleSubmitItem} className="space-y-4">
+                      {/* Form fields will be rendered here */}
+                      {itemFormType === 'fee' ? (
+                        <>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">ประเภทค่าใช้จ่าย</label>
+                            <select
+                              value={itemForm.productName}
+                              onChange={(e) => setItemForm({ ...itemForm, productName: e.target.value })}
+                              className="w-full px-3 py-2 border border-orange-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                            >
+                              <option value="">เลือกประเภท</option>
+                              {FEE_TYPES.map((fee) => (
+                                <option key={fee.value} value={fee.label}>{fee.label}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">ยอดเงิน (บาท)</label>
+                            <input
+                              type="number"
+                              value={itemForm.priceBaht}
+                              onChange={(e) => setItemForm({ ...itemForm, priceBaht: e.target.value })}
+                              className="w-full px-3 py-2 border border-orange-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                              placeholder="0"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">หมายเหตุ</label>
+                            <textarea
+                              value={itemForm.remarks}
+                              onChange={(e) => setItemForm({ ...itemForm, remarks: e.target.value })}
+                              className="w-full px-3 py-2 border border-orange-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                              rows={2}
+                              placeholder="รายละเอียดเพิ่มเติม..."
+                            />
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          {/* Product form fields - mobile version */}
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">ลำดับที่</label>
+                              <input
+                                type="number"
+                                min="1"
+                                value={itemForm.sequenceNumber}
+                                onChange={(e) => setItemForm({ ...itemForm, sequenceNumber: e.target.value })}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                placeholder="1"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">วันที่กด</label>
+                              <input
+                                type="date"
+                                value={itemForm.clickDate}
+                                onChange={(e) => setItemForm({ ...itemForm, clickDate: e.target.value })}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">ช่องทางการกด</label>
+                            <select
+                              value={itemForm.clickChannel}
+                              onChange={(e) => setItemForm({ ...itemForm, clickChannel: e.target.value })}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                            >
+                              <option value="">เลือก</option>
+                              <option value="LINE">LINE</option>
+                              <option value="Facebook">Facebook</option>
+                              <option value="Instagram">Instagram</option>
+                              <option value="Website">Website</option>
+                              <option value="Email">Email</option>
+                              <option value="Phone">โทรศัพท์</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อคนกด</label>
+                            <select
+                              value={itemForm.clickerName}
+                              onChange={(e) => setItemForm({ ...itemForm, clickerName: e.target.value })}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                            >
+                              <option value="">เลือก</option>
+                              <option value="POTTER">POTTER</option>
+                              <option value="M">M</option>
+                              <option value="SOM">SOM</option>
+                              <option value="MAY">MAY</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              ชื่อลูกค้า
+                              <span className="ml-2 text-xs text-gray-500">(ล็อคอัตโนมัติ)</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={customerName}
+                              disabled
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              รหัสติดตาม
+                              <span className="ml-1 text-xs text-gray-500">(อัตโนมัติ)</span>
+                            </label>
+                            {editingItem && itemForm.trackingCode ? (
+                              <div className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 font-mono text-primary-600 font-medium text-sm">
+                                {itemForm.trackingCode}
+                              </div>
+                            ) : (
+                              <div className="w-full px-3 py-2 border border-dashed border-gray-300 rounded-lg bg-gray-50 text-gray-400 text-xs">
+                                PKN-XXX-01-XXX
+                              </div>
+                            )}
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              รหัสสินค้า
+                              <span className="ml-1 text-xs text-gray-500">(SKU ร้าน)</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={itemForm.productCode}
+                              onChange={(e) => setItemForm({ ...itemForm, productCode: e.target.value })}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                              placeholder="SKU-12345"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              ไอเทมโค้ด
+                              <span className="ml-1 text-xs text-gray-500">(Item Code)</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={itemForm.itemCode}
+                              onChange={(e) => setItemForm({ ...itemForm, itemCode: e.target.value })}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                              placeholder="ITEM-001"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อสินค้า</label>
+                            <input
+                              type="text"
+                              value={itemForm.productName}
+                              onChange={(e) => setItemForm({ ...itemForm, productName: e.target.value })}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                              placeholder="ชื่อสินค้า"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">ลิ้งค์สินค้า</label>
+                            <input
+                              type="url"
+                              value={itemForm.productUrl}
+                              onChange={(e) => setItemForm({ ...itemForm, productUrl: e.target.value })}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                              placeholder="https://..."
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">ราคาเยน (¥)</label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={itemForm.priceYen}
+                                onChange={(e) => setItemForm({ ...itemForm, priceYen: e.target.value })}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                placeholder="0.00"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">ราคาบาท (฿)</label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={itemForm.priceBaht}
+                                onChange={(e) => setItemForm({ ...itemForm, priceBaht: e.target.value })}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                placeholder="0.00"
+                              />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">น้ำหนัก (kg)</label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={itemForm.weight}
+                                onChange={(e) => setItemForm({ ...itemForm, weight: e.target.value })}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                placeholder="0.00"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">ค่าจัดส่ง (฿)</label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={itemForm.shippingCost}
+                                onChange={(e) => setItemForm({ ...itemForm, shippingCost: e.target.value })}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                placeholder="0.00"
+                              />
+                            </div>
+                          </div>
+                          {/* สถานะสินค้า - Mobile */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">สถานะสินค้า</label>
+                            <select
+                              value={itemForm.itemStatus}
+                              onChange={(e) => {
+                                const selectedStep = STATUS_STEPS.find(s => s.name === e.target.value);
+                                setItemForm({
+                                  ...itemForm,
+                                  itemStatus: e.target.value,
+                                  statusStep: selectedStep?.step.toString() || '1'
+                                });
+                              }}
+                              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm ${
+                                parseInt(itemForm.statusStep) === 9 ? 'border-green-400 bg-green-50' :
+                                parseInt(itemForm.statusStep) >= 6 ? 'border-indigo-400 bg-indigo-50' :
+                                parseInt(itemForm.statusStep) === 5 ? 'border-purple-400 bg-purple-50' :
+                                parseInt(itemForm.statusStep) >= 3 ? 'border-yellow-400 bg-yellow-50' :
+                                'border-gray-300'
+                              }`}
+                            >
+                              {STATUS_STEPS.map((s) => (
+                                <option key={s.step} value={s.name}>
+                                  {s.step}. {s.name}
+                                </option>
+                              ))}
+                            </select>
+                            {/* Status Description - Mobile */}
+                            {itemForm.statusStep && (
+                              <div className={`mt-2 p-2 rounded-lg text-xs ${
+                                parseInt(itemForm.statusStep) === 9 ? 'bg-green-100 text-green-800' :
+                                parseInt(itemForm.statusStep) >= 6 ? 'bg-indigo-100 text-indigo-800' :
+                                parseInt(itemForm.statusStep) === 5 ? 'bg-purple-100 text-purple-800' :
+                                parseInt(itemForm.statusStep) >= 3 ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-gray-100 text-gray-700'
+                              }`}>
+                                <span className="font-medium">{itemForm.statusStep}/9:</span> {STATUS_STEPS.find(s => s.step === parseInt(itemForm.statusStep))?.description}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Dynamic Status Fields - Mobile */}
+                          <div className={`p-3 rounded-lg border ${
+                            parseInt(itemForm.statusStep) === 9 ? 'bg-green-50 border-green-200' :
+                            parseInt(itemForm.statusStep) >= 6 ? 'bg-indigo-50 border-indigo-200' :
+                            parseInt(itemForm.statusStep) === 5 ? 'bg-purple-50 border-purple-200' :
+                            parseInt(itemForm.statusStep) >= 3 ? 'bg-yellow-50 border-yellow-200' :
+                            'bg-blue-50 border-blue-200'
+                          }`}>
+                            <p className="text-xs font-medium text-gray-600 mb-2">
+                              ข้อมูลสำหรับสถานะ: {STATUS_STEPS.find(s => s.step === parseInt(itemForm.statusStep))?.name}
+                            </p>
+
+                            {/* Step 3: JP Order Number */}
+                            {parseInt(itemForm.statusStep) === 3 && (
+                              <div className="mb-3">
+                                <label className="block text-xs font-medium text-gray-700 mb-1">เลขออเดอร์ญี่ปุ่น</label>
+                                <input
+                                  type="text"
+                                  value={itemForm.jpOrderNumber}
+                                  onChange={(e) => setItemForm({ ...itemForm, jpOrderNumber: e.target.value })}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                                  placeholder="JP-XXXX-XXXX"
+                                />
+                              </div>
+                            )}
+
+                            {/* Step 5: Shipping Round */}
+                            {parseInt(itemForm.statusStep) === 5 && (
+                              <div className="mb-3">
+                                <label className="block text-xs font-medium text-gray-700 mb-1">รอบส่งกลับ *</label>
+                                <input
+                                  type="text"
+                                  value={itemForm.shippingRound}
+                                  onChange={(e) => setItemForm({ ...itemForm, shippingRound: e.target.value })}
+                                  className="w-full px-3 py-2 border border-purple-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white text-sm"
+                                  placeholder="เรือธันวาคม, Air Dec-1"
+                                />
+                              </div>
+                            )}
+
+                            {/* Step 6: Shipping Round + Batch */}
+                            {parseInt(itemForm.statusStep) === 6 && (
+                              <div className="grid grid-cols-2 gap-2 mb-3">
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-700 mb-1">รอบส่งกลับ</label>
+                                  <input
+                                    type="text"
+                                    value={itemForm.shippingRound}
+                                    onChange={(e) => setItemForm({ ...itemForm, shippingRound: e.target.value })}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                                    placeholder="เรือธันวาคม"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-700 mb-1">เที่ยว/ลำ</label>
+                                  <input
+                                    type="text"
+                                    value={itemForm.shipmentBatch}
+                                    onChange={(e) => setItemForm({ ...itemForm, shipmentBatch: e.target.value })}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                                    placeholder="TG123"
+                                  />
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Step 8: Tracking + Courier */}
+                            {parseInt(itemForm.statusStep) === 8 && (
+                              <div className="grid grid-cols-2 gap-2 mb-3">
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-700 mb-1">Tracking *</label>
+                                  <input
+                                    type="text"
+                                    value={itemForm.trackingNumber}
+                                    onChange={(e) => setItemForm({ ...itemForm, trackingNumber: e.target.value })}
+                                    className="w-full px-3 py-2 border border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-sm"
+                                    placeholder="TH123456"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-700 mb-1">ขนส่ง</label>
+                                  <select
+                                    value={itemForm.courierName}
+                                    onChange={(e) => setItemForm({ ...itemForm, courierName: e.target.value })}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white text-sm"
+                                  >
+                                    <option value="">เลือกขนส่ง</option>
+                                    <option value="Kerry">Kerry Express</option>
+                                    <option value="Flash">Flash Express</option>
+                                    <option value="J&T">J&T Express</option>
+                                    <option value="ThaiPost">ไปรษณีย์ไทย</option>
+                                    <option value="Other">อื่นๆ</option>
+                                  </select>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Step 9: Delivery Confirmation */}
+                            {parseInt(itemForm.statusStep) === 9 && (
+                              <div className="flex items-center gap-2 p-2 bg-green-100 rounded-lg">
+                                <CheckCircle className="w-4 h-4 text-green-600" />
+                                <span className="text-green-700 text-xs font-medium">ลูกค้ารับสินค้าเรียบร้อยแล้ว</span>
+                              </div>
+                            )}
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">หมายเหตุ</label>
+                            <textarea
+                              value={itemForm.remarks}
+                              onChange={(e) => setItemForm({ ...itemForm, remarks: e.target.value })}
+                              rows={2}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                              placeholder="หมายเหตุเพิ่มเติม..."
+                            />
+                          </div>
+                          {/* Product Images Upload - Mobile */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              รูปสินค้า
+                              {itemForm.productImages.length > 0 && (
+                                <span className="ml-2 text-xs text-gray-500">({itemForm.productImages.length} รูป)</span>
+                              )}
+                            </label>
+                            {/* Image Preview Grid */}
+                            {itemForm.productImages.length > 0 && (
+                              <div className="flex flex-wrap gap-2 mb-3">
+                                {itemForm.productImages.map((img, idx) => (
+                                  <div key={idx} className="relative group">
+                                    <img
+                                      src={img}
+                                      alt={`Product ${idx + 1}`}
+                                      className="w-16 h-16 object-cover rounded-lg border border-gray-200"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveImage(idx)}
+                                      className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center"
+                                    >
+                                      <X className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {/* Upload Button */}
+                            <label className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-primary-500 hover:bg-primary-50 transition-colors">
+                              <ImageIcon className="w-5 h-5 text-gray-400" />
+                              <span className="text-sm text-gray-600">เลือกรูปภาพ</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                multiple
+                                onChange={handleImageUpload}
+                                className="hidden"
+                              />
+                            </label>
+                          </div>
+                        </>
+                      )}
+                      <div className="flex gap-3 pt-4">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowItemForm(false);
+                            resetItemForm();
+                            setItemFormType('product');
+                          }}
+                          className="flex-1 px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium"
+                        >
+                          ยกเลิก
+                        </button>
+                        <button
+                          type="submit"
+                          className={`flex-1 px-4 py-3 text-white rounded-lg font-medium ${
+                            itemFormType === 'fee' ? 'bg-orange-500 hover:bg-orange-600' : 'bg-primary-600 hover:bg-primary-700'
+                          }`}
+                        >
+                          {editingItem ? 'บันทึก' : itemFormType === 'fee' ? 'เพิ่มค่าใช้จ่าย' : 'เพิ่มสินค้า'}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </motion.div>
+              </div>
+
+              {/* Desktop Inline Form */}
+              <div className={`hidden md:block mb-6 p-6 rounded-lg border ${itemFormType === 'fee' ? 'bg-orange-50 border-orange-200' : 'bg-gray-50 border-gray-200'}`}>
               <h3 className="font-semibold mb-4 text-lg flex items-center gap-2">
                 {itemFormType === 'fee' ? (
                   <>
@@ -1464,13 +2208,17 @@ const OrderDetailPage = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อคนกด</label>
-                    <input
-                      type="text"
+                    <select
                       value={itemForm.clickerName}
                       onChange={(e) => setItemForm({ ...itemForm, clickerName: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      placeholder="ชื่อผู้กด"
-                    />
+                    >
+                      <option value="">เลือก</option>
+                      <option value="POTTER">POTTER</option>
+                      <option value="M">M</option>
+                      <option value="SOM">SOM</option>
+                      <option value="MAY">MAY</option>
+                    </select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1486,15 +2234,46 @@ const OrderDetailPage = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">รหัสสินค้า</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      รหัสติดตาม
+                      <span className="ml-1 text-xs text-gray-500">(อัตโนมัติ)</span>
+                    </label>
+                    {editingItem && itemForm.trackingCode ? (
+                      <div className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 font-mono text-primary-600 font-medium">
+                        {itemForm.trackingCode}
+                      </div>
+                    ) : (
+                      <div className="w-full px-3 py-2 border border-dashed border-gray-300 rounded-lg bg-gray-50 text-gray-400 text-sm">
+                        PKN-{order?.orderNumber || 'XXX'}-{(itemForm.sequenceNumber || '01').toString().padStart(2, '0')}-XXX
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      รหัสสินค้า
+                      <span className="ml-1 text-xs text-gray-500">(SKU ร้าน)</span>
+                    </label>
                     <input
                       type="text"
                       value={itemForm.productCode}
                       onChange={(e) => setItemForm({ ...itemForm, productCode: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      placeholder="PROD-001"
+                      placeholder="SKU-12345"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      ไอเทมโค้ด
+                      <span className="ml-1 text-xs text-gray-500">(Item Code)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={itemForm.itemCode}
+                      onChange={(e) => setItemForm({ ...itemForm, itemCode: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      placeholder="ITEM-001"
                     />
                   </div>
                   <div>
@@ -1569,63 +2348,236 @@ const OrderDetailPage = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">สถานะสินค้า</label>
-                    <select
-                      value={itemForm.itemStatus}
-                      onChange={(e) => {
-                        const selectedStep = STATUS_STEPS.find(s => s.name === e.target.value);
-                        setItemForm({
-                          ...itemForm,
-                          itemStatus: e.target.value,
-                          statusStep: selectedStep?.step.toString() || '1'
-                        });
-                      }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    >
-                      {STATUS_STEPS.map((s) => (
-                        <option key={s.step} value={s.name}>
-                          {s.step}. {s.name}
-                        </option>
-                      ))}
-                    </select>
+                {/* สถานะสินค้า - Full Width with Description */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">สถานะสินค้า</label>
+                  <select
+                    value={itemForm.itemStatus}
+                    onChange={(e) => {
+                      const selectedStep = STATUS_STEPS.find(s => s.name === e.target.value);
+                      setItemForm({
+                        ...itemForm,
+                        itemStatus: e.target.value,
+                        statusStep: selectedStep?.step.toString() || '1',
+                        statusDate: new Date().toISOString().split('T')[0], // Auto-set today
+                      });
+                    }}
+                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${
+                      parseInt(itemForm.statusStep) === 9 ? 'border-green-400 bg-green-50' :
+                      parseInt(itemForm.statusStep) >= 6 ? 'border-indigo-400 bg-indigo-50' :
+                      parseInt(itemForm.statusStep) === 5 ? 'border-purple-400 bg-purple-50' :
+                      parseInt(itemForm.statusStep) >= 3 ? 'border-yellow-400 bg-yellow-50' :
+                      'border-gray-300'
+                    }`}
+                  >
+                    {STATUS_STEPS.map((s) => (
+                      <option key={s.step} value={s.name}>
+                        {s.step}. {s.name} - {s.description}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Dynamic Status Fields - แสดงตาม step ที่เลือก */}
+                <div className={`p-4 rounded-lg border-2 ${
+                  parseInt(itemForm.statusStep) === 9 ? 'bg-green-50 border-green-200' :
+                  parseInt(itemForm.statusStep) >= 6 ? 'bg-indigo-50 border-indigo-200' :
+                  parseInt(itemForm.statusStep) === 5 ? 'bg-purple-50 border-purple-200' :
+                  parseInt(itemForm.statusStep) >= 3 ? 'bg-yellow-50 border-yellow-200' :
+                  'bg-gray-50 border-gray-200'
+                }`}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className={`text-sm font-semibold ${
+                      parseInt(itemForm.statusStep) === 9 ? 'text-green-700' :
+                      parseInt(itemForm.statusStep) >= 6 ? 'text-indigo-700' :
+                      parseInt(itemForm.statusStep) === 5 ? 'text-purple-700' :
+                      parseInt(itemForm.statusStep) >= 3 ? 'text-yellow-700' :
+                      'text-gray-700'
+                    }`}>
+                      ขั้นตอนที่ {itemForm.statusStep}/9: {STATUS_STEPS.find(s => s.step === parseInt(itemForm.statusStep))?.description}
+                    </span>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">รอบส่งกลับ</label>
-                    <input
-                      type="text"
-                      value={itemForm.shippingRound}
-                      onChange={(e) => setItemForm({ ...itemForm, shippingRound: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      placeholder="Round 1"
-                    />
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Step 3: สั่งซื้อจากญี่ปุ่น */}
+                    {parseInt(itemForm.statusStep) >= 3 && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">วันที่สั่งซื้อ JP</label>
+                          <input
+                            type="date"
+                            value={itemForm.jpOrderDate}
+                            onChange={(e) => setItemForm({ ...itemForm, jpOrderDate: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">เลขที่ออเดอร์ JP</label>
+                          <input
+                            type="text"
+                            value={itemForm.jpOrderNumber}
+                            onChange={(e) => setItemForm({ ...itemForm, jpOrderNumber: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                            placeholder="MERC-12345, YAH-67890"
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {/* Step 4: ของถึงโกดังญี่ปุ่น */}
+                    {parseInt(itemForm.statusStep) >= 4 && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">วันที่ถึงโกดัง JP</label>
+                        <input
+                          type="date"
+                          value={itemForm.warehouseDate}
+                          onChange={(e) => setItemForm({ ...itemForm, warehouseDate: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        />
+                      </div>
+                    )}
+
+                    {/* Step 5-6: จัดรอบส่ง & ส่งออก */}
+                    {parseInt(itemForm.statusStep) >= 5 && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">รอบส่ง</label>
+                          <input
+                            type="text"
+                            value={itemForm.shippingRound}
+                            onChange={(e) => setItemForm({ ...itemForm, shippingRound: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                            placeholder="เรือธันวาคม, Air Dec-1"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">เลขตู้ / เที่ยวบิน</label>
+                          <input
+                            type="text"
+                            value={itemForm.shipmentBatch}
+                            onChange={(e) => setItemForm({ ...itemForm, shipmentBatch: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                            placeholder="CONT-123, TG661"
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {/* Step 6: วันที่ส่งออก */}
+                    {parseInt(itemForm.statusStep) >= 6 && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">วันที่ส่งออกจาก JP</label>
+                        <input
+                          type="date"
+                          value={itemForm.exportDate}
+                          onChange={(e) => setItemForm({ ...itemForm, exportDate: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        />
+                      </div>
+                    )}
+
+                    {/* Step 7: ของถึงไทย */}
+                    {parseInt(itemForm.statusStep) >= 7 && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">วันที่ถึงไทย</label>
+                        <input
+                          type="date"
+                          value={itemForm.arrivalDate}
+                          onChange={(e) => setItemForm({ ...itemForm, arrivalDate: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        />
+                      </div>
+                    )}
+
+                    {/* Step 8: Tracking & ขนส่ง */}
+                    {parseInt(itemForm.statusStep) >= 8 && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">ขนส่งในไทย</label>
+                          <select
+                            value={itemForm.courierName}
+                            onChange={(e) => setItemForm({ ...itemForm, courierName: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          >
+                            <option value="">เลือกขนส่ง</option>
+                            <option value="Kerry">Kerry Express</option>
+                            <option value="Flash">Flash Express</option>
+                            <option value="J&T">J&T Express</option>
+                            <option value="ThaiPost">ไปรษณีย์ไทย</option>
+                            <option value="Ninja">Ninja Van</option>
+                            <option value="DHL">DHL</option>
+                            <option value="BEST">BEST Express</option>
+                            <option value="Pickup">รับเอง</option>
+                            <option value="Other">อื่นๆ</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Tracking Number ในไทย</label>
+                          <input
+                            type="text"
+                            value={itemForm.trackingNumber}
+                            onChange={(e) => setItemForm({ ...itemForm, trackingNumber: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                            placeholder="TH123456789"
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {/* Step 9: วันที่ส่งมอบ */}
+                    {parseInt(itemForm.statusStep) >= 9 && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">วันที่ส่งมอบ</label>
+                          <input
+                            type="date"
+                            value={itemForm.deliveryDate}
+                            onChange={(e) => setItemForm({ ...itemForm, deliveryDate: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          />
+                        </div>
+                        <div className="flex items-center">
+                          <div className="flex items-center gap-2 p-3 bg-green-100 rounded-lg w-full">
+                            <CheckCircle className="w-5 h-5 text-green-600" />
+                            <span className="text-green-700 font-medium">ลูกค้ารับสินค้าเรียบร้อยแล้ว</span>
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    {/* หมายเหตุสถานะปัจจุบัน */}
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        หมายเหตุสถานะ {STATUS_STEPS.find(s => s.step === parseInt(itemForm.statusStep))?.name}
+                      </label>
+                      <textarea
+                        value={itemForm.statusRemarks[`step${itemForm.statusStep}`] || ''}
+                        onChange={(e) => setItemForm({
+                          ...itemForm,
+                          statusRemarks: {
+                            ...itemForm.statusRemarks,
+                            [`step${itemForm.statusStep}`]: e.target.value
+                          }
+                        })}
+                        rows={2}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        placeholder={`หมายเหตุสำหรับสถานะ ${STATUS_STEPS.find(s => s.step === parseInt(itemForm.statusStep))?.name}...`}
+                      />
+                    </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Tracking Number</label>
-                    <input
-                      type="text"
-                      value={itemForm.trackingNumber}
-                      onChange={(e) => setItemForm({ ...itemForm, trackingNumber: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      placeholder="TH123456"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      เพจ/ร้าน
-                      <span className="ml-2 text-xs text-gray-500">(ล็อคอัตโนมัติ)</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={companyName}
-                      disabled
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
-                    />
-                  </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    เพจ/ร้าน
+                    <span className="ml-2 text-xs text-gray-500">(ล็อคอัตโนมัติ)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={companyName}
+                    disabled
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
+                  />
                 </div>
 
                 <div>
@@ -1721,7 +2673,9 @@ const OrderDetailPage = () => {
                 )}
               </form>
             </div>
+            </>
           )}
+          </AnimatePresence>
 
           {/* Items Table */}
           {itemsLoading ? (
@@ -1736,7 +2690,8 @@ const OrderDetailPage = () => {
             </div>
           ) : (
             <>
-              <div className="overflow-x-auto">
+              {/* Desktop Table View */}
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gray-50 border-b-2 border-gray-200">
                     <tr>
@@ -1827,21 +2782,35 @@ const OrderDetailPage = () => {
                           )}
                         </td>
                         <td className="px-4 py-3 text-sm">
-                          <div className="flex items-center gap-1">
+                          <div className="flex flex-col gap-1">
                             {isFeeItem ? (
                               <span className="text-xs bg-orange-500 text-white px-2 py-1 rounded font-medium">ค่าใช้จ่าย</span>
+                            ) : isPendingNew ? (
+                              <>
+                                <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded font-medium border border-green-300 border-dashed">รอสร้าง</span>
+                                {item.productCode && (
+                                  <span className="text-xs text-gray-500">SKU: {item.productCode}</span>
+                                )}
+                              </>
                             ) : (
-                              <code className="text-xs bg-gray-100 px-2 py-1 rounded">{item.productCode || '-'}</code>
+                              <>
+                                <code className="text-xs bg-primary-100 text-primary-700 px-2 py-1 rounded font-medium">{item.trackingCode || '-'}</code>
+                                {item.productCode && (
+                                  <span className="text-xs text-gray-500">SKU: {item.productCode}</span>
+                                )}
+                              </>
                             )}
-                            {isPendingNew && (
-                              <span className="text-xs bg-green-500 text-white px-1.5 py-0.5 rounded font-medium animate-pulse">ใหม่</span>
-                            )}
-                            {isPendingEdit && (
-                              <span className="text-xs bg-yellow-500 text-white px-1.5 py-0.5 rounded font-medium animate-pulse">แก้ไข</span>
-                            )}
-                            {isPendingDelete && (
-                              <span className="text-xs bg-red-500 text-white px-1.5 py-0.5 rounded font-medium animate-pulse">รอลบ</span>
-                            )}
+                            <div className="flex items-center gap-1">
+                              {isPendingNew && (
+                                <span className="text-xs bg-green-500 text-white px-1.5 py-0.5 rounded font-medium animate-pulse">ใหม่</span>
+                              )}
+                              {isPendingEdit && (
+                                <span className="text-xs bg-yellow-500 text-white px-1.5 py-0.5 rounded font-medium animate-pulse">แก้ไข</span>
+                              )}
+                              {isPendingDelete && (
+                                <span className="text-xs bg-red-500 text-white px-1.5 py-0.5 rounded font-medium animate-pulse">รอลบ</span>
+                              )}
+                            </div>
                           </div>
                         </td>
                         <td className="px-4 py-3 text-sm">
@@ -1866,13 +2835,45 @@ const OrderDetailPage = () => {
                         </td>
                         <td className="px-4 py-3 text-sm">
                           {isFeeItem ? (
-                            <div className="font-bold text-orange-600">฿{Number(item.priceBaht || 0).toLocaleString()}</div>
+                            <div className="font-bold text-orange-600">฿{Math.ceil(Number(item.priceBaht || 0)).toLocaleString()}</div>
                           ) : (
-                            <>
-                              {item.priceYen && <div className="font-medium">¥{Number(item.priceYen).toLocaleString()}</div>}
-                              {item.priceBaht && <div className="text-gray-600 text-xs">฿{Number(item.priceBaht).toLocaleString()}</div>}
-                              {!item.priceYen && !item.priceBaht && '-'}
-                            </>
+                            <div className="flex items-center gap-1">
+                              <div>
+                                {item.priceYen && <div className="font-medium">¥{Number(item.priceYen).toLocaleString()}</div>}
+                                {item.priceBaht && (
+                                  <div className={`text-xs flex items-center gap-1 ${item.priceBahtLocked ? 'text-green-600 font-medium' : 'text-gray-600'}`}>
+                                    ฿{Math.ceil(Number(item.priceBaht)).toLocaleString()}
+                                    {item.priceBahtLocked && (
+                                      <span className="inline-flex items-center gap-0.5 bg-green-100 text-green-700 px-1 py-0.5 rounded text-[10px]" title={`ล็อคโดย ${item.lockedBy} | Rate: ${item.lockedExchangeRate} | Tier: ${item.lockedTierCode}`}>
+                                        <Lock className="w-2.5 h-2.5" />
+                                        {item.lockedTierCode?.toUpperCase()}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                                {!item.priceYen && !item.priceBaht && '-'}
+                              </div>
+                              {/* Lock/Unlock button */}
+                              {!isPendingNew && item.priceYen && (
+                                item.priceBahtLocked ? (
+                                  <button
+                                    onClick={() => handleUnlockPrice(item.id)}
+                                    className="p-1 text-green-600 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                                    title="ปลดล็อคราคาบาท"
+                                  >
+                                    <Unlock className="w-3.5 h-3.5" />
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => handleLockPrice(item.id, Number(item.priceYen))}
+                                    className="p-1 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
+                                    title="ล็อคราคาบาทตาม Tier ลูกค้า"
+                                  >
+                                    <Lock className="w-3.5 h-3.5" />
+                                  </button>
+                                )
+                              )}
+                            </div>
                           )}
                         </td>
                         <td className="px-4 py-3 text-sm">
@@ -1887,9 +2888,10 @@ const OrderDetailPage = () => {
                               className={`text-xs border rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary-500 cursor-pointer ${
                                 pendingStatusChanges.has(item.id) ? 'ring-2 ring-orange-400 ' : ''
                               }${
-                                getDisplayStatusStep(item) === 8 ? 'bg-green-100 border-green-300 text-green-800' :
-                                getDisplayStatusStep(item) === 7 ? 'bg-blue-100 border-blue-300 text-blue-800' :
-                                getDisplayStatusStep(item) >= 5 ? 'bg-indigo-100 border-indigo-300 text-indigo-800' :
+                                getDisplayStatusStep(item) === 9 ? 'bg-green-100 border-green-300 text-green-800' :
+                                getDisplayStatusStep(item) === 8 ? 'bg-blue-100 border-blue-300 text-blue-800' :
+                                getDisplayStatusStep(item) >= 6 ? 'bg-indigo-100 border-indigo-300 text-indigo-800' :
+                                getDisplayStatusStep(item) === 5 ? 'bg-purple-100 border-purple-300 text-purple-800' :
                                 getDisplayStatusStep(item) >= 3 ? 'bg-yellow-100 border-yellow-300 text-yellow-800' :
                                 'bg-gray-100 border-gray-300 text-gray-800'
                               }`}
@@ -1913,6 +2915,21 @@ const OrderDetailPage = () => {
                         </td>
                         <td className="px-4 py-3 text-sm text-right">
                           <div className="flex items-center justify-end gap-2">
+                            {/* Copy tracking URL button */}
+                            {!isFeeItem && item.trackingCode && (
+                              <motion.button
+                                onClick={() => {
+                                  const trackingUrl = `${window.location.origin}/tracking/${item.trackingCode}`;
+                                  navigator.clipboard.writeText(trackingUrl);
+                                  alert(`คัดลอกลิงก์ติดตามสินค้าแล้ว`);
+                                }}
+                                className="text-gray-400 hover:text-primary-600 p-1"
+                                whileTap={buttonTap}
+                                title={`คัดลอกลิงก์ติดตาม: ${item.trackingCode}`}
+                              >
+                                <Copy className="w-4 h-4" />
+                              </motion.button>
+                            )}
                             {/* Cancel pending status button */}
                             {hasPendingStatus && !isPendingNew && (
                               <motion.button
@@ -1983,7 +3000,208 @@ const OrderDetailPage = () => {
                   </tbody>
                 </table>
               </div>
-              <div className="mt-4 text-sm text-gray-600 flex items-center justify-between">
+
+              {/* Mobile Card View */}
+              <div className="md:hidden space-y-4">
+                {[...items, ...pendingNewItems.map(p => ({ ...p, id: p._tempId, _isPending: true }))].map((item: any) => {
+                  const images = getProductImages(item);
+                  const isSelected = selectedItems.has(item.id);
+                  const isFeeItem = item.productCode === 'FEE';
+                  const isPendingNew = item._isPending;
+                  const isPendingEdit = pendingItemEdits.has(item.id);
+                  const isPendingDelete = pendingItemDeletes.has(item.id);
+                  const hasPendingStatus = pendingStatusChanges.has(item.id);
+
+                  return (
+                    <motion.div
+                      key={item.id}
+                      className={`bg-white border-2 rounded-xl p-4 ${
+                        isSelected ? 'border-primary-500 bg-primary-50' :
+                        isFeeItem ? 'border-orange-200 bg-orange-50' :
+                        isPendingNew ? 'border-green-500 bg-green-50' :
+                        isPendingEdit ? 'border-yellow-500 bg-yellow-50' :
+                        isPendingDelete ? 'border-red-500 bg-red-50 opacity-60' :
+                        'border-gray-200'
+                      }`}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      {/* Card Header */}
+                      <div className="flex items-start gap-3 mb-3">
+                        {/* Checkbox */}
+                        <div className="pt-1">
+                          {isPendingNew || isPendingDelete ? (
+                            <span className="text-gray-300">
+                              <Square className="w-5 h-5" />
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => toggleItemSelection(item.id)}
+                              className="text-gray-500 hover:text-primary-600"
+                            >
+                              {isSelected ? (
+                                <CheckSquare className="w-5 h-5 text-primary-600" />
+                              ) : (
+                                <Square className="w-5 h-5" />
+                              )}
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Image */}
+                        <div className="flex-shrink-0">
+                          {isFeeItem ? (
+                            <div className="w-16 h-16 bg-orange-100 rounded-lg flex items-center justify-center">
+                              <span className="text-orange-500 font-bold text-xl">฿</span>
+                            </div>
+                          ) : images.length > 0 ? (
+                            <button
+                              onClick={() => setViewingImages({ images, index: 0 })}
+                              className="relative"
+                            >
+                              <img
+                                src={images[0]}
+                                alt="Product"
+                                className="w-16 h-16 object-cover rounded-lg border border-gray-200"
+                              />
+                              {images.length > 1 && (
+                                <span className="absolute -top-1 -right-1 bg-primary-600 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
+                                  +{images.length - 1}
+                                </span>
+                              )}
+                            </button>
+                          ) : (
+                            <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center">
+                              <ImageIcon className="w-6 h-6 text-gray-300" />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-col gap-1 mb-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {isFeeItem ? (
+                                <span className="text-xs bg-orange-500 text-white px-2 py-1 rounded font-medium">ค่าใช้จ่าย</span>
+                              ) : isPendingNew ? (
+                                <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded font-medium border border-green-300 border-dashed">รอสร้าง</span>
+                              ) : (
+                                <code className="text-xs bg-primary-100 text-primary-700 px-2 py-1 rounded font-medium">{item.trackingCode || '-'}</code>
+                              )}
+                              {isPendingNew && <span className="text-xs bg-green-500 text-white px-1.5 py-0.5 rounded font-medium animate-pulse">ใหม่</span>}
+                              {isPendingEdit && <span className="text-xs bg-yellow-500 text-white px-1.5 py-0.5 rounded font-medium animate-pulse">แก้ไข</span>}
+                              {isPendingDelete && <span className="text-xs bg-red-500 text-white px-1.5 py-0.5 rounded font-medium animate-pulse">รอลบ</span>}
+                            </div>
+                            {!isFeeItem && item.productCode && (
+                              <span className="text-xs text-gray-500">SKU: {item.productCode}</span>
+                            )}
+                          </div>
+                          <p className="font-medium text-gray-900 line-clamp-2">{item.productName || '-'}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-sm text-gray-500">#{item.sequenceNumber || '-'}</span>
+                            {item.productUrl && (
+                              <a
+                                href={item.productUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary-600 text-xs flex items-center gap-1"
+                              >
+                                ลิงค์ <ExternalLink className="w-3 h-3" />
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Price */}
+                      <div className="mb-3 pl-8">
+                        {isFeeItem ? (
+                          <div className="font-bold text-orange-600 text-lg">฿{Math.ceil(Number(item.priceBaht || 0)).toLocaleString()}</div>
+                        ) : (
+                          <div>
+                            {item.priceYen && <div className="font-medium">¥{Number(item.priceYen).toLocaleString()}</div>}
+                            {item.priceBaht && <div className="text-gray-600 text-sm">฿{Math.ceil(Number(item.priceBaht)).toLocaleString()}</div>}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Status */}
+                      {!isFeeItem && !isPendingNew && (
+                        <div className="mb-3 pl-8">
+                          <p className="text-xs text-gray-500 mb-1">สถานะ</p>
+                          <select
+                            value={getDisplayStatusStep(item)}
+                            onChange={(e) => handleStatusDropdownChange(item.id, parseInt(e.target.value))}
+                            className={`text-sm border rounded-lg px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-primary-500 ${
+                              pendingStatusChanges.has(item.id) ? 'ring-2 ring-orange-400' : ''
+                            }`}
+                          >
+                            {STATUS_STEPS.map((s) => (
+                              <option key={s.step} value={s.step}>
+                                {s.step}. {s.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+
+                      {/* Tracking */}
+                      {!isFeeItem && item.trackingNumber && (
+                        <div className="mb-3 pl-8">
+                          <p className="text-xs text-gray-500 mb-1">Tracking</p>
+                          <code className="text-xs bg-gray-100 px-2 py-1 rounded">{item.trackingNumber}</code>
+                        </div>
+                      )}
+
+                      {/* Actions */}
+                      <div className="flex gap-2 pl-8 pt-3 border-t">
+                        {/* Copy tracking URL button - Mobile */}
+                        {!isFeeItem && item.trackingCode && (
+                          <motion.button
+                            onClick={() => {
+                              const trackingUrl = `${window.location.origin}/tracking/${item.trackingCode}`;
+                              navigator.clipboard.writeText(trackingUrl);
+                              alert(`คัดลอกลิงก์ติดตามสินค้าแล้ว`);
+                            }}
+                            className="bg-gray-100 text-gray-600 px-3 py-2 rounded-lg hover:bg-gray-200 flex items-center justify-center"
+                            whileTap={buttonTap}
+                            title={`คัดลอกลิงก์ติดตาม`}
+                          >
+                            <Copy className="w-4 h-4" />
+                          </motion.button>
+                        )}
+                        <motion.button
+                          onClick={() => handleEditItem(item)}
+                          className="flex-1 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 flex items-center justify-center gap-2 text-sm"
+                          whileTap={buttonTap}
+                        >
+                          <Edit className="w-4 h-4" />
+                          แก้ไข
+                        </motion.button>
+                        {isPendingDelete ? (
+                          <motion.button
+                            onClick={() => handleCancelDeleteItem(item.id)}
+                            className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center justify-center gap-2 text-sm"
+                            whileTap={buttonTap}
+                          >
+                            ยกเลิก
+                          </motion.button>
+                        ) : (
+                          <motion.button
+                            onClick={() => handleDeleteItem(item.id)}
+                            className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 flex items-center justify-center gap-2 text-sm"
+                            whileTap={buttonTap}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            ลบ
+                          </motion.button>
+                        )}
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-4 text-sm text-gray-600 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                 <span>
                   รวม {items.length + pendingNewItems.length} รายการ
                   {pendingNewItems.length > 0 && (
@@ -1991,8 +3209,8 @@ const OrderDetailPage = () => {
                   )}
                 </span>
                 {(() => {
-                  const existingTotal = items.reduce((sum, item) => sum + Number(item.priceBaht || 0) + Number(item.shippingCost || 0), 0);
-                  const pendingTotal = pendingNewItems.reduce((sum, item) => sum + Number(item.priceBaht || 0) + Number(item.shippingCost || 0), 0);
+                  const existingTotal = items.reduce((sum, item) => sum + Math.ceil(Number(item.priceBaht || 0)) + Math.ceil(Number(item.shippingCost || 0)), 0);
+                  const pendingTotal = pendingNewItems.reduce((sum, item) => sum + Math.ceil(Number(item.priceBaht || 0)) + Math.ceil(Number(item.shippingCost || 0)), 0);
                   const total = existingTotal + pendingTotal;
                   return total > 0 && (
                     <span className="font-semibold">
@@ -2135,6 +3353,356 @@ const OrderDetailPage = () => {
                   ปิด
                 </button>
               )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Customer Search Modal */}
+      <AnimatePresence>
+        {showCustomerSearch && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 flex items-end md:items-center justify-center z-[60]"
+          >
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="bg-white w-full md:max-w-lg max-h-[90vh] flex flex-col rounded-t-3xl md:rounded-xl shadow-xl overflow-hidden"
+            >
+              {/* Header */}
+              <div className="p-4 border-b flex items-center justify-between sticky top-0 bg-white z-10">
+                <h3 className="text-lg font-semibold">ค้นหาลูกค้า</h3>
+                <button
+                  onClick={() => setShowCustomerSearch(false)}
+                  className="p-2 hover:bg-gray-100 rounded-xl text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Search Input */}
+              <div className="p-4 border-b">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="text"
+                    value={customerSearchQuery}
+                    onChange={(e) => setCustomerSearchQuery(e.target.value)}
+                    placeholder="ค้นหาด้วยชื่อ, เบอร์โทร, LINE ID..."
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    autoFocus
+                  />
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  พบ {filteredCustomers.length} รายการ
+                </p>
+              </div>
+
+              {/* Customer List */}
+              <div className="flex-1 overflow-y-auto">
+                {filteredCustomers.length === 0 ? (
+                  <div className="p-8 text-center text-gray-500">
+                    <User className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                    <p>ไม่พบลูกค้าที่ตรงกัน</p>
+                  </div>
+                ) : (
+                  <div className="divide-y">
+                    {filteredCustomers.map((customer) => (
+                      <button
+                        key={customer.id}
+                        type="button"
+                        onClick={() => {
+                          setOrderForm({ ...orderForm, customerId: customer.id });
+                          setShowCustomerSearch(false);
+                        }}
+                        className={`w-full p-4 text-left hover:bg-gray-50 active:bg-gray-100 transition-colors ${
+                          orderForm.customerId === customer.id ? 'bg-primary-50 border-l-4 border-primary-500' : ''
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
+                            <User className="w-5 h-5 text-gray-500" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-gray-900 truncate">
+                              {customer.companyName || customer.contactPerson || 'ไม่มีชื่อ'}
+                            </p>
+                            <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-sm text-gray-500">
+                              {customer.phone && (
+                                <span className="flex items-center gap-1">
+                                  <Phone className="w-3 h-3" />
+                                  {customer.phone}
+                                </span>
+                              )}
+                              {customer.lineId && (
+                                <span className="text-green-600">LINE: {customer.lineId}</span>
+                              )}
+                            </div>
+                          </div>
+                          <ChevronRight className="w-5 h-5 text-gray-300" />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 border-t bg-gray-50 flex justify-between">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOrderForm({ ...orderForm, customerId: '' });
+                    setShowCustomerSearch(false);
+                  }}
+                  className="text-gray-600 hover:text-gray-800"
+                >
+                  ล้างการเลือก
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowCustomerSearch(false)}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300"
+                >
+                  ปิด
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Status Change Modal */}
+      <AnimatePresence>
+        {statusModal.isOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            onClick={handleCancelStatusModal}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className={`p-4 ${
+                statusModal.newStep === 9 ? 'bg-green-500' :
+                statusModal.newStep === 8 ? 'bg-blue-500' :
+                statusModal.newStep >= 6 ? 'bg-indigo-500' :
+                statusModal.newStep === 5 ? 'bg-purple-500' :
+                statusModal.newStep >= 3 ? 'bg-yellow-500' :
+                'bg-gray-500'
+              } text-white`}>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-bold">เปลี่ยนสถานะสินค้า</h3>
+                  <button onClick={handleCancelStatusModal} className="p-1 hover:bg-white/20 rounded">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <p className="text-sm opacity-90 mt-1 truncate">{statusModal.itemName}</p>
+              </div>
+
+              {/* Status Info */}
+              <div className="p-4 border-b">
+                <div className="flex items-center gap-3">
+                  <div className="flex-1">
+                    <p className="text-xs text-gray-500">จาก</p>
+                    <p className="font-medium text-gray-700">
+                      {statusModal.currentStep}. {STATUS_STEPS.find(s => s.step === statusModal.currentStep)?.name}
+                    </p>
+                  </div>
+                  <ArrowRight className="w-5 h-5 text-gray-400" />
+                  <div className="flex-1">
+                    <p className="text-xs text-gray-500">เป็น</p>
+                    <p className={`font-bold ${
+                      statusModal.newStep === 9 ? 'text-green-600' :
+                      statusModal.newStep === 8 ? 'text-blue-600' :
+                      statusModal.newStep >= 6 ? 'text-indigo-600' :
+                      statusModal.newStep === 5 ? 'text-purple-600' :
+                      statusModal.newStep >= 3 ? 'text-yellow-600' :
+                      'text-gray-600'
+                    }`}>
+                      {statusModal.newStep}. {STATUS_STEPS.find(s => s.step === statusModal.newStep)?.name}
+                    </p>
+                  </div>
+                </div>
+                {/* Status Description */}
+                <div className={`mt-3 p-2 rounded-lg text-xs ${
+                  statusModal.newStep === 9 ? 'bg-green-50 text-green-700' :
+                  statusModal.newStep === 8 ? 'bg-blue-50 text-blue-700' :
+                  statusModal.newStep >= 6 ? 'bg-indigo-50 text-indigo-700' :
+                  statusModal.newStep === 5 ? 'bg-purple-50 text-purple-700' :
+                  statusModal.newStep >= 3 ? 'bg-yellow-50 text-yellow-700' :
+                  'bg-gray-50 text-gray-700'
+                }`}>
+                  {STATUS_STEPS.find(s => s.step === statusModal.newStep)?.description}
+                </div>
+              </div>
+
+              {/* Dynamic Fields based on status */}
+              <div className="p-4 space-y-4">
+                {/* Step 3: JP Order Number */}
+                {statusModal.newStep === 3 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      เลขออเดอร์ญี่ปุ่น
+                    </label>
+                    <input
+                      type="text"
+                      value={statusModal.extraData.jpOrderNumber}
+                      onChange={(e) => setStatusModal(prev => ({
+                        ...prev,
+                        extraData: { ...prev.extraData, jpOrderNumber: e.target.value }
+                      }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                      placeholder="JP-XXXX-XXXX"
+                    />
+                  </div>
+                )}
+
+                {/* Step 5: Shipping Round */}
+                {statusModal.newStep === 5 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      รอบส่งกลับ <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={statusModal.extraData.shippingRound}
+                      onChange={(e) => setStatusModal(prev => ({
+                        ...prev,
+                        extraData: { ...prev.extraData, shippingRound: e.target.value }
+                      }))}
+                      className="w-full px-3 py-2 border border-purple-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      placeholder="เช่น: เรือธันวาคม, Air Dec-1"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">ระบุรอบเรือหรือเที่ยวบินที่จะส่งกลับ</p>
+                  </div>
+                )}
+
+                {/* Step 6: Shipping Round + Batch */}
+                {statusModal.newStep === 6 && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">รอบส่งกลับ</label>
+                      <input
+                        type="text"
+                        value={statusModal.extraData.shippingRound}
+                        onChange={(e) => setStatusModal(prev => ({
+                          ...prev,
+                          extraData: { ...prev.extraData, shippingRound: e.target.value }
+                        }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        placeholder="เรือธันวาคม"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">เที่ยว/ลำ (เรือ/เครื่องบิน)</label>
+                      <input
+                        type="text"
+                        value={statusModal.extraData.shipmentBatch}
+                        onChange={(e) => setStatusModal(prev => ({
+                          ...prev,
+                          extraData: { ...prev.extraData, shipmentBatch: e.target.value }
+                        }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        placeholder="TG123 / ลำที่ 2"
+                      />
+                    </div>
+                  </>
+                )}
+
+                {/* Step 8: Tracking + Courier */}
+                {statusModal.newStep === 8 && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Tracking Number <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={statusModal.extraData.trackingNumber}
+                        onChange={(e) => setStatusModal(prev => ({
+                          ...prev,
+                          extraData: { ...prev.extraData, trackingNumber: e.target.value }
+                        }))}
+                        className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="TH123456789"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">บริษัทขนส่ง</label>
+                      <select
+                        value={statusModal.extraData.courierName}
+                        onChange={(e) => setStatusModal(prev => ({
+                          ...prev,
+                          extraData: { ...prev.extraData, courierName: e.target.value }
+                        }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">เลือกบริษัทขนส่ง</option>
+                        <option value="Kerry">Kerry Express</option>
+                        <option value="Flash">Flash Express</option>
+                        <option value="J&T">J&T Express</option>
+                        <option value="ThaiPost">ไปรษณีย์ไทย</option>
+                        <option value="DHL">DHL</option>
+                        <option value="Other">อื่นๆ</option>
+                      </select>
+                    </div>
+                  </>
+                )}
+
+                {/* Step 9: Confirmation */}
+                {statusModal.newStep === 9 && (
+                  <div className="flex items-center gap-3 p-4 bg-green-50 rounded-xl border border-green-200">
+                    <CheckCircle className="w-8 h-8 text-green-500" />
+                    <div>
+                      <p className="font-medium text-green-800">ยืนยันลูกค้ารับสินค้าแล้ว</p>
+                      <p className="text-sm text-green-600">สินค้าจะถูกทำเครื่องหมายว่าจัดส่งสำเร็จ</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Other steps - just confirmation */}
+                {![3, 5, 6, 8, 9].includes(statusModal.newStep) && (
+                  <div className="text-center text-gray-600 py-2">
+                    <p>คลิก "ยืนยัน" เพื่อเปลี่ยนสถานะ</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Actions */}
+              <div className="p-4 bg-gray-50 flex gap-3">
+                <button
+                  onClick={handleCancelStatusModal}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  onClick={handleConfirmStatusChange}
+                  className={`flex-1 px-4 py-2 rounded-lg text-white font-medium ${
+                    statusModal.newStep === 9 ? 'bg-green-500 hover:bg-green-600' :
+                    statusModal.newStep === 8 ? 'bg-blue-500 hover:bg-blue-600' :
+                    statusModal.newStep >= 6 ? 'bg-indigo-500 hover:bg-indigo-600' :
+                    statusModal.newStep === 5 ? 'bg-purple-500 hover:bg-purple-600' :
+                    statusModal.newStep >= 3 ? 'bg-yellow-500 hover:bg-yellow-600' :
+                    'bg-gray-500 hover:bg-gray-600'
+                  }`}
+                >
+                  ยืนยัน
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}

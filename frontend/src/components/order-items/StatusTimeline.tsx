@@ -4,7 +4,8 @@ import {
   CreditCard,
   ShoppingCart,
   Warehouse,
-  Ship,
+  CalendarCheck,
+  Plane,
   MapPin,
   Truck,
   CheckCircle,
@@ -13,12 +14,14 @@ import {
   ChevronUp,
 } from 'lucide-react';
 
-// 8 status steps definition
+// 9 status steps definition with detailed descriptions
 export const STATUS_STEPS = [
   {
     step: 1,
     name: 'รับออเดอร์',
     nameEN: 'Order Received',
+    description: 'ระบบรับคำสั่งซื้อจากลูกค้าแล้ว รอยืนยันรายละเอียดและราคา',
+    descriptionEN: 'Order received, awaiting confirmation of details and pricing',
     icon: Package,
     color: 'blue',
   },
@@ -26,48 +29,71 @@ export const STATUS_STEPS = [
     step: 2,
     name: 'ชำระเงินงวดแรก',
     nameEN: 'First Payment',
+    description: 'ลูกค้าชำระเงินมัดจำเรียบร้อย พร้อมดำเนินการสั่งซื้อ',
+    descriptionEN: 'Deposit payment received, ready to proceed with order',
     icon: CreditCard,
     color: 'green',
   },
   {
     step: 3,
     name: 'สั่งซื้อจากญี่ปุ่น',
-    nameEN: 'Ordered from JP',
+    nameEN: 'Ordered from Japan',
+    description: 'กดสั่งซื้อสินค้าจากร้านค้าในญี่ปุ่นแล้ว รอร้านค้าจัดส่ง',
+    descriptionEN: 'Order placed with Japanese seller, awaiting shipment',
     icon: ShoppingCart,
     color: 'purple',
   },
   {
     step: 4,
-    name: 'ของถึงโกดัง JP',
+    name: 'ของถึงโกดังญี่ปุ่น',
     nameEN: 'Arrived JP Warehouse',
+    description: 'สินค้ามาถึงโกดังญี่ปุ่นแล้ว กำลังตรวจสอบและรวมพัสดุ',
+    descriptionEN: 'Items arrived at Japan warehouse, inspection and consolidation in progress',
     icon: Warehouse,
     color: 'orange',
   },
   {
     step: 5,
-    name: 'ส่งออกจาก JP',
-    nameEN: 'Shipped from JP',
-    icon: Ship,
-    color: 'cyan',
+    name: 'จัดรอบส่งกลับ',
+    nameEN: 'Shipping Round Assigned',
+    description: 'กำหนดรอบเรือ/เครื่องบินเรียบร้อย รอส่งออกจากญี่ปุ่น',
+    descriptionEN: 'Assigned to shipping round (ship/air), awaiting departure',
+    icon: CalendarCheck,
+    color: 'indigo',
   },
   {
     step: 6,
+    name: 'ส่งออกจากญี่ปุ่น',
+    nameEN: 'Shipped from Japan',
+    description: 'สินค้าออกจากญี่ปุ่นแล้ว กำลังเดินทางมาไทย',
+    descriptionEN: 'Shipment departed from Japan, in transit to Thailand',
+    icon: Plane,
+    color: 'cyan',
+  },
+  {
+    step: 7,
     name: 'ของถึงไทย',
     nameEN: 'Arrived Thailand',
+    description: 'สินค้ามาถึงประเทศไทยแล้ว กำลังผ่านพิธีการศุลกากร',
+    descriptionEN: 'Arrived in Thailand, customs clearance in progress',
     icon: MapPin,
     color: 'pink',
   },
   {
-    step: 7,
+    step: 8,
     name: 'กำลังจัดส่ง',
     nameEN: 'Out for Delivery',
+    description: 'กำลังจัดส่งให้ลูกค้าผ่านขนส่งเอกชน',
+    descriptionEN: 'Out for delivery via courier service',
     icon: Truck,
     color: 'yellow',
   },
   {
-    step: 8,
+    step: 9,
     name: 'ส่งมอบสำเร็จ',
     nameEN: 'Delivered',
+    description: 'ลูกค้ารับสินค้าเรียบร้อยแล้ว ขอบคุณที่ใช้บริการ',
+    descriptionEN: 'Successfully delivered, thank you for your order',
     icon: CheckCircle,
     color: 'emerald',
   },
@@ -125,7 +151,7 @@ export function StatusTimeline({
                   ? 'bg-blue-500 text-white animate-pulse'
                   : 'bg-gray-200 text-gray-400'
               }`}
-              title={`${stepInfo.name} (${stepInfo.step}/8)`}
+              title={`${stepInfo.name} (${stepInfo.step}/9)`}
             >
               <Icon className="w-4 h-4" />
             </div>
@@ -142,7 +168,7 @@ export function StatusTimeline({
           สถานะการดำเนินการ
         </h3>
         <span className="text-sm text-gray-500">
-          ขั้นตอน {currentStep} / 8
+          ขั้นตอน {currentStep} / 9
         </span>
       </div>
 
@@ -153,7 +179,7 @@ export function StatusTimeline({
         <div
           className="absolute left-4 top-0 w-0.5 bg-green-500 transition-all duration-500"
           style={{
-            height: `${((currentStep - 1) / 7) * 100}%`,
+            height: `${((currentStep - 1) / 8) * 100}%`,
           }}
         />
 
@@ -316,6 +342,7 @@ export function StatusBadge({ step }: { step: number }) {
     green: 'bg-green-100 text-green-700',
     purple: 'bg-purple-100 text-purple-700',
     orange: 'bg-orange-100 text-orange-700',
+    indigo: 'bg-indigo-100 text-indigo-700',
     cyan: 'bg-cyan-100 text-cyan-700',
     pink: 'bg-pink-100 text-pink-700',
     yellow: 'bg-yellow-100 text-yellow-700',

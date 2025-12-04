@@ -33,13 +33,21 @@ import {
   Cake,
   Heart,
   User,
+  Filter,
+  ChevronDown,
+  CreditCard,
+  Clock,
+  ExternalLink,
+  Ship,
+  Plane,
 } from 'lucide-react';
-import { useCustomers, useCreateCustomer, useUpdateCustomer, useDeleteCustomer } from '../../hooks/useCustomers';
+import { useCustomers, useCustomerStats, useCreateCustomer, useUpdateCustomer, useDeleteCustomer } from '../../hooks/useCustomers';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import LineSearchModal from '../../components/LineSearchModal';
 import api, { API_BASE_URL } from '../../lib/api';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import useSwipeToDismiss from '../../hooks/useSwipeToDismiss';
 
 // Type for tier from API
 interface TierFromAPI {
@@ -85,24 +93,70 @@ const REFERRAL_SOURCES = [
   { value: 'other', label: 'อื่นๆ' },
 ];
 
-// Tier configuration
-const TIER_CONFIG: Record<string, any> = {
-  member: { label: 'Member', labelTH: 'สมาชิก', icon: Users, color: 'bg-gray-100 text-gray-700', borderColor: 'border-gray-200' },
-  vip: { label: 'VIP', labelTH: 'วีไอพี', icon: Star, color: 'bg-amber-100 text-amber-700', borderColor: 'border-amber-300' },
-  vvip: { label: 'VVIP', labelTH: 'วีวีไอพี', icon: Crown, color: 'bg-purple-100 text-purple-700', borderColor: 'border-purple-300' },
-  regular: { label: 'Member', labelTH: 'สมาชิก', icon: Users, color: 'bg-gray-100 text-gray-700', borderColor: 'border-gray-200' },
-  premium: { label: 'VVIP', labelTH: 'วีวีไอพี', icon: Crown, color: 'bg-purple-100 text-purple-700', borderColor: 'border-purple-300' },
+// Icon mapping from API icon name to Lucide component
+const ICON_MAP: Record<string, React.ElementType> = {
+  User: Users,
+  Users: Users,
+  Star: Star,
+  Crown: Crown,
 };
 
-const CustomerTierBadge = ({ tier, totalSpent, showRate = false }: { tier: string; totalSpent?: number; showRate?: boolean }) => {
-  const config = TIER_CONFIG[tier] || TIER_CONFIG.member;
-  const Icon = config.icon;
+const CustomerTierBadge = ({ tier, tierInfo, totalSpent }: { tier: string; tierInfo?: TierFromAPI | null; totalSpent?: number }) => {
+  // Get display name
+  const displayName = tierInfo?.tierNameTh || tierInfo?.tierName || tier.toUpperCase();
+
+  // Get icon from API or fallback
+  const iconName = tierInfo?.icon || 'User';
+  const Icon = ICON_MAP[iconName] || Users;
+
+  // Get color from API or fallback
+  const apiColor = tierInfo?.color;
+  let bgColor = 'bg-gray-100';
+  let textColor = 'text-gray-700';
+
+  if (apiColor) {
+    // Convert hex color to appropriate Tailwind classes based on color
+    const colorLower = apiColor.toLowerCase();
+    if (colorLower.includes('f59e0b') || colorLower.includes('amber')) {
+      bgColor = 'bg-amber-100';
+      textColor = 'text-amber-700';
+    } else if (colorLower.includes('7c3aed') || colorLower.includes('purple')) {
+      bgColor = 'bg-purple-100';
+      textColor = 'text-purple-700';
+    } else if (colorLower.includes('3b82f6') || colorLower.includes('blue')) {
+      bgColor = 'bg-blue-100';
+      textColor = 'text-blue-700';
+    } else if (colorLower.includes('10b981') || colorLower.includes('green')) {
+      bgColor = 'bg-green-100';
+      textColor = 'text-green-700';
+    } else if (colorLower.includes('ef4444') || colorLower.includes('red')) {
+      bgColor = 'bg-red-100';
+      textColor = 'text-red-700';
+    } else if (colorLower.includes('f97316') || colorLower.includes('orange')) {
+      bgColor = 'bg-orange-100';
+      textColor = 'text-orange-700';
+    } else if (colorLower.includes('ec4899') || colorLower.includes('pink')) {
+      bgColor = 'bg-pink-100';
+      textColor = 'text-pink-700';
+    }
+  } else {
+    // Fallback based on tier code pattern
+    const code = tier.toLowerCase();
+    if (code.includes('vvip') || code === 'premium') {
+      bgColor = 'bg-purple-100';
+      textColor = 'text-purple-700';
+    } else if (code.includes('vip')) {
+      bgColor = 'bg-amber-100';
+      textColor = 'text-amber-700';
+    }
+  }
+
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center gap-1">
-        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
+        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${bgColor} ${textColor}`}>
           <Icon className="w-3 h-3 mr-1" />
-          {config.label}
+          {displayName}
         </span>
       </div>
       {totalSpent !== undefined && totalSpent > 0 && (
@@ -136,17 +190,60 @@ const AdminCustomersPage = () => {
   const [showModal, setShowModal] = useState(false);
   const [showLineSearchModal, setShowLineSearchModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
+
+  // Swipe to dismiss refs
+  const detailSheetRef = useSwipeToDismiss({
+    onDismiss: () => setShowDetailModal(false),
+    enabled: showDetailModal,
+  });
+  const formSheetRef = useSwipeToDismiss({
+    onDismiss: () => setShowModal(false),
+    enabled: showModal,
+  });
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [customerDetail, setCustomerDetail] = useState<any>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
   const [tiersFromAPI, setTiersFromAPI] = useState<TierFromAPI[]>([]);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [activeTab, setActiveTab] = useState<'basic' | 'address' | 'settings'>('basic');
+  const [detailTab, setDetailTab] = useState<'orders' | 'items'>('orders');
   const [tagInput, setTagInput] = useState('');
   const [showProvinceModal, setShowProvinceModal] = useState(false);
   const [provinceSearch, setProvinceSearch] = useState('');
+
+  // Filter state
+  const [showFilterMenu, setShowFilterMenu] = useState(false);
+  const [filterTier, setFilterTier] = useState<string>('');
+  const [filterStatus, setFilterStatus] = useState<string>('');
+  const [filterHasLine, setFilterHasLine] = useState<string>('');
+  const filterRef = useRef<HTMLDivElement>(null);
+
+  // Close filter menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (filterRef.current && !filterRef.current.contains(event.target as Node)) {
+        setShowFilterMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Count active filters
+  const activeFilterCount = [filterTier, filterStatus, filterHasLine].filter(Boolean).length;
+
+  // Debounce search term
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setCurrentPage(1); // Reset to first page when searching
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   const [formData, setFormData] = useState({
     companyName: '',
@@ -176,10 +273,21 @@ const AdminCustomersPage = () => {
     isActive: true,
   });
 
-  const { data: customersData, isLoading, refetch } = useCustomers(1, 100);
+  const ITEMS_PER_PAGE = 20;
+  const filters = {
+    tier: filterTier,
+    status: filterStatus,
+    hasLine: filterHasLine,
+  };
+  const { data: customersData, isLoading, refetch } = useCustomers(currentPage, ITEMS_PER_PAGE, debouncedSearch, filters);
+  const { data: customerStats } = useCustomerStats();
   const createCustomer = useCreateCustomer();
   const updateCustomer = useUpdateCustomer();
   const deleteCustomer = useDeleteCustomer();
+
+  // Pagination info
+  const totalPages = customersData?.pagination?.total_pages || 1;
+  const totalCustomers = customersData?.pagination?.total || 0;
 
   // Fetch tiers from API
   useEffect(() => {
@@ -196,18 +304,13 @@ const AdminCustomersPage = () => {
     fetchTiers();
   }, []);
 
-  // Filter customers by search term
-  const filteredCustomers = customersData?.data.filter((customer: any) => {
-    if (!searchTerm) return true;
-    const term = searchTerm.toLowerCase();
-    return (
-      customer.companyName?.toLowerCase().includes(term) ||
-      customer.contactPerson?.toLowerCase().includes(term) ||
-      customer.phone?.includes(term) ||
-      customer.lineId?.toLowerCase().includes(term) ||
-      customer.email?.toLowerCase().includes(term)
-    );
-  });
+  // Customers are now filtered from backend
+  const customers = customersData?.data || [];
+
+  // Helper to get tier info from API
+  const getTierInfo = (tierCode: string): TierFromAPI | null => {
+    return tiersFromAPI.find(t => t.tierCode === tierCode) || null;
+  };
 
   const handleViewDetail = async (customer: any) => {
     setSelectedCustomer(customer);
@@ -312,6 +415,7 @@ const AdminCustomersPage = () => {
             setShowModal(false);
             setEditingCustomer(null);
             resetForm();
+            refetch(); // Refresh customer list
             toast.success('อัพเดทข้อมูลลูกค้าสำเร็จ');
           },
         }
@@ -321,6 +425,7 @@ const AdminCustomersPage = () => {
         onSuccess: () => {
           setShowModal(false);
           resetForm();
+          refetch(); // Refresh customer list
           toast.success('เพิ่มลูกค้าใหม่สำเร็จ');
         },
       });
@@ -420,23 +525,23 @@ const AdminCustomersPage = () => {
   };
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
+    <div className="p-4 md:p-6 pb-24 md:pb-6 bg-gray-50 min-h-screen">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 md:mb-6">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-3">
-            <Users className="w-8 h-8 text-blue-600" />
+          <h1 className="text-xl md:text-2xl font-bold flex items-center gap-2 md:gap-3">
+            <Users className="w-6 h-6 md:w-8 md:h-8 text-blue-600" />
             {t('customers.title')}
           </h1>
-          <p className="text-gray-600 text-sm">จัดการข้อมูลลูกค้าและดูประวัติการสั่งซื้อ</p>
+          <p className="text-gray-600 text-sm hidden sm:block">จัดการข้อมูลลูกค้าและดูประวัติการสั่งซื้อ</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 w-full sm:w-auto">
           <button
             onClick={() => refetch()}
-            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2"
+            className="flex-1 sm:flex-none px-3 md:px-4 py-2.5 border border-gray-300 rounded-xl hover:bg-gray-50 flex items-center justify-center gap-2 active:scale-95 transition-all"
           >
             <RefreshCw className="w-5 h-5" />
-            รีเฟรช
+            <span className="hidden sm:inline">รีเฟรช</span>
           </button>
           <button
             onClick={() => {
@@ -444,156 +549,262 @@ const AdminCustomersPage = () => {
               resetForm();
               setShowModal(true);
             }}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+            className="flex-1 sm:flex-none bg-blue-600 text-white px-4 py-2.5 rounded-xl hover:bg-blue-700 flex items-center justify-center gap-2 shadow-lg shadow-blue-500/30 active:scale-95 transition-all"
           >
             <Plus className="w-5 h-5" />
-            {t('customers.addCustomer')}
+            <span>{t('customers.addCustomer')}</span>
           </button>
         </div>
       </div>
 
-      {/* Search Bar */}
-      <div className="mb-4">
-        <div className="relative max-w-md">
+      {/* Search Bar & Filter */}
+      <div className="mb-4 flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1 md:max-w-md">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
             type="text"
-            placeholder="ค้นหาลูกค้า (ชื่อ, เบอร์โทร, LINE, Email)..."
+            placeholder="ค้นหาลูกค้า..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
           />
+        </div>
+
+        {/* Filter Button */}
+        <div className="relative" ref={filterRef}>
+          <button
+            onClick={() => setShowFilterMenu(!showFilterMenu)}
+            className={`flex items-center gap-2 px-4 py-3 border rounded-xl hover:bg-gray-50 transition-colors ${
+              activeFilterCount > 0 ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-300'
+            }`}
+          >
+            <Filter className="w-5 h-5" />
+            <span>ตัวกรอง</span>
+            {activeFilterCount > 0 && (
+              <span className="bg-blue-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                {activeFilterCount}
+              </span>
+            )}
+            <ChevronDown className={`w-4 h-4 transition-transform ${showFilterMenu ? 'rotate-180' : ''}`} />
+          </button>
+
+          {/* Filter Dropdown */}
+          {showFilterMenu && (
+            <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl border z-50 overflow-hidden">
+              <div className="p-4 space-y-4">
+                <h3 className="font-semibold text-gray-900">ตัวกรอง</h3>
+
+                {/* Tier Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">ระดับสมาชิก</label>
+                  <select
+                    value={filterTier}
+                    onChange={(e) => {
+                      setFilterTier(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">ทั้งหมด</option>
+                    {tiersFromAPI.length > 0 ? (
+                      tiersFromAPI.map((tier) => (
+                        <option key={tier.tierCode} value={tier.tierCode}>
+                          {tier.tierName} {tier.tierNameTh && `(${tier.tierNameTh})`}
+                        </option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="member">Member</option>
+                        <option value="vip">VIP</option>
+                        <option value="vvip">VVIP</option>
+                      </>
+                    )}
+                  </select>
+                </div>
+
+                {/* Status Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">สถานะ</label>
+                  <select
+                    value={filterStatus}
+                    onChange={(e) => {
+                      setFilterStatus(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">ทั้งหมด</option>
+                    <option value="active">ใช้งานอยู่</option>
+                    <option value="inactive">ไม่ใช้งาน</option>
+                  </select>
+                </div>
+
+                {/* Has LINE Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">LINE ID</label>
+                  <select
+                    value={filterHasLine}
+                    onChange={(e) => {
+                      setFilterHasLine(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">ทั้งหมด</option>
+                    <option value="yes">มี LINE</option>
+                    <option value="no">ไม่มี LINE</option>
+                  </select>
+                </div>
+
+                {/* Clear Filters */}
+                {activeFilterCount > 0 && (
+                  <button
+                    onClick={() => {
+                      setFilterTier('');
+                      setFilterStatus('');
+                      setFilterHasLine('');
+                      setCurrentPage(1);
+                    }}
+                    className="w-full px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors flex items-center justify-center gap-2"
+                  >
+                    <X className="w-4 h-4" />
+                    ล้างตัวกรองทั้งหมด
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Stats Summary */}
-      {customersData && (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-          <div className="bg-white rounded-xl p-4 shadow-sm border">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <Users className="w-5 h-5 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">ลูกค้าทั้งหมด</p>
-                <p className="text-xl font-bold">{customersData.data.length}</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl p-4 shadow-sm border">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <CheckCircle className="w-5 h-5 text-green-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">ใช้งานอยู่</p>
-                <p className="text-xl font-bold">
-                  {customersData.data.filter((c: any) => c.isActive !== false).length}
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl p-4 shadow-sm border">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-amber-100 rounded-lg">
-                <Star className="w-5 h-5 text-amber-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">VIP</p>
-                <p className="text-xl font-bold">
-                  {customersData.data.filter((c: any) => c.tier === 'vip').length}
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl p-4 shadow-sm border">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <Crown className="w-5 h-5 text-purple-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">VVIP</p>
-                <p className="text-xl font-bold">
-                  {customersData.data.filter((c: any) => c.tier === 'vvip' || c.tier === 'premium').length}
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl p-4 shadow-sm border">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <MessageCircle className="w-5 h-5 text-green-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">มี LINE</p>
-                <p className="text-xl font-bold">
-                  {customersData.data.filter((c: any) => c.lineId).length}
-                </p>
-              </div>
-            </div>
-          </div>
+      {/* Active Filters Tags */}
+      {activeFilterCount > 0 && (
+        <div className="flex flex-wrap gap-2 mb-4">
+          {filterTier && (
+            <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
+              ระดับ: {filterTier.toUpperCase()}
+              <button onClick={() => { setFilterTier(''); setCurrentPage(1); }} className="hover:text-blue-900">
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
+          {filterStatus && (
+            <span className="inline-flex items-center gap-1 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
+              สถานะ: {filterStatus === 'active' ? 'ใช้งานอยู่' : 'ไม่ใช้งาน'}
+              <button onClick={() => { setFilterStatus(''); setCurrentPage(1); }} className="hover:text-green-900">
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
+          {filterHasLine && (
+            <span className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-sm">
+              LINE: {filterHasLine === 'yes' ? 'มี' : 'ไม่มี'}
+              <button onClick={() => { setFilterHasLine(''); setCurrentPage(1); }} className="hover:text-emerald-900">
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
         </div>
       )}
 
-      {/* Customers Table */}
+      {/* Stats Summary */}
+      <div className="grid grid-cols-2 gap-3 md:gap-4 mb-6">
+        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-4 md:p-5 shadow-lg text-white">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2 bg-white/20 rounded-xl">
+              <Users className="w-5 h-5 md:w-6 md:h-6" />
+            </div>
+            <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">ทั้งหมด</span>
+          </div>
+          <p className="text-2xl md:text-3xl font-bold">{customerStats?.totalCustomers ?? totalCustomers}</p>
+          <p className="text-xs md:text-sm text-blue-100 mt-1">ลูกค้าทั้งหมด</p>
+        </div>
+
+        <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl p-4 md:p-5 shadow-lg text-white">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2 bg-white/20 rounded-xl">
+              <TrendingUp className="w-5 h-5 md:w-6 md:h-6" />
+            </div>
+            <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">เดือนนี้</span>
+          </div>
+          <p className="text-2xl md:text-3xl font-bold">{customerStats?.newThisMonth ?? 0}</p>
+          <p className="text-xs md:text-sm text-emerald-100 mt-1">ลูกค้าใหม่</p>
+        </div>
+      </div>
+
+      {/* Customers List */}
       {isLoading ? (
         <LoadingSpinner />
       ) : (
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ลูกค้า</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ติดต่อ</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ประเภท</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">สถานะ</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">คำสั่งซื้อ</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredCustomers?.map((customer: any) => (
-                  <tr key={customer.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center">
-                        {customer.profileImageUrl ? (
-                          <img
-                            src={customer.profileImageUrl}
-                            alt={customer.companyName || customer.contactPerson}
-                            className="h-10 w-10 rounded-full object-cover"
-                          />
-                        ) : (
-                          <div className="flex-shrink-0 h-10 w-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white font-bold">
-                            {(customer.companyName || customer.contactPerson || '?')[0].toUpperCase()}
-                          </div>
+        <>
+          {/* Mobile Card View */}
+          <div className="md:hidden space-y-3">
+            {customers?.map((customer: any) => (
+              <div
+                key={customer.id}
+                className="bg-white rounded-xl shadow-sm border p-4 active:scale-[0.98] transition-transform"
+                onClick={() => handleViewDetail(customer)}
+              >
+                <div className="flex items-start gap-3">
+                  {/* Avatar */}
+                  {customer.profileImageUrl ? (
+                    <img
+                      src={customer.profileImageUrl}
+                      alt={customer.companyName || customer.contactPerson}
+                      className="h-12 w-12 rounded-full object-cover flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="flex-shrink-0 h-12 w-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white font-bold text-lg">
+                      {(customer.companyName || customer.contactPerson || '?')[0].toUpperCase()}
+                    </div>
+                  )}
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <h3 className="font-semibold text-gray-900 truncate">
+                          {customer.companyName || customer.contactPerson || 'ไม่มีชื่อ'}
+                        </h3>
+                        {customer.companyName && customer.contactPerson && (
+                          <p className="text-sm text-gray-500 truncate">{customer.contactPerson}</p>
                         )}
-                        <div className="ml-3">
-                          <div className="text-sm font-medium text-gray-900">
-                            {customer.companyName || customer.contactPerson || 'ไม่มีชื่อ'}
-                          </div>
-                          {customer.companyName && customer.contactPerson && (
-                            <div className="text-sm text-gray-500">{customer.contactPerson}</div>
-                          )}
-                          {customer.email && (
-                            <div className="text-xs text-gray-400">{customer.email}</div>
-                          )}
-                        </div>
                       </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-gray-900">{customer.phone || '-'}</div>
-                      {customer.lineId && (
-                        <div className="flex items-center gap-1 text-sm text-green-600">
-                          <MessageCircle className="w-3 h-3" />
-                          <span className="truncate max-w-[100px]">{customer.lineId}</span>
-                        </div>
+                      <div className="flex-shrink-0">
+                        <CustomerTierBadge tier={customer.tier || 'member'} tierInfo={getTierInfo(customer.tier || 'member')} />
+                      </div>
+                    </div>
+
+                    {/* Contact Info */}
+                    <div className="flex flex-wrap items-center gap-3 mt-2 text-sm text-gray-600">
+                      {customer.phone && (
+                        <span className="flex items-center gap-1">
+                          <Phone className="w-3.5 h-3.5" />
+                          {customer.phone}
+                        </span>
                       )}
-                    </td>
-                    <td className="px-6 py-4">
-                      <CustomerTierBadge tier={customer.tier || 'member'} totalSpent={customer.totalSpent} />
-                    </td>
-                    <td className="px-6 py-4">
+                      {customer.lineId && (
+                        <span className="flex items-center gap-1 text-green-600">
+                          <MessageCircle className="w-3.5 h-3.5" />
+                          <span className="truncate max-w-[80px]">{customer.lineId}</span>
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Stats Row */}
+                    <div className="flex items-center justify-between mt-3 pt-3 border-t">
+                      <div className="flex items-center gap-4">
+                        <span className="flex items-center gap-1.5 text-sm">
+                          <Package className="w-4 h-4 text-gray-400" />
+                          <span className="font-medium">{customer.orders?.length || 0}</span>
+                          <span className="text-gray-400">ออเดอร์</span>
+                        </span>
+                        {customer.totalSpent > 0 && (
+                          <span className="text-sm text-gray-500">
+                            ฿{Number(customer.totalSpent).toLocaleString()}
+                          </span>
+                        )}
+                      </div>
                       {customer.isActive !== false ? (
                         <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
                           <CheckCircle className="w-3 h-3" />
@@ -605,44 +816,365 @@ const AdminCustomersPage = () => {
                           ปิดใช้งาน
                         </span>
                       )}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <Package className="w-4 h-4 text-gray-400" />
-                        <span className="text-sm font-medium">{customer.orders?.length || 0}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => handleViewDetail(customer)} className="text-green-600 hover:text-green-900 p-1" title="ดูประวัติ">
-                          <Eye className="w-5 h-5" />
-                        </button>
-                        <button onClick={() => handleEdit(customer)} className="text-blue-600 hover:text-blue-900 p-1" title="แก้ไข">
-                          <Edit className="w-5 h-5" />
-                        </button>
-                        <button onClick={() => handleDelete(customer.id)} className="text-red-600 hover:text-red-900 p-1" title="ลบ">
-                          <Trash2 className="w-5 h-5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex items-center gap-2 mt-3 pt-3 border-t">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleViewDetail(customer); }}
+                    className="flex-1 py-2.5 bg-gray-100 text-gray-700 rounded-lg font-medium flex items-center justify-center gap-2 active:bg-gray-200"
+                  >
+                    <Eye className="w-4 h-4" />
+                    ดูประวัติ
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleEdit(customer); }}
+                    className="flex-1 py-2.5 bg-blue-100 text-blue-700 rounded-lg font-medium flex items-center justify-center gap-2 active:bg-blue-200"
+                  >
+                    <Edit className="w-4 h-4" />
+                    แก้ไข
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDelete(customer.id); }}
+                    className="py-2.5 px-4 bg-red-100 text-red-700 rounded-lg active:bg-red-200"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+
+            {customers && customers.length === 0 && (
+              <div className="text-center py-12 text-gray-500 bg-white rounded-xl">
+                <Users className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                <p>{searchTerm ? 'ไม่พบลูกค้าที่ค้นหา' : 'ยังไม่มีลูกค้า'}</p>
+              </div>
+            )}
           </div>
 
-          {filteredCustomers && filteredCustomers.length === 0 && (
-            <div className="text-center py-12 text-gray-500">
-              {searchTerm ? 'ไม่พบลูกค้าที่ค้นหา' : 'ยังไม่มีลูกค้า'}
+          {/* Desktop Table View */}
+          <div className="hidden md:block bg-white rounded-xl shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ลูกค้า</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ติดต่อ</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ประเภท</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">สถานะ</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">คำสั่งซื้อ</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {customers?.map((customer: any) => (
+                    <tr key={customer.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center">
+                          {customer.profileImageUrl ? (
+                            <img
+                              src={customer.profileImageUrl}
+                              alt={customer.companyName || customer.contactPerson}
+                              className="h-10 w-10 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="flex-shrink-0 h-10 w-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white font-bold">
+                              {(customer.companyName || customer.contactPerson || '?')[0].toUpperCase()}
+                            </div>
+                          )}
+                          <div className="ml-3">
+                            <div className="text-sm font-medium text-gray-900">
+                              {customer.companyName || customer.contactPerson || 'ไม่มีชื่อ'}
+                            </div>
+                            {customer.companyName && customer.contactPerson && (
+                              <div className="text-sm text-gray-500">{customer.contactPerson}</div>
+                            )}
+                            {customer.email && (
+                              <div className="text-xs text-gray-400">{customer.email}</div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm text-gray-900">{customer.phone || '-'}</div>
+                        {customer.lineId && (
+                          <div className="flex items-center gap-1 text-sm text-green-600">
+                            <MessageCircle className="w-3 h-3" />
+                            <span className="truncate max-w-[100px]">{customer.lineId}</span>
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        <CustomerTierBadge tier={customer.tier || 'member'} tierInfo={getTierInfo(customer.tier || 'member')} totalSpent={customer.totalSpent} />
+                      </td>
+                      <td className="px-6 py-4">
+                        {customer.isActive !== false ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                            <CheckCircle className="w-3 h-3" />
+                            ใช้งาน
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                            <XCircle className="w-3 h-3" />
+                            ปิดใช้งาน
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <Package className="w-4 h-4 text-gray-400" />
+                          <span className="text-sm font-medium">{customer._count?.orders || 0}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => handleViewDetail(customer)} className="text-green-600 hover:text-green-900 p-1" title="ดูประวัติ">
+                            <Eye className="w-5 h-5" />
+                          </button>
+                          <button onClick={() => handleEdit(customer)} className="text-blue-600 hover:text-blue-900 p-1" title="แก้ไข">
+                            <Edit className="w-5 h-5" />
+                          </button>
+                          <button onClick={() => handleDelete(customer.id)} className="text-red-600 hover:text-red-900 p-1" title="ลบ">
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {customers && customers.length === 0 && (
+              <div className="text-center py-12 text-gray-500">
+                {searchTerm ? 'ไม่พบลูกค้าที่ค้นหา' : 'ยังไม่มีลูกค้า'}
+              </div>
+            )}
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 px-4 md:px-0">
+              <div className="text-sm text-gray-600">
+                แสดง {((currentPage - 1) * ITEMS_PER_PAGE) + 1} - {Math.min(currentPage * ITEMS_PER_PAGE, totalCustomers)} จาก {totalCustomers} รายการ
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPage === 1}
+                  className="px-3 py-2 text-sm rounded-lg border disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                >
+                  หน้าแรก
+                </button>
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-2 text-sm rounded-lg border disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                >
+                  ก่อนหน้า
+                </button>
+
+                {/* Page Numbers */}
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum;
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`w-10 h-10 text-sm rounded-lg border ${
+                          currentPage === pageNum
+                            ? 'bg-primary-600 text-white border-primary-600'
+                            : 'hover:bg-gray-50'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-2 text-sm rounded-lg border disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                >
+                  ถัดไป
+                </button>
+                <button
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-2 text-sm rounded-lg border disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                >
+                  หน้าสุดท้าย
+                </button>
+              </div>
             </div>
           )}
-        </div>
+        </>
       )}
 
-      {/* Customer Detail Modal */}
+      {/* Customer Detail Modal - Bottom Sheet on Mobile */}
       {showDetailModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="fixed inset-0 bg-black/50 z-50 md:flex md:items-center md:justify-center md:p-4" onClick={() => setShowDetailModal(false)}>
+          {/* Mobile: Bottom Sheet */}
+          <div
+            ref={detailSheetRef}
+            className="md:hidden fixed inset-x-0 bottom-0 bg-white rounded-t-3xl max-h-[90vh] overflow-hidden flex flex-col animate-slide-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Drag Handle - ปัดลงเพื่อปิด */}
+            <div className="flex justify-center pt-3 pb-2 cursor-grab active:cursor-grabbing">
+              <div className="w-10 h-1 bg-gray-300 rounded-full" />
+            </div>
+
+            {/* Mobile Header */}
+            <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-3 text-white">
+                {customerDetail?.profileImageUrl ? (
+                  <img src={customerDetail.profileImageUrl} alt="" className="w-10 h-10 rounded-full object-cover border-2 border-white/30" />
+                ) : (
+                  <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-lg font-bold">
+                    {(selectedCustomer?.companyName || selectedCustomer?.contactPerson || '?')[0].toUpperCase()}
+                  </div>
+                )}
+                <div>
+                  <h2 className="font-bold truncate max-w-[200px]">{selectedCustomer?.companyName || selectedCustomer?.contactPerson || 'ลูกค้า'}</h2>
+                  <p className="text-blue-100 text-xs">ประวัติการสั่งซื้อ</p>
+                </div>
+              </div>
+              <button onClick={() => setShowDetailModal(false)} className="text-white p-2 -mr-2">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Mobile Content */}
+            <div className="flex-1 overflow-y-auto p-4 pb-8">
+              {loadingDetail ? (
+                <div className="flex items-center justify-center py-12">
+                  <LoadingSpinner />
+                </div>
+              ) : customerDetail ? (
+                <>
+                  {/* Stats Grid - 2x2 on mobile */}
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    <div className="bg-blue-50 rounded-xl p-3">
+                      <div className="flex items-center gap-1.5 text-blue-600 mb-1">
+                        <ShoppingCart className="w-4 h-4" />
+                        <span className="text-xs">คำสั่งซื้อ</span>
+                      </div>
+                      <p className="text-xl font-bold text-blue-700">{customerDetail.stats?.totalOrders || 0}</p>
+                    </div>
+                    <div className="bg-gray-50 rounded-xl p-3">
+                      <div className="flex items-center gap-1.5 text-gray-600 mb-1">
+                        <Package className="w-4 h-4" />
+                        <span className="text-xs">สินค้า</span>
+                      </div>
+                      <p className="text-xl font-bold text-gray-700">{customerDetail.stats?.totalItems || 0}</p>
+                    </div>
+                    <div className="bg-amber-50 rounded-xl p-3">
+                      <div className="flex items-center gap-1.5 text-amber-600 mb-1">
+                        <TrendingUp className="w-4 h-4" />
+                        <span className="text-xs">ยอดรวม (฿)</span>
+                      </div>
+                      <p className="text-lg font-bold text-amber-700">฿{Number(customerDetail.stats?.totalBaht || 0).toLocaleString()}</p>
+                    </div>
+                    <div className="bg-purple-50 rounded-xl p-3">
+                      <div className="flex items-center gap-1.5 text-purple-600 mb-1">
+                        <TrendingUp className="w-4 h-4" />
+                        <span className="text-xs">ยอดรวม (¥)</span>
+                      </div>
+                      <p className="text-lg font-bold text-purple-700">¥{Math.round(Number(customerDetail.stats?.totalYen || 0)).toLocaleString()}</p>
+                    </div>
+                  </div>
+
+                  {/* Payment Stats */}
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    <div className="bg-green-50 border border-green-200 rounded-xl p-3">
+                      <div className="flex items-center gap-1.5 text-green-600 mb-1">
+                        <CheckCircle className="w-4 h-4" />
+                        <span className="text-xs font-medium">ยืนยันแล้ว</span>
+                      </div>
+                      <p className="text-lg font-bold text-green-700">฿{Number(customerDetail.stats?.verifiedBaht || 0).toLocaleString()}</p>
+                    </div>
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3">
+                      <div className="flex items-center gap-1.5 text-yellow-600 mb-1">
+                        <Calendar className="w-4 h-4" />
+                        <span className="text-xs font-medium">รอยืนยัน</span>
+                      </div>
+                      <p className="text-lg font-bold text-yellow-700">฿{Number(customerDetail.stats?.pendingBaht || 0).toLocaleString()}</p>
+                    </div>
+                  </div>
+
+                  {/* Customer Info - Compact */}
+                  <div className="bg-gray-50 rounded-xl p-4 mb-4">
+                    <h3 className="font-semibold mb-3 flex items-center gap-2 text-sm">
+                      <User className="w-4 h-4 text-gray-600" />
+                      ข้อมูลลูกค้า
+                    </h3>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div><p className="text-gray-500 text-xs">ชื่อ/บริษัท</p><p className="font-medium truncate">{customerDetail.companyName || '-'}</p></div>
+                      <div><p className="text-gray-500 text-xs">เบอร์โทร</p><p className="font-medium">{customerDetail.phone || '-'}</p></div>
+                      <div><p className="text-gray-500 text-xs">LINE ID</p><p className="font-medium truncate">{customerDetail.lineId || '-'}</p></div>
+                      <div><p className="text-gray-500 text-xs">จังหวัด</p><p className="font-medium">{customerDetail.province || '-'}</p></div>
+                      <div className="col-span-2">
+                        <p className="text-gray-500 text-xs">ประเภท</p>
+                        <CustomerTierBadge tier={customerDetail.tier || 'member'} tierInfo={getTierInfo(customerDetail.tier || 'member')} totalSpent={customerDetail.totalSpent} />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Orders List */}
+                  <div>
+                    <h3 className="font-semibold mb-3 flex items-center gap-2 text-sm">
+                      <FileText className="w-4 h-4 text-gray-600" />
+                      ประวัติคำสั่งซื้อ ({customerDetail.orders?.length || 0})
+                    </h3>
+                    {customerDetail.orders && customerDetail.orders.length > 0 ? (
+                      <div className="space-y-2">
+                        {customerDetail.orders.map((order: any) => (
+                          <div key={order.id} className="bg-white border rounded-xl p-3 active:bg-gray-50" onClick={() => navigate(`/admin/orders/${order.id}`)}>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="font-medium text-sm">{order.orderNumber}</span>
+                              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_BADGES[order.status] || 'bg-gray-100 text-gray-700'}`}>
+                                {STATUS_LABELS[order.status] || order.status}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3 text-xs text-gray-500">
+                              <span>{new Date(order.createdAt).toLocaleDateString('th-TH')}</span>
+                              <span>{order.shippingMethod === 'air' ? '✈️' : '🚢'}</span>
+                              <span>{order._count?.orderItems || order.orderItems?.length || 0} รายการ</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-6 text-gray-500 bg-gray-50 rounded-xl text-sm">ยังไม่มีประวัติการสั่งซื้อ</div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-12 text-gray-500">ไม่พบข้อมูลลูกค้า</div>
+              )}
+            </div>
+          </div>
+
+          {/* Desktop: Centered Modal */}
+          <div
+            className="hidden md:flex bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Header */}
             <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-4 flex items-center justify-between">
               <div className="flex items-center gap-4 text-white">
@@ -699,7 +1231,7 @@ const AdminCustomersPage = () => {
                         <TrendingUp className="w-4 h-4" />
                         <span className="text-sm">ยอดรวม (¥)</span>
                       </div>
-                      <p className="text-2xl font-bold text-purple-700">¥{Number(customerDetail.stats?.totalYen || 0).toLocaleString()}</p>
+                      <p className="text-2xl font-bold text-purple-700">¥{Math.round(Number(customerDetail.stats?.totalYen || 0)).toLocaleString()}</p>
                     </div>
                   </div>
 
@@ -744,7 +1276,7 @@ const AdminCustomersPage = () => {
                       <div><p className="text-gray-500">รหัสไปรษณีย์</p><p className="font-medium">{customerDetail.postalCode || '-'}</p></div>
                       <div>
                         <p className="text-gray-500">ประเภท</p>
-                        <CustomerTierBadge tier={customerDetail.tier || 'member'} totalSpent={customerDetail.totalSpent} />
+                        <CustomerTierBadge tier={customerDetail.tier || 'member'} tierInfo={getTierInfo(customerDetail.tier || 'member')} totalSpent={customerDetail.totalSpent} />
                       </div>
                       <div><p className="text-gray-500">วันที่สร้าง</p><p className="font-medium">{new Date(customerDetail.createdAt).toLocaleDateString('th-TH')}</p></div>
                       {customerDetail.referralSource && (
@@ -769,42 +1301,154 @@ const AdminCustomersPage = () => {
                     )}
                   </div>
 
-                  {/* Orders List */}
+                  {/* Orders & Items Tabs */}
                   <div>
-                    <h3 className="font-semibold mb-3 flex items-center gap-2">
-                      <FileText className="w-5 h-5 text-gray-600" />
-                      ประวัติคำสั่งซื้อ ({customerDetail.orders?.length || 0})
-                    </h3>
-                    {customerDetail.orders && customerDetail.orders.length > 0 ? (
-                      <div className="space-y-3">
-                        {customerDetail.orders.map((order: any) => (
-                          <div key={order.id} className="bg-white border rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate(`/admin/orders/${order.id}`)}>
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-3">
-                                <Package className="w-5 h-5 text-gray-400" />
-                                <span className="font-medium">{order.orderNumber}</span>
-                                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_BADGES[order.status] || 'bg-gray-100 text-gray-700'}`}>
-                                  {STATUS_LABELS[order.status] || order.status}
-                                </span>
+                    {/* Tab Headers */}
+                    <div className="flex gap-4 border-b mb-4">
+                      <button
+                        type="button"
+                        onClick={() => setDetailTab('orders')}
+                        className={`flex items-center gap-2 px-1 py-2 border-b-2 transition-colors ${
+                          detailTab === 'orders' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+                        }`}
+                      >
+                        <FileText className="w-4 h-4" />
+                        ประวัติคำสั่งซื้อ ({customerDetail.orders?.length || 0})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDetailTab('items')}
+                        className={`flex items-center gap-2 px-1 py-2 border-b-2 transition-colors ${
+                          detailTab === 'items' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+                        }`}
+                      >
+                        <Package className="w-4 h-4" />
+                        สินค้า ({customerDetail.stats?.totalItems || 0})
+                      </button>
+                    </div>
+
+                    {/* Orders Tab Content */}
+                    {detailTab === 'orders' && (
+                      <>
+                        {customerDetail.orders && customerDetail.orders.length > 0 ? (
+                          <div className="space-y-3">
+                            {customerDetail.orders.map((order: any) => (
+                              <div key={order.id} className="bg-white border rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate(`/admin/orders/${order.id}`)}>
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center gap-3">
+                                    <Package className="w-5 h-5 text-gray-400" />
+                                    <span className="font-medium">{order.orderNumber}</span>
+                                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_BADGES[order.status] || 'bg-gray-100 text-gray-700'}`}>
+                                      {STATUS_LABELS[order.status] || order.status}
+                                    </span>
+                                  </div>
+                                  <ChevronRight className="w-5 h-5 text-gray-400" />
+                                </div>
+                                <div className="flex items-center gap-4 text-sm text-gray-600">
+                                  <span className="flex items-center gap-1">
+                                    <Calendar className="w-4 h-4" />
+                                    {new Date(order.createdAt).toLocaleDateString('th-TH')}
+                                  </span>
+                                  <span>{order.shippingMethod === 'air' ? '✈️ เครื่องบิน' : '🚢 ทางเรือ'}</span>
+                                  <span className="flex items-center gap-1">
+                                    <ShoppingCart className="w-4 h-4" />
+                                    {order._count?.orderItems || order.orderItems?.length || 0} รายการ
+                                  </span>
+                                </div>
                               </div>
-                              <ChevronRight className="w-5 h-5 text-gray-400" />
-                            </div>
-                            <div className="flex items-center gap-4 text-sm text-gray-600">
-                              <span className="flex items-center gap-1">
-                                <Calendar className="w-4 h-4" />
-                                {new Date(order.createdAt).toLocaleDateString('th-TH')}
-                              </span>
-                              <span>{order.shippingMethod === 'air' ? '✈️ เครื่องบิน' : '🚢 ทางเรือ'}</span>
-                              <span className="flex items-center gap-1">
-                                <ShoppingCart className="w-4 h-4" />
-                                {order._count?.orderItems || order.orderItems?.length || 0} รายการ
-                              </span>
-                            </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">ยังไม่มีประวัติการสั่งซื้อ</div>
+                        ) : (
+                          <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">ยังไม่มีประวัติการสั่งซื้อ</div>
+                        )}
+                      </>
+                    )}
+
+                    {/* Items Tab Content */}
+                    {detailTab === 'items' && (
+                      <>
+                        {customerDetail.orders && customerDetail.orders.length > 0 ? (
+                          <div className="border rounded-lg overflow-hidden">
+                            <table className="w-full text-sm">
+                              <thead className="bg-gray-50 border-b">
+                                <tr>
+                                  <th className="px-4 py-3 text-left font-medium text-gray-600">Order</th>
+                                  <th className="px-4 py-3 text-left font-medium text-gray-600">สินค้า</th>
+                                  <th className="px-4 py-3 text-left font-medium text-gray-600">ขนส่ง</th>
+                                  <th className="px-4 py-3 text-right font-medium text-gray-600">ราคา (¥)</th>
+                                  <th className="px-4 py-3 text-right font-medium text-gray-600">ราคา (฿)</th>
+                                  <th className="px-4 py-3 text-center font-medium text-gray-600">สถานะ</th>
+                                  <th className="px-4 py-3 text-center font-medium text-gray-600">Actions</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y">
+                                {customerDetail.orders.flatMap((order: any) =>
+                                  order.orderItems?.map((item: any, idx: number) => (
+                                    <tr key={item.id || `${order.id}-${idx}`} className="hover:bg-gray-50">
+                                      <td className="px-4 py-3">
+                                        <span className="text-blue-600 font-medium">{order.orderNumber}</span>
+                                        <div className="text-xs text-gray-500">{new Date(order.createdAt).toLocaleDateString('th-TH')}</div>
+                                      </td>
+                                      <td className="px-4 py-3">
+                                        <p className="font-medium">{item.productCode || `รายการ ${idx + 1}`}</p>
+                                        <p className="text-xs text-gray-500">{item.customerName || '-'}</p>
+                                      </td>
+                                      <td className="px-4 py-3">
+                                        {order.shippingMethod === 'sea' ? (
+                                          <span className="inline-flex items-center gap-1 text-blue-600 bg-blue-50 px-2 py-1 rounded-full text-xs">
+                                            <Ship className="w-3 h-3" /> Sea
+                                          </span>
+                                        ) : (
+                                          <span className="inline-flex items-center gap-1 text-purple-600 bg-purple-50 px-2 py-1 rounded-full text-xs">
+                                            <Plane className="w-3 h-3" /> Air
+                                          </span>
+                                        )}
+                                      </td>
+                                      <td className="px-4 py-3 text-right font-bold text-purple-600">
+                                        ¥{Math.round(Number(item.priceYen || 0)).toLocaleString()}
+                                      </td>
+                                      <td className="px-4 py-3 text-right font-medium text-gray-900">
+                                        ฿{Number(item.priceBaht || 0).toLocaleString()}
+                                      </td>
+                                      <td className="px-4 py-3 text-center">
+                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                          item.statusStep >= 9 ? 'bg-green-100 text-green-700' :
+                                          item.statusStep >= 5 ? 'bg-blue-100 text-blue-700' :
+                                          'bg-gray-100 text-gray-700'
+                                        }`}>
+                                          {item.itemStatus || `ขั้นตอน ${item.statusStep}`}
+                                        </span>
+                                      </td>
+                                      <td className="px-4 py-3 text-center">
+                                        <button
+                                          onClick={() => navigate(`/admin/orders/${order.id}`)}
+                                          className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 text-xs"
+                                        >
+                                          <ExternalLink className="w-4 h-4" />
+                                          ดู
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  ))
+                                )}
+                              </tbody>
+                              <tfoot className="bg-gray-50 border-t-2">
+                                <tr className="font-bold">
+                                  <td colSpan={3} className="px-4 py-3 text-right">รวมทั้งหมด</td>
+                                  <td className="px-4 py-3 text-right text-purple-600">¥{Math.round(Number(customerDetail?.stats?.totalYen || 0)).toLocaleString()}</td>
+                                  <td className="px-4 py-3 text-right text-gray-900">฿{Number(customerDetail?.stats?.totalBaht || 0).toLocaleString()}</td>
+                                  <td colSpan={2}></td>
+                                </tr>
+                              </tfoot>
+                            </table>
+                          </div>
+                        ) : (
+                          <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">
+                            <Package className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                            <p>ยังไม่มีรายการสินค้า</p>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 </>
@@ -816,12 +1460,262 @@ const AdminCustomersPage = () => {
         </div>
       )}
 
-      {/* Add/Edit Modal */}
+      {/* Add/Edit Modal - Bottom Sheet on Mobile */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="p-6 border-b">
+        <div className="fixed inset-0 bg-black/50 z-50 md:flex md:items-center md:justify-center md:p-4" onClick={() => setShowModal(false)}>
+          <div
+            ref={formSheetRef}
+            className="md:hidden fixed inset-x-0 bottom-0 bg-white rounded-t-3xl max-h-[95vh] overflow-hidden flex flex-col animate-slide-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Drag Handle - ปัดลงเพื่อปิด */}
+            <div className="flex justify-center pt-3 pb-2 sticky top-0 bg-white z-10 cursor-grab active:cursor-grabbing">
+              <div className="w-10 h-1 bg-gray-300 rounded-full" />
+            </div>
+
+            {/* Mobile Header */}
+            <div className="px-4 pb-3 border-b flex items-center justify-between sticky top-6 bg-white z-10">
+              <h2 className="text-lg font-bold">{editingCustomer ? 'แก้ไขข้อมูลลูกค้า' : 'เพิ่มลูกค้าใหม่'}</h2>
+              <button onClick={() => { setShowModal(false); setEditingCustomer(null); resetForm(); }} className="p-2 -mr-2 text-gray-500">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 pb-8">
+              {/* Profile Image Upload - Smaller on Mobile */}
+              <div className="flex justify-center mb-4">
+                <div className="relative">
+                  {formData.profileImageUrl ? (
+                    <img src={formData.profileImageUrl} alt="Profile" className="w-20 h-20 rounded-full object-cover border-4 border-gray-200" />
+                  ) : (
+                    <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center border-4 border-gray-200">
+                      <User className="w-8 h-8 text-gray-400" />
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingImage}
+                    className="absolute bottom-0 right-0 p-1.5 bg-blue-600 text-white rounded-full shadow-lg active:bg-blue-700"
+                  >
+                    {uploadingImage ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+                  </button>
+                  <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                </div>
+              </div>
+
+              {/* Mobile Tabs - Scrollable */}
+              <div className="flex gap-1 mb-4 overflow-x-auto pb-2 -mx-4 px-4">
+                {[
+                  { id: 'basic', label: 'ข้อมูล', icon: User },
+                  { id: 'address', label: 'ที่อยู่', icon: MapPin },
+                  { id: 'settings', label: 'ตั้งค่า', icon: Crown },
+                ].map((tab) => {
+                  const Icon = tab.icon;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setActiveTab(tab.id as any)}
+                      className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                        activeTab === tab.id ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'
+                      }`}
+                    >
+                      <Icon className="w-4 h-4" />
+                      {tab.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Mobile Form Fields */}
+              {activeTab === 'basic' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อบริษัท/ร้านค้า</label>
+                    <input
+                      type="text"
+                      value={formData.companyName}
+                      onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
+                      placeholder="บริษัท ABC จำกัด"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อผู้ติดต่อ</label>
+                    <input
+                      type="text"
+                      value={formData.contactPerson}
+                      onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
+                      placeholder="คุณสมชาย"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">เบอร์โทร</label>
+                    <input
+                      type="text"
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
+                      placeholder="081-234-5678"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">อีเมล</label>
+                    <input
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
+                      placeholder="email@example.com"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">LINE User ID</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={formData.lineId}
+                        onChange={(e) => setFormData({ ...formData, lineId: e.target.value })}
+                        className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
+                        placeholder="U1234567890abcdef"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowLineSearchModal(true)}
+                        className="px-4 py-3 bg-green-600 text-white rounded-xl active:bg-green-700"
+                      >
+                        <Search className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">รู้จักจาก</label>
+                    <select
+                      value={formData.referralSource}
+                      onChange={(e) => setFormData({ ...formData, referralSource: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
+                    >
+                      <option value="">-- เลือก --</option>
+                      {REFERRAL_SOURCES.map((source) => (
+                        <option key={source.value} value={source.value}>{source.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'address' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">จังหวัด</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowProvinceModal(true)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl text-left flex items-center justify-between"
+                    >
+                      <span className={formData.province ? 'text-gray-900' : 'text-gray-400'}>
+                        {formData.province || '-- เลือกจังหวัด --'}
+                      </span>
+                      <Search className="w-4 h-4 text-gray-400" />
+                    </button>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">รหัสไปรษณีย์</label>
+                    <input
+                      type="text"
+                      value={formData.postalCode}
+                      onChange={(e) => setFormData({ ...formData, postalCode: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
+                      placeholder="10110"
+                      maxLength={5}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">ที่อยู่จัดส่ง</label>
+                    <textarea
+                      value={formData.shippingAddress}
+                      onChange={(e) => setFormData({ ...formData, shippingAddress: e.target.value })}
+                      rows={3}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
+                      placeholder="ที่อยู่สำหรับจัดส่งสินค้า..."
+                    />
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'settings' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">ระดับลูกค้า</label>
+                    <select
+                      value={formData.tier}
+                      onChange={(e) => setFormData({ ...formData, tier: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
+                    >
+                      {tiersFromAPI.length > 0 ? (
+                        tiersFromAPI.map((tier) => (
+                          <option key={tier.tierCode} value={tier.tierCode}>
+                            {tier.tierName} ({tier.exchangeRate} ฿/¥)
+                          </option>
+                        ))
+                      ) : (
+                        <>
+                          <option value="member">Member (0.25 ฿/¥)</option>
+                          <option value="vip">VIP (0.24 ฿/¥)</option>
+                          <option value="vvip">VVIP (0.23 ฿/¥)</option>
+                        </>
+                      )}
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
+                    <input
+                      type="checkbox"
+                      id="isActiveMobile"
+                      checked={formData.isActive}
+                      onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                      className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    />
+                    <label htmlFor="isActiveMobile" className="flex items-center gap-2">
+                      <CheckCircle className="w-5 h-5 text-green-600" />
+                      <span className="font-medium">ใช้งานอยู่</span>
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {/* Mobile Submit Button */}
+              <div className="mt-6 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => { setShowModal(false); setEditingCustomer(null); resetForm(); }}
+                  className="flex-1 px-4 py-3 border border-gray-300 rounded-xl font-medium active:bg-gray-50"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  disabled={createCustomer.isPending || updateCustomer.isPending}
+                  className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-xl font-medium disabled:opacity-50 flex items-center justify-center gap-2 active:bg-blue-700"
+                >
+                  {(createCustomer.isPending || updateCustomer.isPending) && <RefreshCw className="w-4 h-4 animate-spin" />}
+                  {editingCustomer ? 'บันทึก' : 'เพิ่มลูกค้า'}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {/* Desktop Modal */}
+          <div
+            className="hidden md:flex bg-white rounded-xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6 border-b flex items-center justify-between">
               <h2 className="text-xl font-bold">{editingCustomer ? 'แก้ไขข้อมูลลูกค้า' : 'เพิ่มลูกค้าใหม่'}</h2>
+              <button onClick={() => { setShowModal(false); setEditingCustomer(null); resetForm(); }} className="text-gray-400 hover:text-gray-600">
+                <X className="w-6 h-6" />
+              </button>
             </div>
 
             <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6">

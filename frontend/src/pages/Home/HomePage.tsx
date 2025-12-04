@@ -1,12 +1,13 @@
-import { 
-  Ship, Calculator, Calendar, Package, ShoppingCart, MessageCircle, 
-  MapPin, Phone, Mail, Facebook, Twitter, ArrowRight, Sparkles, 
-  CheckCircle2, Search 
+import {
+  Ship, Calculator, Calendar, Package, ShoppingCart, MessageCircle,
+  MapPin, Phone, Mail, Facebook, Twitter, ArrowRight, Sparkles,
+  CheckCircle2, Search
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { pageTransition, staggerContainer, staggerItem } from '../../lib/animations';
+import MercariCarousel from '../../components/MercariCarousel';
 
 const HomePage = () => {
   const { t } = useTranslation();
@@ -222,6 +223,14 @@ const HomePage = () => {
         </div>
       </section>
 
+      {/* ================= MERCARI PRODUCTS CAROUSEL ================= */}
+      <MercariCarousel
+        title="สินค้ายอดนิยมจาก Mercari"
+        subtitle="メルカリの人気商品"
+        keyword="フィギュア"
+        showCategories={true}
+      />
+
       {/* ================= SERVICES SECTION (NEW DESIGN) ================= */}
       <section className="py-20 bg-[#FFFBF2] rounded-[3rem] my-10 mx-2 md:mx-4">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -427,7 +436,7 @@ const HomePage = () => {
           </motion.div>
 
           <motion.div
-            className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6"
+            className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto"
             variants={staggerContainer}
             initial="initial"
             whileInView="animate"
@@ -477,151 +486,148 @@ const HomePage = () => {
             <p className="text-gray-500">{t('home.contact.subtitle')}</p>
           </motion.div>
 
-          <div className="grid lg:grid-cols-2 gap-8 max-w-5xl mx-auto">
-            {/* Contact Info */}
-            <motion.div
-              className="space-y-4"
-              variants={staggerContainer}
-              initial="initial"
-              whileInView="animate"
-              viewport={{ once: true }}
-            >
+          {/* Bento Grid Layout */}
+          <div className="max-w-6xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              
+              {/* 1. Address Card (Big Box) */}
               <motion.div
-                variants={staggerItem}
-                className="group flex items-start gap-4 bg-white/70 backdrop-blur-xl p-5 rounded-2xl border border-white/50 shadow-lg hover:shadow-xl hover:bg-white/80 transition-all duration-300"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                className="md:col-span-2 bg-white rounded-[2rem] p-8 border border-gray-100 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden"
               >
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center shadow-lg shadow-primary-500/25 flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
-                  <MapPin className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-gray-900 mb-1">{t('contact.address.title')}</h4>
-                  <p className="text-gray-600 text-sm">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-primary-50 rounded-full -mr-16 -mt-16 opacity-50"></div>
+                <div className="relative">
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="w-12 h-12 rounded-2xl bg-primary-100 text-primary-600 flex items-center justify-center">
+                      <MapPin className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-900">{t('contact.address.title')}</h3>
+                  </div>
+                  <p className="text-gray-600 leading-relaxed text-lg">
                     {t('contact.address.line1')}<br />
                     {t('contact.address.line2')}<br />
                     {t('contact.address.line3')}
                   </p>
+                  <div className="mt-8 inline-flex items-center text-primary-600 font-medium hover:underline cursor-pointer">
+                    <Search className="w-4 h-4 mr-2" />
+                    ดูแผนที่ Google Maps
+                  </div>
                 </div>
               </motion.div>
 
-              <motion.div
-                variants={staggerItem}
-                className="group flex items-start gap-4 bg-white/70 backdrop-blur-xl p-5 rounded-2xl border border-white/50 shadow-lg hover:shadow-xl hover:bg-white/80 transition-all duration-300"
-              >
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center shadow-lg shadow-primary-500/25 flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
-                  <Phone className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-gray-900 mb-1">{t('contact.phone.title')}</h4>
-                  <p className="text-gray-600 text-sm">
-                    <span className="font-medium">{t('contact.phone.thailand')}:</span> {t('contact.phone.thNumber')}<br />
-                    <span className="font-medium">{t('contact.phone.japan')}:</span> {t('contact.phone.jpNumber')}
-                  </p>
-                </div>
-              </motion.div>
+              {/* 2. Contact Channels (Stacked Right Column) */}
+              <div className="space-y-4">
+                {/* Phone Card */}
+                <motion.div
+                  initial={{ opacity: 0, x: 20 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: 0.1 }}
+                  className="bg-primary-600 text-white rounded-[2rem] p-6 shadow-lg shadow-primary-500/20 relative overflow-hidden group"
+                >
+                   <div className="absolute -right-4 -top-4 w-24 h-24 bg-white/10 rounded-full group-hover:scale-150 transition-transform duration-500"></div>
+                  <div className="relative">
+                    <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center mb-4 backdrop-blur-sm">
+                      <Phone className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="space-y-2">
+                      <div>
+                        <p className="text-primary-100 text-xs mb-0.5">{t('contact.phone.thailand')}</p>
+                        <p className="font-bold text-lg">{t('contact.phone.thNumber')}</p>
+                      </div>
+                      <div className="w-full h-px bg-white/20"></div>
+                      <div>
+                        <p className="text-primary-100 text-xs mb-0.5">{t('contact.phone.japan')}</p>
+                        <p className="font-bold text-lg">{t('contact.phone.jpNumber')}</p>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
 
-              <motion.div
-                variants={staggerItem}
-                className="group flex items-start gap-4 bg-white/70 backdrop-blur-xl p-5 rounded-2xl border border-white/50 shadow-lg hover:shadow-xl hover:bg-white/80 transition-all duration-300"
-              >
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center shadow-lg shadow-primary-500/25 flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
-                  <Mail className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-gray-900 mb-1">{t('contact.email.title')}</h4>
-                  <a
-                    href="mailto:anongpotter01@gmail.com"
-                    className="text-gray-600 text-sm hover:text-primary-600 transition-colors"
-                  >
+                {/* Email Card */}
+                <motion.div
+                  initial={{ opacity: 0, x: 20 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: 0.2 }}
+                  className="bg-white rounded-[2rem] p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow"
+                >
+                  <div className="flex items-center gap-4 mb-3">
+                    <div className="w-10 h-10 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center">
+                      <Mail className="w-5 h-5" />
+                    </div>
+                    <h4 className="font-bold text-gray-900">{t('contact.email.title')}</h4>
+                  </div>
+                  <a href="mailto:anongpotter01@gmail.com" className="text-gray-600 hover:text-orange-600 break-all transition-colors font-medium">
                     {t('contact.email.address')}
                   </a>
-                </div>
-              </motion.div>
-            </motion.div>
+                </motion.div>
+              </div>
+            </div>
 
-            {/* Social & CTA */}
+            {/* 3. Social Media Bar (Wide) */}
             <motion.div
-              className="space-y-6"
-              initial={{ opacity: 0, x: 20 }}
-              whileInView={{ opacity: 1, x: 0 }}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              transition={{ duration: 0.6 }}
+              transition={{ delay: 0.3 }}
+              className="grid grid-cols-1 md:grid-cols-3 gap-4"
             >
-              {/* Social Links */}
-              <div className="bg-white/70 backdrop-blur-xl rounded-2xl p-6 border border-white/50 shadow-lg">
-                <h4 className="font-bold text-gray-900 mb-4 text-center">{t('home.contact.followUs')}</h4>
-                <div className="space-y-3">
-                  <a
-                    href="https://www.facebook.com/profile.php?id=100088990964702"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="group flex items-center gap-4 p-4 rounded-xl bg-white/80 hover:bg-blue-50 border border-gray-100 hover:border-blue-200 transition-all duration-300"
-                  >
-                    <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300">
-                      <Facebook className="w-5 h-5 text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">{t('contact.social.facebook')}</p>
-                      <p className="text-xs text-gray-500">{t('contact.social.facebookPage')}</p>
-                    </div>
-                    <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-blue-500 group-hover:translate-x-1 transition-all" />
-                  </a>
-
-                  <a
-                    href="https://x.com/mirinpotter?s=21"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="group flex items-center gap-4 p-4 rounded-xl bg-white/80 hover:bg-gray-50 border border-gray-100 hover:border-gray-300 transition-all duration-300"
-                  >
-                    <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300">
-                      <Twitter className="w-5 h-5 text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-semibold text-gray-900 group-hover:text-gray-700 transition-colors">{t('contact.social.twitter')}</p>
-                      <p className="text-xs text-gray-500">{t('contact.social.twitterHandle')}</p>
-                    </div>
-                    <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-gray-600 group-hover:translate-x-1 transition-all" />
-                  </a>
-
-                  <a
-                    href="https://line.me/R/ti/p/@279jlkpc?oat_content=url&ts=10030235"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="group flex items-center gap-4 p-4 rounded-xl bg-white/80 hover:bg-green-50 border border-gray-100 hover:border-green-200 transition-all duration-300"
-                  >
-                    <div className="w-11 h-11 rounded-xl bg-[#06C755] flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300 p-2">
-                      <img src="/brands/line.png" alt="LINE" className="w-full h-full object-contain" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-semibold text-gray-900 group-hover:text-green-600 transition-colors">LINE Official</p>
-                      <p className="text-xs text-gray-500">@279jlkpc</p>
-                    </div>
-                    <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-green-500 group-hover:translate-x-1 transition-all" />
-                  </a>
+              <a
+                href="https://line.me/R/ti/p/@279jlkpc?oat_content=url&ts=10030235"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group flex items-center justify-between p-4 bg-[#06C755] text-white rounded-[1.5rem] shadow-lg shadow-green-500/20 hover:shadow-green-500/30 hover:-translate-y-1 transition-all duration-300"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
+                    <img src="/brands/line.png" alt="LINE" className="w-6 h-6 object-contain" />
+                  </div>
+                  <div>
+                    <span className="block font-bold">Line Official</span>
+                    <span className="text-xs text-white/80">@279jlkpc</span>
+                  </div>
                 </div>
-              </div>
+                <ArrowRight className="w-5 h-5 opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+              </a>
 
-              {/* CTA */}
-              <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary-500 to-primary-600 p-8 text-center text-white shadow-xl">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16"></div>
-                <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full -ml-12 -mb-12"></div>
-                <div className="relative z-10">
-                  <h3 className="text-2xl font-bold mb-2">
-                    {t('home.contact.cta.title')}
-                  </h3>
-                  <p className="text-white/90 mb-6">
-                    {t('home.contact.cta.description')}
-                  </p>
-                  <a
-                    href="https://www.facebook.com/profile.php?id=100088990964702"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 bg-white text-primary-600 px-8 py-3 rounded-xl font-bold hover:bg-gray-50 hover:scale-105 transition-all duration-300 shadow-lg"
-                  >
+              <a
+                href="https://www.facebook.com/profile.php?id=100088990964702"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group flex items-center justify-between p-4 bg-[#1877F2] text-white rounded-[1.5rem] shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 hover:-translate-y-1 transition-all duration-300"
+              >
+                <div className="flex items-center gap-3">
+                   <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
                     <Facebook className="w-5 h-5" />
-                    {t('home.contact.cta.button')}
-                  </a>
+                  </div>
+                  <div>
+                    <span className="block font-bold">Facebook</span>
+                    <span className="text-xs text-white/80">PakkuNeko</span>
+                  </div>
                 </div>
-              </div>
+                <ArrowRight className="w-5 h-5 opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+              </a>
+
+              <a
+                href="https://x.com/mirinpotter?s=21"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group flex items-center justify-between p-4 bg-black text-white rounded-[1.5rem] shadow-lg shadow-gray-500/20 hover:shadow-gray-500/30 hover:-translate-y-1 transition-all duration-300"
+              >
+                <div className="flex items-center gap-3">
+                   <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
+                    <Twitter className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="block font-bold">Twitter (X)</span>
+                    <span className="text-xs text-white/80">@mirinpotter</span>
+                  </div>
+                </div>
+                <ArrowRight className="w-5 h-5 opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+              </a>
             </motion.div>
           </div>
         </div>

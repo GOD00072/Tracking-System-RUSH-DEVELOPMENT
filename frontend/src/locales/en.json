@@ -236,6 +236,7 @@
     "firstPayment": "First Payment",
     "orderedFromJP": "Ordered from Japan",
     "arrivedJPWarehouse": "Arrived at JP Warehouse",
+    "shippingRoundAssigned": "Shipping Round Assigned",
     "shippedFromJP": "Shipped from Japan",
     "arrivedThailand": "Arrived in Thailand",
     "outForDelivery": "Out for Delivery",
@@ -444,10 +445,11 @@
     "step2": "First Payment",
     "step3": "Ordered from Japan",
     "step4": "Arrived at JP Warehouse",
-    "step5": "Shipped from Japan",
-    "step6": "Arrived in Thailand",
-    "step7": "Out for Delivery",
-    "step8": "Delivered"
+    "step5": "Shipping Round Assigned",
+    "step6": "Shipped from Japan",
+    "step7": "Arrived in Thailand",
+    "step8": "Out for Delivery",
+    "step9": "Delivered"
   },
   "tierLabels": {
     "regular": "Regular",

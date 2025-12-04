@@ -216,12 +216,23 @@ router.post('/', authenticateAdmin, scheduleUpload.single('image'), async (req, 
     const monthNames = ['', 'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
       'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
     const typeLabel = type === 'ship' ? 'เรือ' : 'เครื่องบิน';
+    const notificationTitle = `ตารางรอบ${typeLabel}ใหม่`;
+    const notificationMessage = `ตารางรอบ${typeLabel}ประจำเดือน${monthNames[parseInt(month)]} ${year} พร้อมให้ดูแล้ว`;
+
+    // Delete existing duplicate notifications with same title and message
+    await prisma.webNotification.deleteMany({
+      where: {
+        type: 'schedule_update',
+        title: notificationTitle,
+        message: notificationMessage,
+      },
+    });
 
     await prisma.webNotification.create({
       data: {
         type: 'schedule_update',
-        title: `ตารางรอบ${typeLabel}ใหม่`,
-        message: `ตารางรอบ${typeLabel}ประจำเดือน${monthNames[parseInt(month)]} ${year} พร้อมให้ดูแล้ว`,
+        title: notificationTitle,
+        message: notificationMessage,
         linkUrl: '/schedule',
         imageUrl,
         expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Expires in 30 days
@@ -432,6 +443,55 @@ router.patch('/admin/notifications/:id', authenticateAdmin, async (req, res) => 
       error: {
         code: 'UPDATE_ERROR',
         message: 'Failed to update notification',
+      },
+    });
+  }
+});
+
+// POST /api/v1/schedules/admin/notifications/cleanup - Remove duplicate notifications (admin)
+router.post('/admin/notifications/cleanup', authenticateAdmin, async (req, res) => {
+  try {
+    // Get all notifications grouped by title+message
+    const notifications = await prisma.webNotification.findMany({
+      where: { type: 'schedule_update' },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Group by title+message
+    const groups = new Map<string, typeof notifications>();
+    for (const n of notifications) {
+      const key = `${n.title}|${n.message}`;
+      if (!groups.has(key)) {
+        groups.set(key, []);
+      }
+      groups.get(key)!.push(n);
+    }
+
+    // Delete duplicates (keep only the newest one in each group)
+    let deletedCount = 0;
+    for (const [_, group] of groups) {
+      if (group.length > 1) {
+        // Keep the first (newest), delete the rest
+        const toDelete = group.slice(1).map(n => n.id);
+        await prisma.webNotification.deleteMany({
+          where: { id: { in: toDelete } },
+        });
+        deletedCount += toDelete.length;
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Cleaned up ${deletedCount} duplicate notifications`,
+      deletedCount,
+    });
+  } catch (error) {
+    console.error('Error cleaning up notifications:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'CLEANUP_ERROR',
+        message: 'Failed to cleanup notifications',
       },
     });
   }

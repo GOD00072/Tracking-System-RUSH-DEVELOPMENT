@@ -38,6 +38,35 @@ async function generateOrderNumber(): Promise<string> {
   return orderNumber;
 }
 
+// Helper function to generate unique tracking code (8 characters: uppercase + numbers)
+async function generateTrackingCode(): Promise<string> {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // ไม่รวม I, O, 0, 1 เพื่อหลีกเลี่ยงความสับสน
+  let attempts = 0;
+  const maxAttempts = 10;
+
+  while (attempts < maxAttempts) {
+    let code = '';
+    for (let i = 0; i < 8; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+
+    // ตรวจสอบว่ารหัสซ้ำไหม
+    const existing = await prisma.order.findUnique({
+      where: { trackingCode: code },
+      select: { id: true },
+    });
+
+    if (!existing) {
+      return code;
+    }
+
+    attempts++;
+  }
+
+  // Fallback: ถ้าสุ่ม 10 ครั้งยังซ้ำ ใช้ timestamp
+  return `T${Date.now().toString(36).toUpperCase()}`.slice(0, 8);
+}
+
 // GET /api/v1/admin/orders - Get all orders (Admin only)
 router.get('/', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
@@ -174,8 +203,12 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
     // Auto-generate order number if not provided
     const orderNumber = req.body.orderNumber || await generateOrderNumber();
 
+    // Auto-generate tracking code (always unique, locked once created)
+    const trackingCode = await generateTrackingCode();
+
     const orderData: any = {
       orderNumber: orderNumber,
+      trackingCode: trackingCode,
       customerId: req.body.customerId,
       shippingMethod: req.body.shippingMethod,
       status: req.body.status || 'pending',

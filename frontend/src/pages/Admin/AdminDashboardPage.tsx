@@ -9,7 +9,6 @@ import {
   AlertCircle,
   CreditCard,
   Crown,
-  Loader2,
   RefreshCw,
   TrendingUp,
   TrendingDown,
@@ -23,8 +22,13 @@ import {
   BadgeJapaneseYen,
   ChevronRight,
   Eye,
+  X,
+  Bell,
+  Sparkles,
 } from 'lucide-react';
+import LoadingSpinner from '../../components/LoadingSpinner';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAuthStore } from '../../store/authStore';
 import {
   AreaChart,
   Area,
@@ -145,6 +149,7 @@ const formatShortDate = (dateStr: string) => {
 
 const AdminDashboardPage = () => {
   const navigate = useNavigate();
+  const { user } = useAuthStore();
   const [data, setData] = useState<DashboardStats | null>(null);
   const [salesChart, setSalesChart] = useState<SalesChartData | null>(null);
   const [revenueOverview, setRevenueOverview] = useState<RevenueOverview | null>(null);
@@ -156,6 +161,18 @@ const AdminDashboardPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [chartPeriod, setChartPeriod] = useState<'7d' | '30d' | '90d' | '1y'>('30d');
+  const [showWelcome, setShowWelcome] = useState(false);
+
+  // Check if should show welcome modal (once per session) - after data loads
+  useEffect(() => {
+    if (data && !loading) {
+      const hasSeenWelcome = sessionStorage.getItem('hasSeenWelcome');
+      if (!hasSeenWelcome) {
+        setShowWelcome(true);
+        sessionStorage.setItem('hasSeenWelcome', 'true');
+      }
+    }
+  }, [data, loading]);
 
   const fetchAllData = async () => {
     try {
@@ -205,10 +222,7 @@ const AdminDashboardPage = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto" />
-          <p className="mt-4 text-gray-600">กำลังโหลดข้อมูล Dashboard...</p>
-        </div>
+        <LoadingSpinner text="กำลังโหลดข้อมูล Dashboard..." />
       </div>
     );
   }
@@ -238,6 +252,10 @@ const AdminDashboardPage = () => {
     tier: item.tier,
   })) || [];
 
+  // Get current hour for greeting
+  const currentHour = new Date().getHours();
+  const greeting = currentHour < 12 ? 'สวัสดีตอนเช้า' : currentHour < 17 ? 'สวัสดีตอนบ่าย' : 'สวัสดีตอนเย็น';
+
   return (
     <motion.div
       className="p-8 bg-gray-50 min-h-screen"
@@ -246,6 +264,176 @@ const AdminDashboardPage = () => {
       exit="exit"
       variants={pageTransition}
     >
+      {/* Welcome Modal */}
+      <AnimatePresence>
+        {showWelcome && data && (
+          <motion.div
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowWelcome(false)}
+          >
+            <motion.div
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header with gradient */}
+              <div className="bg-gradient-to-r from-primary-500 to-primary-600 p-6 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+                <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full translate-y-1/2 -translate-x-1/2" />
+                <div className="relative">
+                  <div className="flex items-center gap-2 text-white/80 text-sm mb-2">
+                    <Sparkles className="w-4 h-4" />
+                    {greeting}
+                  </div>
+                  <h2 className="text-2xl font-bold text-white">
+                    {user?.full_name || 'Admin'}
+                  </h2>
+                  <p className="text-white/80 mt-1">ยินดีต้อนรับกลับมา!</p>
+                </div>
+                <button
+                  onClick={() => setShowWelcome(false)}
+                  className="absolute top-4 right-4 p-1 hover:bg-white/20 rounded-full transition-colors"
+                >
+                  <X className="w-5 h-5 text-white" />
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="p-6">
+                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
+                  <Bell className="w-4 h-4" />
+                  สิ่งที่ต้องดำเนินการ
+                </h3>
+
+                <div className="space-y-3">
+                  {/* Pending Orders */}
+                  {data.ordersByStatus.pending > 0 && (
+                    <motion.div
+                      className="flex items-center justify-between p-4 bg-yellow-50 border border-yellow-200 rounded-xl cursor-pointer hover:bg-yellow-100 transition-colors"
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => { setShowWelcome(false); navigate('/admin/orders?status=pending'); }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-yellow-500 rounded-full flex items-center justify-center">
+                          <Clock className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-gray-900">ออเดอร์รอดำเนินการ</p>
+                          <p className="text-sm text-gray-600">ต้องตรวจสอบและดำเนินการ</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-2xl font-bold text-yellow-600">{data.ordersByStatus.pending}</span>
+                        <ChevronRight className="w-5 h-5 text-gray-400" />
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Processing Orders */}
+                  {data.ordersByStatus.processing > 0 && (
+                    <motion.div
+                      className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-xl cursor-pointer hover:bg-blue-100 transition-colors"
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => { setShowWelcome(false); navigate('/admin/orders?status=processing'); }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
+                          <Package className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-gray-900">กำลังดำเนินการ</p>
+                          <p className="text-sm text-gray-600">รอจัดส่งหรืออัพเดทสถานะ</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-2xl font-bold text-blue-600">{data.ordersByStatus.processing}</span>
+                        <ChevronRight className="w-5 h-5 text-gray-400" />
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Shipped - กำลังจัดส่ง */}
+                  {data.ordersByStatus.shipped > 0 && (
+                    <motion.div
+                      className="flex items-center justify-between p-4 bg-purple-50 border border-purple-200 rounded-xl cursor-pointer hover:bg-purple-100 transition-colors"
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => { setShowWelcome(false); navigate('/admin/orders?status=shipped'); }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center">
+                          <Truck className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-gray-900">กำลังจัดส่ง</p>
+                          <p className="text-sm text-gray-600">ติดตามสถานะการจัดส่ง</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-2xl font-bold text-purple-600">{data.ordersByStatus.shipped}</span>
+                        <ChevronRight className="w-5 h-5 text-gray-400" />
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Pending Payments */}
+                  {pendingPayments && pendingPayments.totals.count > 0 && (
+                    <motion.div
+                      className="flex items-center justify-between p-4 bg-orange-50 border border-orange-200 rounded-xl cursor-pointer hover:bg-orange-100 transition-colors"
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => { setShowWelcome(false); navigate('/admin/orders'); }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-orange-500 rounded-full flex items-center justify-center">
+                          <CreditCard className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-gray-900">รอชำระเงิน</p>
+                          <p className="text-sm text-gray-600">฿{pendingPayments.totals.totalBaht.toLocaleString()}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-2xl font-bold text-orange-600">{pendingPayments.totals.count}</span>
+                        <ChevronRight className="w-5 h-5 text-gray-400" />
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* All clear! */}
+                  {data.ordersByStatus.pending === 0 &&
+                   data.ordersByStatus.processing === 0 &&
+                   data.ordersByStatus.shipped === 0 &&
+                   (!pendingPayments || pendingPayments.totals.count === 0) && (
+                    <div className="flex items-center justify-center p-6 bg-green-50 border border-green-200 rounded-xl">
+                      <div className="text-center">
+                        <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-2" />
+                        <p className="font-semibold text-green-700">ไม่มีงานค้าง!</p>
+                        <p className="text-sm text-green-600">ทุกอย่างเรียบร้อยดี</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => setShowWelcome(false)}
+                  className="w-full mt-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-xl transition-colors"
+                >
+                  เริ่มทำงาน
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Header */}
       <motion.div
         className="mb-8 flex items-center justify-between"

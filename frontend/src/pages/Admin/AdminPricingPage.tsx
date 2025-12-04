@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Save, Crown, ChevronRight, Ship, Plane, Truck, Package,
-  RefreshCw, Calculator, CheckCircle, Plus, Edit2, Trash2, X
+  RefreshCw, Calculator, CheckCircle, Plus, Edit2, Trash2, X,
+  Box, Ruler, Scale
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -26,6 +27,20 @@ interface AdditionalService {
   isActive: boolean;
 }
 
+interface WeightPriceRange {
+  id: string;
+  minWeight: number;
+  maxWeight: number;
+  price: number;
+}
+
+interface LengthPriceRange {
+  id: string;
+  minLength: number;
+  maxLength: number;
+  price: number;
+}
+
 const AdminPricingPage = () => {
   const navigate = useNavigate();
   const { data: settings, isLoading } = useCalculatorSettings();
@@ -44,7 +59,25 @@ const AdminPricingPage = () => {
     dhl: '26',
     best: '35',
     lalamove: '50',
+    thaipost: '40',
+    pickup: '0',
   });
+
+  // Weight price ranges
+  const [weightPriceRanges, setWeightPriceRanges] = useState<WeightPriceRange[]>([
+    { id: '1', minWeight: 0, maxWeight: 1, price: 500 },
+    { id: '2', minWeight: 1, maxWeight: 3, price: 700 },
+    { id: '3', minWeight: 3, maxWeight: 5, price: 900 },
+    { id: '4', minWeight: 5, maxWeight: 10, price: 1200 },
+  ]);
+
+  // Length price ranges
+  const [lengthPriceRanges, setLengthPriceRanges] = useState<LengthPriceRange[]>([
+    { id: '1', minLength: 0, maxLength: 30, price: 0 },
+    { id: '2', minLength: 30, maxLength: 60, price: 100 },
+    { id: '3', minLength: 60, maxLength: 100, price: 200 },
+    { id: '4', minLength: 100, maxLength: 150, price: 400 },
+  ]);
 
   // Additional services (dynamic)
   const [additionalServices, setAdditionalServices] = useState<AdditionalService[]>([]);
@@ -83,6 +116,8 @@ const AdminPricingPage = () => {
           dhl: settings.courier_rates_thailand.dhl?.toString() || '26',
           best: settings.courier_rates_thailand.best?.toString() || '35',
           lalamove: settings.courier_rates_thailand.lalamove?.toString() || '50',
+          thaipost: settings.courier_rates_thailand.thaipost?.toString() || '40',
+          pickup: settings.courier_rates_thailand.pickup?.toString() || '0',
         });
       }
 
@@ -100,6 +135,16 @@ const AdminPricingPage = () => {
           })
         );
         setAdditionalServices(converted);
+      }
+
+      // Load weight price ranges
+      if (settings.weight_price_ranges && Array.isArray(settings.weight_price_ranges)) {
+        setWeightPriceRanges(settings.weight_price_ranges);
+      }
+
+      // Load length price ranges
+      if (settings.length_price_ranges && Array.isArray(settings.length_price_ranges)) {
+        setLengthPriceRanges(settings.length_price_ranges);
       }
     }
   }, [settings]);
@@ -120,13 +165,69 @@ const AdminPricingPage = () => {
           dhl: parseFloat(courierRates.dhl),
           best: parseFloat(courierRates.best),
           lalamove: parseFloat(courierRates.lalamove),
+          thaipost: parseFloat(courierRates.thaipost),
+          pickup: parseFloat(courierRates.pickup),
         },
         additional_services: additionalServices,
+        weight_price_ranges: weightPriceRanges,
+        length_price_ranges: lengthPriceRanges,
       });
       toast.success('บันทึกการตั้งค่าราคาสำเร็จ');
     } catch (error) {
       toast.error('เกิดข้อผิดพลาดในการบันทึก');
     }
+  };
+
+  // Weight range handlers
+  const addWeightRange = () => {
+    const lastRange = weightPriceRanges[weightPriceRanges.length - 1];
+    const newRange: WeightPriceRange = {
+      id: Date.now().toString(),
+      minWeight: lastRange ? lastRange.maxWeight : 0,
+      maxWeight: lastRange ? lastRange.maxWeight + 5 : 5,
+      price: lastRange ? lastRange.price + 200 : 500,
+    };
+    setWeightPriceRanges([...weightPriceRanges, newRange]);
+  };
+
+  const updateWeightRange = (id: string, field: keyof WeightPriceRange, value: number) => {
+    setWeightPriceRanges(prev =>
+      prev.map(r => r.id === id ? { ...r, [field]: value } : r)
+    );
+  };
+
+  const deleteWeightRange = (id: string) => {
+    if (weightPriceRanges.length <= 1) {
+      toast.error('ต้องมีอย่างน้อย 1 ช่วงราคา');
+      return;
+    }
+    setWeightPriceRanges(prev => prev.filter(r => r.id !== id));
+  };
+
+  // Length range handlers
+  const addLengthRange = () => {
+    const lastRange = lengthPriceRanges[lengthPriceRanges.length - 1];
+    const newRange: LengthPriceRange = {
+      id: Date.now().toString(),
+      minLength: lastRange ? lastRange.maxLength : 0,
+      maxLength: lastRange ? lastRange.maxLength + 30 : 30,
+      price: lastRange ? lastRange.price + 100 : 0,
+    };
+    setLengthPriceRanges([...lengthPriceRanges, newRange]);
+  };
+
+  const updateLengthRange = (id: string, field: keyof LengthPriceRange, value: number) => {
+    setLengthPriceRanges(prev =>
+      prev.map(r => r.id === id ? { ...r, [field]: value } : r)
+    );
+  };
+
+  const deleteLengthRange = (id: string) => {
+    if (lengthPriceRanges.length <= 1) {
+      toast.error('ต้องมีอย่างน้อย 1 ช่วงราคา');
+      return;
+    }
+    setLengthPriceRanges(prev => prev.filter(r => r.id !== id));
   };
 
   // Service modal handlers
@@ -386,7 +487,161 @@ const AdminPricingPage = () => {
                   className="input-field"
                 />
               </div>
+              <div>
+                <label className="block font-medium mb-2">ไปรษณีย์ไทย</label>
+                <input
+                  type="number"
+                  value={courierRates.thaipost}
+                  onChange={(e) => setCourierRates({...courierRates, thaipost: e.target.value})}
+                  className="input-field"
+                />
+              </div>
+              <div>
+                <label className="block font-medium mb-2">รับเข้าเอง</label>
+                <input
+                  type="number"
+                  value={courierRates.pickup}
+                  onChange={(e) => setCourierRates({...courierRates, pickup: e.target.value})}
+                  className="input-field"
+                />
+                <p className="text-xs text-gray-500 mt-1">ปกติ 0 บาท</p>
+              </div>
             </div>
+          </motion.div>
+
+          {/* Weight Price Ranges */}
+          <motion.div className="card" variants={staggerItem}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <Scale className="w-6 h-6 text-indigo-600" />
+                <div>
+                  <h2 className="text-xl font-bold">ราคาตามน้ำหนัก (KG)</h2>
+                  <p className="text-sm text-gray-500">กำหนดช่วงน้ำหนักและราคาสำหรับคำนวณค่าขนส่ง</p>
+                </div>
+              </div>
+              <motion.button
+                onClick={addWeightRange}
+                className="btn-secondary flex items-center gap-2 text-sm"
+                whileHover={{ scale: 1.05 }}
+                whileTap={buttonTap}
+              >
+                <Plus className="w-4 h-4" />
+                เพิ่มช่วง
+              </motion.button>
+            </div>
+
+            <div className="space-y-3">
+              {weightPriceRanges.map((range, index) => (
+                <div key={range.id} className="flex items-center gap-3 bg-gray-50 rounded-xl p-4">
+                  <div className="flex items-center gap-2 flex-1">
+                    <input
+                      type="number"
+                      value={range.minWeight}
+                      onChange={(e) => updateWeightRange(range.id, 'minWeight', parseFloat(e.target.value) || 0)}
+                      className="input-field w-20 text-center"
+                      min="0"
+                      step="0.1"
+                    />
+                    <span className="text-gray-500">-</span>
+                    <input
+                      type="number"
+                      value={range.maxWeight}
+                      onChange={(e) => updateWeightRange(range.id, 'maxWeight', parseFloat(e.target.value) || 0)}
+                      className="input-field w-20 text-center"
+                      min="0"
+                      step="0.1"
+                    />
+                    <span className="text-gray-500 text-sm">kg</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-500">=</span>
+                    <input
+                      type="number"
+                      value={range.price}
+                      onChange={(e) => updateWeightRange(range.id, 'price', parseFloat(e.target.value) || 0)}
+                      className="input-field w-24 text-center font-bold"
+                      min="0"
+                    />
+                    <span className="text-gray-500 text-sm">฿</span>
+                  </div>
+                  <button
+                    onClick={() => deleteWeightRange(range.id)}
+                    className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    title="ลบ"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+
+          {/* Length Price Ranges */}
+          <motion.div className="card" variants={staggerItem}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <Ruler className="w-6 h-6 text-purple-600" />
+                <div>
+                  <h2 className="text-xl font-bold">ราคาตามความยาว (cm)</h2>
+                  <p className="text-sm text-gray-500">กำหนดช่วงความยาวและราคาเพิ่มเติม</p>
+                </div>
+              </div>
+              <motion.button
+                onClick={addLengthRange}
+                className="btn-secondary flex items-center gap-2 text-sm"
+                whileHover={{ scale: 1.05 }}
+                whileTap={buttonTap}
+              >
+                <Plus className="w-4 h-4" />
+                เพิ่มช่วง
+              </motion.button>
+            </div>
+
+            <div className="space-y-3">
+              {lengthPriceRanges.map((range, index) => (
+                <div key={range.id} className="flex items-center gap-3 bg-gray-50 rounded-xl p-4">
+                  <div className="flex items-center gap-2 flex-1">
+                    <input
+                      type="number"
+                      value={range.minLength}
+                      onChange={(e) => updateLengthRange(range.id, 'minLength', parseFloat(e.target.value) || 0)}
+                      className="input-field w-20 text-center"
+                      min="0"
+                    />
+                    <span className="text-gray-500">-</span>
+                    <input
+                      type="number"
+                      value={range.maxLength}
+                      onChange={(e) => updateLengthRange(range.id, 'maxLength', parseFloat(e.target.value) || 0)}
+                      className="input-field w-20 text-center"
+                      min="0"
+                    />
+                    <span className="text-gray-500 text-sm">cm</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-500">=</span>
+                    <input
+                      type="number"
+                      value={range.price}
+                      onChange={(e) => updateLengthRange(range.id, 'price', parseFloat(e.target.value) || 0)}
+                      className="input-field w-24 text-center font-bold"
+                      min="0"
+                    />
+                    <span className="text-gray-500 text-sm">฿</span>
+                  </div>
+                  <button
+                    onClick={() => deleteLengthRange(range.id)}
+                    className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    title="ลบ"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-gray-500 mt-4">
+              * ราคาความยาวจะถูกบวกเพิ่มจากราคาน้ำหนัก (เช่น น้ำหนัก 2kg = 700฿ + ความยาว 50cm = 100฿ รวม 800฿)
+            </p>
           </motion.div>
 
           {/* Additional Services - Dynamic */}

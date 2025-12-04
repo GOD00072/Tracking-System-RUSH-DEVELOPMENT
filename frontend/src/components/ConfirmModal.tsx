@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import {
@@ -7,15 +8,16 @@ import {
   HelpCircle,
   X,
   Check,
-  Loader2
+  Loader2,
+  Lock
 } from 'lucide-react';
 
-export type ConfirmType = 'danger' | 'warning' | 'info' | 'confirm';
+export type ConfirmType = 'danger' | 'warning' | 'info' | 'confirm' | 'pin';
 
 export interface ConfirmModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: () => void | Promise<void>;
+  onConfirm: (inputValue?: string) => void | Promise<void>;
   title?: string;
   message: string;
   confirmText?: string;
@@ -23,6 +25,10 @@ export interface ConfirmModalProps {
   type?: ConfirmType;
   loading?: boolean;
   icon?: React.ReactNode;
+  showInput?: boolean;
+  inputPlaceholder?: string;
+  inputType?: string;
+  expectedValue?: string;
 }
 
 const typeConfig: Record<ConfirmType, {
@@ -64,6 +70,14 @@ const typeConfig: Record<ConfirmType, {
     buttonBg: 'bg-primary-500',
     buttonHover: 'hover:bg-primary-600',
     icon: <HelpCircle className="w-6 h-6" />
+  },
+  pin: {
+    bgColor: 'bg-purple-50',
+    iconBg: 'bg-purple-100',
+    iconColor: 'text-purple-600',
+    buttonBg: 'bg-purple-500',
+    buttonHover: 'hover:bg-purple-600',
+    icon: <Lock className="w-6 h-6" />
   }
 };
 
@@ -150,13 +164,31 @@ const ConfirmModal = ({
   cancelText,
   type = 'confirm',
   loading = false,
-  icon
+  icon,
+  showInput = false,
+  inputPlaceholder = '',
+  inputType = 'text',
+  expectedValue
 }: ConfirmModalProps) => {
   const { t } = useTranslation();
   const config = typeConfig[type];
+  const [inputValue, setInputValue] = useState('');
+  const [inputError, setInputError] = useState('');
+
+  // Reset input when modal opens/closes
+  useEffect(() => {
+    if (!isOpen) {
+      setInputValue('');
+      setInputError('');
+    }
+  }, [isOpen]);
 
   const handleConfirm = async () => {
-    await onConfirm();
+    if (showInput && expectedValue && inputValue !== expectedValue) {
+      setInputError('PIN ไม่ถูกต้อง');
+      return;
+    }
+    await onConfirm(inputValue);
   };
 
   const handleBackdropClick = (e: React.MouseEvent) => {
@@ -234,6 +266,28 @@ const ConfirmModal = ({
                 <p className="text-gray-600 leading-relaxed">
                   {message}
                 </p>
+
+                {/* Input field for PIN */}
+                {showInput && (
+                  <div className="mt-4">
+                    <input
+                      type={inputType}
+                      value={inputValue}
+                      onChange={(e) => {
+                        setInputValue(e.target.value);
+                        setInputError('');
+                      }}
+                      placeholder={inputPlaceholder}
+                      className={`w-full px-4 py-3 border rounded-xl text-center text-lg font-mono tracking-widest focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                        inputError ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                      }`}
+                      autoFocus
+                    />
+                    {inputError && (
+                      <p className="text-red-500 text-sm mt-2">{inputError}</p>
+                    )}
+                  </div>
+                )}
               </motion.div>
             </div>
 

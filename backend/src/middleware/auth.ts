@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { jwtConfig } from '../config/jwt';
 
 export interface AuthRequest extends Request {
   user?: {
@@ -71,7 +72,7 @@ export const authenticateToken = (
   try {
     const decoded = jwt.verify(
       token,
-      process.env.JWT_SECRET || 'dev-secret-key'
+      jwtConfig.secret
     ) as any;
 
     req.user = {
@@ -137,11 +138,11 @@ export const authenticateAdmin = (
   try {
     const decoded = jwt.verify(
       token,
-      process.env.JWT_SECRET || 'dev-secret-key'
+      jwtConfig.secret
     ) as any;
 
-    // Verify that the token is for an admin user
-    if (decoded.role !== 'admin') {
+    // Verify that the token is for an admin or staff user
+    if (decoded.role !== 'admin' && decoded.role !== 'staff') {
       return res.status(403).json({
         success: false,
         error: {
@@ -195,7 +196,7 @@ export const optionalAuth = (
   try {
     const decoded = jwt.verify(
       token,
-      process.env.JWT_SECRET || 'dev-secret-key'
+      jwtConfig.secret
     ) as any;
 
     req.user = {

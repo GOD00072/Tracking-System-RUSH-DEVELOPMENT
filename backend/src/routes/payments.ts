@@ -165,8 +165,9 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
     const newPaymentAmount = req.body.amountBaht ? parseFloat(req.body.amountBaht) : 0;
     const newTotal = existingPaymentsTotal + newPaymentAmount;
 
-    // Validate: total payments should not exceed item total
-    if (newTotal > itemTotal) {
+    // Validate: total payments should not exceed item total (allow 1 baht tolerance for rounding)
+    const tolerance = 1;
+    if (newTotal > itemTotal + tolerance) {
       const remainingBalance = itemTotal - existingPaymentsTotal;
       return res.status(400).json({
         success: false,
@@ -290,6 +291,7 @@ router.patch('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
     if (req.body.installmentName !== undefined) updateData.installmentName = req.body.installmentName;
     if (req.body.amountYen !== undefined) updateData.amountYen = req.body.amountYen ? parseFloat(req.body.amountYen) : null;
     if (req.body.amountBaht !== undefined) updateData.amountBaht = req.body.amountBaht ? parseFloat(req.body.amountBaht) : null;
+    if (req.body.slipAmount !== undefined) updateData.slipAmount = req.body.slipAmount ? parseFloat(req.body.slipAmount) : null;
     if (req.body.exchangeRate !== undefined) updateData.exchangeRate = req.body.exchangeRate ? parseFloat(req.body.exchangeRate) : null;
     if (req.body.paymentMethod !== undefined) updateData.paymentMethod = req.body.paymentMethod;
     if (req.body.proofImageUrl !== undefined) updateData.proofImageUrl = req.body.proofImageUrl;

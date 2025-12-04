@@ -57,6 +57,47 @@ const CalculatorPage = () => {
   const [boxLength, setBoxLength] = useState('0');
   const [boxHeight, setBoxHeight] = useState('0');
 
+  // Weight and Length price ranges from settings
+  const weightPriceRanges = settings?.weight_price_ranges || [
+    { id: '1', minWeight: 0, maxWeight: 1, price: 500 },
+    { id: '2', minWeight: 1, maxWeight: 3, price: 700 },
+    { id: '3', minWeight: 3, maxWeight: 5, price: 900 },
+    { id: '4', minWeight: 5, maxWeight: 10, price: 1200 },
+  ];
+
+  const lengthPriceRanges = settings?.length_price_ranges || [
+    { id: '1', minLength: 0, maxLength: 30, price: 0 },
+    { id: '2', minLength: 30, maxLength: 60, price: 100 },
+    { id: '3', minLength: 60, maxLength: 100, price: 200 },
+    { id: '4', minLength: 100, maxLength: 150, price: 400 },
+  ];
+
+  // Calculate price from weight
+  const getWeightPrice = (w: number): number => {
+    const range = weightPriceRanges.find(
+      (r: any) => w >= r.minWeight && w < r.maxWeight
+    );
+    // If weight exceeds all ranges, use the last range
+    if (!range && weightPriceRanges.length > 0) {
+      const lastRange = weightPriceRanges[weightPriceRanges.length - 1];
+      if (w >= lastRange.maxWeight) return lastRange.price;
+    }
+    return range?.price || 0;
+  };
+
+  // Calculate price from length
+  const getLengthPrice = (l: number): number => {
+    const range = lengthPriceRanges.find(
+      (r: any) => l >= r.minLength && l < r.maxLength
+    );
+    // If length exceeds all ranges, use the last range
+    if (!range && lengthPriceRanges.length > 0) {
+      const lastRange = lengthPriceRanges[lengthPriceRanges.length - 1];
+      if (l >= lastRange.maxLength) return lastRange.price;
+    }
+    return range?.price || 0;
+  };
+
   // Fetch tiers from API
   useEffect(() => {
     const fetchTiers = async () => {
@@ -89,7 +130,7 @@ const CalculatorPage = () => {
 
   // Get rates from settings (with fallback values)
   const shippingRates = settings?.shipping_rates_japan || { air: 700, sea: 1000 };
-  const courierRates = settings?.courier_rates_thailand || { dhl: 26, best: 35, lalamove: 50 };
+  const courierRates = settings?.courier_rates_thailand || { dhl: 26, best: 35, lalamove: 50, thaipost: 40, pickup: 0 };
 
   // Parse additional services - support both old format (object) and new format (array)
   const additionalServices: AdditionalService[] = useMemo(() => {
@@ -145,7 +186,9 @@ const CalculatorPage = () => {
 
   // Calculate costs
   const productCost = parseFloat(productPrice) * exchangeRate;
-  const shippingFromJapan = deliveryDays === 'air' ? shippingRates.air : shippingRates.sea;
+  const weightPrice = getWeightPrice(parseFloat(weight) || 0);
+  const lengthPrice = getLengthPrice(parseFloat(productLength) || 0);
+  const shippingFromJapan = weightPrice + lengthPrice; // คำนวณจากน้ำหนัก + ความยาว
   const courierFee = courierRates[courierService as keyof typeof courierRates];
   const totalCost = productCost + shippingFromJapan + selectedServicesCost + courierFee;
 
@@ -270,29 +313,7 @@ const CalculatorPage = () => {
                 />
               </div>
 
-              {/* Delivery Days */}
-              <div>
-                <label className="block font-medium mb-2">จำนวนวันที่ต้องการใช้สินค้า</label>
-                <select value={deliveryDays} onChange={(e) => setDeliveryDays(e.target.value)} className="input-field">
-                  <option value="air">ไม่เกิน 20 วัน (AIR)</option>
-                  <option value="sea">30-45 วัน (SEA)</option>
-                </select>
-              </div>
-
-              {/* Product Type (AIR only) */}
-              {deliveryDays === 'air' && (
-                <div>
-                  <label className="block font-medium mb-2">ประเภทสินค้า (AIR เท่านั้น)</label>
-                  <select value={productType} onChange={(e) => setProductType(e.target.value)} className="input-field">
-                    <option value="">เลือกประเภทสินค้า</option>
-                    <option value="general">สินค้าทั่วไป</option>
-                    <option value="electronics">อิเล็กทรอนิกส์</option>
-                    <option value="cosmetics">เครื่องสำอาง</option>
-                    <option value="food">อาหาร</option>
-                  </select>
-                </div>
-              )}
-
+              
               {/* Additional Services - Button Style */}
               {additionalServices.length > 0 && (
                 <div>
@@ -401,54 +422,36 @@ const CalculatorPage = () => {
                   >
                     Lalamove
                   </motion.button>
+                  <motion.button
+                    type="button"
+                    onClick={() => setCourierService('thaipost')}
+                    whileTap={buttonTap}
+                    whileHover={{ scale: 1.05 }}
+                    className={`px-3 py-1 rounded-xl transition text-sm font-bold bg-[#ED1C24] text-white ${
+                      courierService === 'thaipost'
+                        ? 'opacity-100 scale-105 ring-2 ring-red-400'
+                        : 'opacity-50'
+                    }`}
+                  >
+                    ไปรษณีย์ไทย
+                  </motion.button>
+                  <motion.button
+                    type="button"
+                    onClick={() => setCourierService('pickup')}
+                    whileTap={buttonTap}
+                    whileHover={{ scale: 1.05 }}
+                    className={`px-3 py-1 rounded-xl transition text-sm font-bold bg-gray-700 text-white ${
+                      courierService === 'pickup'
+                        ? 'opacity-100 scale-105 ring-2 ring-gray-400'
+                        : 'opacity-50'
+                    }`}
+                  >
+                    รับเอง
+                  </motion.button>
                 </div>
               </div>
 
-              {/* Delivery Area */}
-              {courierService === 'dhl' && (
-                <div>
-                  <label className="block font-medium mb-2">พื้นที่จัดส่งในไทย (DHL)</label>
-                  <select value={deliveryArea} onChange={(e) => setDeliveryArea(e.target.value)} className="input-field">
-                    <option value="bangkok">กรุงเทพและปริมณฑล</option>
-                    <option value="upcountry">ต่างจังหวัด</option>
-                  </select>
-                </div>
-              )}
-
-              {/* Box Dimensions */}
-              <div>
-                <label className="block font-medium mb-2">ขนาดกล่อง (กว้าง + ยาว + สูง) cm</label>
-                <div className="grid grid-cols-3 gap-4">
-                  <input
-                    type="number"
-                    value={boxWidth}
-                    onChange={(e) => setBoxWidth(e.target.value)}
-                    placeholder="กว้าง"
-                    className="input-field"
-                    min="0"
-                  />
-                  <input
-                    type="number"
-                    value={boxLength}
-                    onChange={(e) => setBoxLength(e.target.value)}
-                    placeholder="ยาว"
-                    className="input-field"
-                    min="0"
-                  />
-                  <input
-                    type="number"
-                    value={boxHeight}
-                    onChange={(e) => setBoxHeight(e.target.value)}
-                    placeholder="สูง"
-                    className="input-field"
-                    min="0"
-                  />
-                </div>
-                <p className="text-sm text-gray-500 mt-2">
-                  รวม: {parseInt(boxWidth || '0') + parseInt(boxLength || '0') + parseInt(boxHeight || '0')} cm
-                </p>
               </div>
-            </div>
           </motion.form>
 
           {/* Cost Summary */}
@@ -481,9 +484,21 @@ const CalculatorPage = () => {
                 <span className="text-gray-700">ค่าสินค้า:</span>
                 <span className="font-semibold">฿{productCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
-              <div className="flex justify-between py-2 border-b border-primary-200">
-                <span className="text-gray-700">ค่าขนส่งจาก JP ({deliveryDays.toUpperCase()}):</span>
-                <span className="font-semibold">฿{shippingFromJapan.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              <div className="py-2 border-b border-primary-200">
+                <div className="flex justify-between">
+                  <span className="text-gray-700">ค่าขนส่งจาก JP:</span>
+                  <span className="font-semibold">฿{shippingFromJapan.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+                <div className="text-sm text-gray-500 mt-1 pl-4 space-y-1">
+                  <div className="flex justify-between">
+                    <span>• น้ำหนัก {weight} kg:</span>
+                    <span>฿{weightPrice.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>• ความยาว {productLength} cm:</span>
+                    <span>+฿{lengthPrice.toLocaleString()}</span>
+                  </div>
+                </div>
               </div>
 
               {/* Selected Additional Services */}

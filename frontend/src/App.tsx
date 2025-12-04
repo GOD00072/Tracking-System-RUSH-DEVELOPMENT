@@ -2,7 +2,6 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 import { queryClient } from './lib/queryClient';
-import CookieConsentBanner from './components/CookieConsentBanner';
 import { ConfirmProvider } from './hooks/useConfirm';
 
 // Layouts
@@ -33,13 +32,13 @@ import AdminOrdersPage from './pages/Admin/AdminOrdersPage';
 import OrderDetailPage from './pages/Admin/OrderDetailPage';
 import AdminCustomersPage from './pages/Admin/AdminCustomersPage';
 import AdminSEOPage from './pages/Admin/AdminSEOPage';
-import AdminCookiePage from './pages/Admin/AdminCookiePage';
 import AdminTierSettingsPage from './pages/Admin/AdminTierSettingsPage';
 import AdminShipmentsPage from './pages/Admin/AdminShipmentsPage';
 import AdminPricingPage from './pages/Admin/AdminPricingPage';
 import AdminSchedulesPage from './pages/Admin/AdminSchedulesPage';
 import AdminCloudinaryPage from './pages/Admin/AdminCloudinaryPage';
 import AdminStatisticsPage from './pages/Admin/AdminStatisticsPage';
+import AdminPortfolioPage from './pages/Admin/AdminPortfolioPage';
 import AdminNotFoundPage from './pages/Admin/AdminNotFoundPage';
 
 function App() {
@@ -53,7 +52,7 @@ function App() {
             <Route index element={<HomePage />} />
             <Route path="process" element={<ProcessPage />} />
             <Route path="tracking" element={<TrackingPortal />} />
-            <Route path="tracking/:orderNumber" element={<TrackingPortal />} />
+            <Route path="tracking/:productCode" element={<TrackingPortal />} />
             <Route path="ship-tracking" element={<ShipTrackingPage />} />
             <Route path="air-tracking" element={<AirTrackingPage />} />
             <Route path="schedule" element={<SchedulePage />} />
@@ -81,9 +80,9 @@ function App() {
             <Route path="customers" element={<AdminCustomersPage />} />
             <Route path="tier-settings" element={<AdminTierSettingsPage />} />
             <Route path="reviews" element={<AdminReviewsPage />} />
+            <Route path="portfolio" element={<AdminPortfolioPage />} />
             <Route path="pricing" element={<AdminPricingPage />} />
             <Route path="seo" element={<AdminSEOPage />} />
-            <Route path="cookies" element={<AdminCookiePage />} />
             <Route path="cloudinary" element={<AdminCloudinaryPage />} />
             <Route path="statistics" element={<AdminStatisticsPage />} />
             <Route path="*" element={<AdminNotFoundPage />} />
@@ -91,7 +90,6 @@ function App() {
           </Routes>
         </BrowserRouter>
         <Toaster position="top-right" richColors />
-        <CookieConsentBanner />
       </ConfirmProvider>
     </QueryClientProvider>
   );
