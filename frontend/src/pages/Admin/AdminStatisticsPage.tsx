@@ -13,7 +13,7 @@ import api from '../../lib/api';
 import LoadingSpinner from '../../components/LoadingSpinner';
 
 // Tab types
-type TabType = 'overview' | 'daily' | 'monthly' | 'transactions';
+type TabType = 'overview' | 'daily' | 'monthly' | 'transactions' | 'statement';
 
 const AdminStatisticsPage = () => {
   const [activeTab, setActiveTab] = useState<TabType>('overview');
@@ -30,6 +30,7 @@ const AdminStatisticsPage = () => {
     };
   });
   const [transactionType, setTransactionType] = useState<'all' | 'verified' | 'pending'>('all');
+  const [expandedCustomers, setExpandedCustomers] = useState<Set<string>>(new Set());
 
   // Fetch overview data
   const { data: overviewData, isLoading: overviewLoading, refetch: refetchOverview } = useQuery({
@@ -88,10 +89,36 @@ const AdminStatisticsPage = () => {
     },
   });
 
+  // Fetch statement data
+  const { data: statementData, isLoading: statementLoading, refetch: refetchStatement } = useQuery({
+    queryKey: ['statistics-statement', dateRange],
+    queryFn: async () => {
+      const res = await api.get('/payments/statement', {
+        params: {
+          startDate: dateRange.start,
+          endDate: dateRange.end,
+        },
+      });
+      return res.data.data;
+    },
+    enabled: activeTab === 'statement',
+  });
+
   const handleRefresh = () => {
     refetchOverview();
     if (activeTab === 'monthly') refetchMonthly();
     if (activeTab === 'transactions' || activeTab === 'daily') refetchTransactions();
+    if (activeTab === 'statement') refetchStatement();
+  };
+
+  const toggleCustomerExpand = (customerId: string) => {
+    const newExpanded = new Set(expandedCustomers);
+    if (newExpanded.has(customerId)) {
+      newExpanded.delete(customerId);
+    } else {
+      newExpanded.add(customerId);
+    }
+    setExpandedCustomers(newExpanded);
   };
 
   const formatCurrency = (amount: number, currency: 'THB' | 'JPY' = 'THB') => {
@@ -148,6 +175,7 @@ const AdminStatisticsPage = () => {
     { id: 'daily' as TabType, label: 'รายวัน', shortLabel: 'วัน', icon: Calendar },
     { id: 'monthly' as TabType, label: 'รายเดือน', shortLabel: 'เดือน', icon: FileText },
     { id: 'transactions' as TabType, label: 'รายการเงิน', shortLabel: 'เงิน', icon: CreditCard },
+    { id: 'statement' as TabType, label: 'Statement', shortLabel: 'Statement', icon: Users },
   ];
 
   return (
@@ -986,6 +1014,397 @@ const AdminStatisticsPage = () => {
                     <p>ไม่พบรายการในช่วงเวลาที่เลือก</p>
                   </div>
                 )}
+              </div>
+            </>
+          ) : null}
+        </div>
+      )}
+
+      {/* Statement Tab */}
+      {activeTab === 'statement' && (
+        <div className="space-y-4 md:space-y-6">
+          {/* Date Filter */}
+          <div className="bg-white rounded-xl p-3 md:p-4 shadow-sm">
+            <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-4">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Calendar className="w-4 h-4 md:w-5 md:h-5 text-gray-400" />
+                <input
+                  type="date"
+                  value={dateRange.start}
+                  onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
+                  className="border rounded-lg px-2 md:px-3 py-2 text-sm flex-1 md:flex-none"
+                />
+                <span className="text-gray-400 text-sm">ถึง</span>
+                <input
+                  type="date"
+                  value={dateRange.end}
+                  onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
+                  className="border rounded-lg px-2 md:px-3 py-2 text-sm flex-1 md:flex-none"
+                />
+              </div>
+              <button
+                onClick={() => refetchStatement()}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 w-full md:w-auto"
+              >
+                ดูรายงาน
+              </button>
+            </div>
+          </div>
+
+          {statementLoading ? (
+            <LoadingSpinner />
+          ) : statementData ? (
+            <>
+              {/* Summary Cards */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+                <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-4 md:p-5 text-white">
+                  <div className="flex items-center justify-between mb-2">
+                    <Banknote className="w-6 h-6 md:w-8 md:h-8 opacity-80" />
+                    <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">ยืนยัน</span>
+                  </div>
+                  <p className="text-xl md:text-3xl font-bold">
+                    {formatCurrency(statementData.summary.totalVerified)}
+                  </p>
+                  {statementData.summary.totalVerifiedYen > 0 && (
+                    <p className="text-sm opacity-80">
+                      {formatCurrency(statementData.summary.totalVerifiedYen, 'JPY')}
+                    </p>
+                  )}
+                  <p className="text-xs md:text-sm opacity-80 mt-1">ยอดรับรวม</p>
+                </div>
+
+                <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-4 md:p-5 text-white">
+                  <div className="flex items-center justify-between mb-2">
+                    <CheckCircle className="w-6 h-6 md:w-8 md:h-8 opacity-80" />
+                    <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">รายการ</span>
+                  </div>
+                  <p className="text-xl md:text-3xl font-bold">{statementData.summary.totalVerifiedCount}</p>
+                  <p className="text-xs md:text-sm opacity-80 mt-1">รายการยืนยันแล้ว</p>
+                </div>
+
+                <div className="bg-gradient-to-br from-yellow-500 to-orange-500 rounded-xl p-4 md:p-5 text-white">
+                  <div className="flex items-center justify-between mb-2">
+                    <Clock className="w-6 h-6 md:w-8 md:h-8 opacity-80" />
+                    <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">รอชำระ</span>
+                  </div>
+                  <p className="text-xl md:text-3xl font-bold">
+                    {formatCurrency(statementData.summary.totalPending)}
+                  </p>
+                  {statementData.summary.totalPendingYen > 0 && (
+                    <p className="text-sm opacity-80">
+                      {formatCurrency(statementData.summary.totalPendingYen, 'JPY')}
+                    </p>
+                  )}
+                  <p className="text-xs md:text-sm opacity-80 mt-1">ยอดรอชำระ</p>
+                </div>
+
+                <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-4 md:p-5 text-white">
+                  <div className="flex items-center justify-between mb-2">
+                    <Users className="w-6 h-6 md:w-8 md:h-8 opacity-80" />
+                    <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">ลูกค้า</span>
+                  </div>
+                  <p className="text-xl md:text-3xl font-bold">{statementData.customerAccumulated.length}</p>
+                  <p className="text-xs md:text-sm opacity-80 mt-1">มียอดค้าง</p>
+                </div>
+              </div>
+
+              {/* Period Display */}
+              <div className="bg-gray-100 rounded-lg px-4 py-2 text-sm text-gray-600">
+                ช่วงเวลา: {formatDate(statementData.period.start)} - {formatDate(statementData.period.end)}
+              </div>
+
+              {/* Customer Accumulated - Main Table */}
+              <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                <div className="p-3 md:p-4 border-b bg-gray-50">
+                  <h3 className="font-bold text-gray-900 flex items-center gap-2 text-sm md:text-base">
+                    <Users className="w-4 h-4 md:w-5 md:h-5 text-purple-600" />
+                    ยอดสะสมลูกค้า (รวมสินค้าที่ยังไม่สร้างงวด)
+                  </h3>
+                </div>
+
+                <div className="divide-y divide-gray-100">
+                  {statementData.customerAccumulated.length === 0 ? (
+                    <div className="px-4 py-12 text-center text-gray-400">
+                      <Users className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                      <p>ไม่มีข้อมูลลูกค้า</p>
+                    </div>
+                  ) : (
+                    statementData.customerAccumulated.map((customer: any) => {
+                      const isExpanded = expandedCustomers.has(customer.customerId);
+                      const totalOutstanding = customer.orders.reduce((sum: number, o: any) => sum + o.pendingAmount, 0);
+                      const totalOutstandingYen = customer.orders.reduce((sum: number, o: any) => sum + (o.pendingAmountYen || 0), 0);
+
+                      return (
+                        <div key={customer.customerId}>
+                          {/* Customer Row */}
+                          <div
+                            className="px-3 md:px-4 py-3 md:py-4 cursor-pointer hover:bg-gray-50 flex items-center justify-between"
+                            onClick={() => toggleCustomerExpand(customer.customerId)}
+                          >
+                            <div className="flex items-center gap-2 md:gap-4">
+                              <div className="w-8 h-8 md:w-10 md:h-10 bg-primary-100 rounded-full flex items-center justify-center">
+                                <Users className="w-4 h-4 md:w-5 md:h-5 text-primary-600" />
+                              </div>
+                              <div>
+                                <p className="font-semibold text-gray-800 text-sm md:text-base">{customer.customerName}</p>
+                                <p className="text-xs md:text-sm text-gray-500">
+                                  {customer.orders.length} ออเดอร์
+                                  {customer.pendingItems > 0 && (
+                                    <span className="ml-2 text-red-500 font-medium">
+                                      ({customer.pendingItems} สินค้ายังไม่สร้างงวด)
+                                    </span>
+                                  )}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3 md:gap-6">
+                              <div className="text-right hidden md:block">
+                                <p className="text-xs text-gray-500">ชำระแล้ว</p>
+                                <p className="font-semibold text-green-600">
+                                  {formatCurrency(customer.totalPaid)}
+                                </p>
+                                {customer.totalPaidYen > 0 && (
+                                  <p className="text-xs text-green-500">
+                                    {formatCurrency(customer.totalPaidYen, 'JPY')}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="text-right">
+                                <p className="text-xs text-gray-500">ค้างชำระ</p>
+                                <p className="font-semibold text-orange-600">
+                                  {formatCurrency(totalOutstanding)}
+                                </p>
+                                {totalOutstandingYen > 0 && (
+                                  <p className="text-xs text-orange-500">
+                                    {formatCurrency(totalOutstandingYen, 'JPY')}
+                                  </p>
+                                )}
+                              </div>
+                              {customer.pendingItems > 0 && (
+                                <div className="text-right hidden md:block">
+                                  <p className="text-xs text-gray-500">ไม่มีงวด</p>
+                                  <p className="font-semibold text-red-600">{customer.pendingItems}</p>
+                                </div>
+                              )}
+                              {isExpanded ? (
+                                <ChevronLeft className="w-5 h-5 text-gray-400 rotate-90" />
+                              ) : (
+                                <ChevronRight className="w-5 h-5 text-gray-400 rotate-90" />
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Expanded Orders */}
+                          {isExpanded && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              className="bg-gray-50 border-t"
+                            >
+                              <div className="p-3 md:p-4">
+                                <table className="w-full text-xs md:text-sm">
+                                  <thead>
+                                    <tr className="text-gray-500">
+                                      <th className="text-left py-2">Order</th>
+                                      <th className="text-right py-2">ยอดรวม</th>
+                                      <th className="text-right py-2">ชำระแล้ว</th>
+                                      <th className="text-right py-2">ค้างชำระ</th>
+                                      <th className="text-right py-2 hidden md:table-cell">ไม่มีงวด</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {customer.orders.map((order: any) => (
+                                      <tr key={order.orderId} className="border-t border-gray-200">
+                                        <td className="py-2">
+                                          <Link
+                                            to={`/admin/orders/${order.orderId}`}
+                                            className="text-primary-600 font-medium hover:underline flex items-center gap-1"
+                                          >
+                                            {order.orderNumber}
+                                            <ExternalLink className="w-3 h-3" />
+                                          </Link>
+                                        </td>
+                                        <td className="py-2 text-right">
+                                          {formatCurrency(order.totalAmount)}
+                                        </td>
+                                        <td className="py-2 text-right text-green-600">
+                                          {formatCurrency(order.paidAmount)}
+                                        </td>
+                                        <td className="py-2 text-right text-orange-600 font-semibold">
+                                          {formatCurrency(order.pendingAmount)}
+                                        </td>
+                                        <td className="py-2 text-right hidden md:table-cell">
+                                          {order.itemsWithoutPayments > 0 ? (
+                                            <span className="text-red-600 font-semibold">
+                                              {order.itemsWithoutPayments}
+                                            </span>
+                                          ) : (
+                                            <span className="text-gray-400">-</span>
+                                          )}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                  <tfoot className="border-t-2 border-gray-300">
+                                    <tr className="font-semibold">
+                                      <td className="py-2">รวม</td>
+                                      <td className="py-2 text-right">
+                                        {formatCurrency(customer.orders.reduce((s: number, o: any) => s + o.totalAmount, 0))}
+                                      </td>
+                                      <td className="py-2 text-right text-green-600">
+                                        {formatCurrency(customer.totalPaid)}
+                                      </td>
+                                      <td className="py-2 text-right text-orange-600">
+                                        {formatCurrency(totalOutstanding)}
+                                      </td>
+                                      <td className="py-2 text-right text-red-600 hidden md:table-cell">
+                                        {customer.pendingItems > 0 ? customer.pendingItems : '-'}
+                                      </td>
+                                    </tr>
+                                  </tfoot>
+                                </table>
+                              </div>
+                            </motion.div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* Verified Payments Table */}
+              <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                <div className="p-3 md:p-4 border-b bg-green-50">
+                  <h3 className="font-bold text-gray-900 flex items-center gap-2 text-sm md:text-base">
+                    <CheckCircle className="w-4 h-4 md:w-5 md:h-5 text-green-600" />
+                    รายการยืนยันแล้ว ({statementData.summary.totalVerifiedCount})
+                  </h3>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs md:text-sm">
+                    <thead>
+                      <tr className="text-left text-gray-500 bg-gray-50 border-b">
+                        <th className="px-3 md:px-4 py-2 md:py-3 font-medium">Order</th>
+                        <th className="px-3 md:px-4 py-2 md:py-3 font-medium">ลูกค้า</th>
+                        <th className="px-3 md:px-4 py-2 md:py-3 font-medium hidden md:table-cell">งวด</th>
+                        <th className="px-3 md:px-4 py-2 md:py-3 font-medium text-right">ยอดชำระ</th>
+                        <th className="px-3 md:px-4 py-2 md:py-3 font-medium hidden md:table-cell">วันที่</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {statementData.verifiedPayments.slice(0, 20).map((p: any) => (
+                        <tr key={p.id} className="hover:bg-gray-50">
+                          <td className="px-3 md:px-4 py-2 md:py-3">
+                            <span className="font-medium text-primary-600">{p.orderNumber}</span>
+                          </td>
+                          <td className="px-3 md:px-4 py-2 md:py-3">{p.customerName}</td>
+                          <td className="px-3 md:px-4 py-2 md:py-3 hidden md:table-cell">{p.installmentName}</td>
+                          <td className="px-3 md:px-4 py-2 md:py-3 text-right font-semibold text-green-600">
+                            {formatCurrency(p.amountBaht)}
+                          </td>
+                          <td className="px-3 md:px-4 py-2 md:py-3 hidden md:table-cell">{formatDate(p.paidAt)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    {statementData.verifiedPayments.length > 0 && (
+                      <tfoot className="bg-green-50 border-t-2 border-green-200">
+                        <tr className="font-bold text-xs md:text-sm">
+                          <td colSpan={3} className="px-3 md:px-4 py-2 md:py-3 text-right hidden md:table-cell">
+                            รวม ({statementData.verifiedPayments.length} รายการ):
+                          </td>
+                          <td colSpan={2} className="px-3 md:px-4 py-2 md:py-3 text-right md:hidden">
+                            รวม:
+                          </td>
+                          <td className="px-3 md:px-4 py-2 md:py-3 text-right text-green-700">
+                            {formatCurrency(statementData.summary.totalVerified)}
+                          </td>
+                          <td className="hidden md:table-cell"></td>
+                        </tr>
+                      </tfoot>
+                    )}
+                  </table>
+                  {statementData.verifiedPayments.length === 0 && (
+                    <div className="p-8 text-center text-gray-400">
+                      <CheckCircle className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                      <p>ไม่มีรายการในช่วงเวลานี้</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Pending Payments Table */}
+              <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                <div className="p-3 md:p-4 border-b bg-yellow-50">
+                  <h3 className="font-bold text-gray-900 flex items-center gap-2 text-sm md:text-base">
+                    <Clock className="w-4 h-4 md:w-5 md:h-5 text-yellow-600" />
+                    รายการรอชำระ/รอยืนยัน ({statementData.summary.totalPendingCount})
+                  </h3>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs md:text-sm">
+                    <thead>
+                      <tr className="text-left text-gray-500 bg-gray-50 border-b">
+                        <th className="px-3 md:px-4 py-2 md:py-3 font-medium">Order</th>
+                        <th className="px-3 md:px-4 py-2 md:py-3 font-medium">ลูกค้า</th>
+                        <th className="px-3 md:px-4 py-2 md:py-3 font-medium hidden md:table-cell">งวด</th>
+                        <th className="px-3 md:px-4 py-2 md:py-3 font-medium text-right">ยอดค้าง</th>
+                        <th className="px-3 md:px-4 py-2 md:py-3 font-medium text-center">สถานะ</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {statementData.pendingPayments.slice(0, 20).map((p: any) => (
+                        <tr key={p.id} className="hover:bg-gray-50">
+                          <td className="px-3 md:px-4 py-2 md:py-3">
+                            <Link
+                              to={`/admin/orders/${p.orderId}`}
+                              className="font-medium text-primary-600 hover:underline flex items-center gap-1"
+                            >
+                              {p.orderNumber}
+                              <ExternalLink className="w-3 h-3" />
+                            </Link>
+                          </td>
+                          <td className="px-3 md:px-4 py-2 md:py-3">{p.customerName}</td>
+                          <td className="px-3 md:px-4 py-2 md:py-3 hidden md:table-cell">{p.installmentName}</td>
+                          <td className="px-3 md:px-4 py-2 md:py-3 text-right font-semibold text-orange-600">
+                            {formatCurrency(p.amountBaht)}
+                          </td>
+                          <td className="px-3 md:px-4 py-2 md:py-3 text-center">
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${
+                              p.status === 'paid'
+                                ? 'bg-blue-100 text-blue-800'
+                                : 'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {p.status === 'paid' ? 'รอยืนยัน' : 'รอชำระ'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    {statementData.pendingPayments.length > 0 && (
+                      <tfoot className="bg-yellow-50 border-t-2 border-yellow-200">
+                        <tr className="font-bold text-xs md:text-sm">
+                          <td colSpan={3} className="px-3 md:px-4 py-2 md:py-3 text-right hidden md:table-cell">
+                            รวม ({statementData.pendingPayments.length} รายการ):
+                          </td>
+                          <td colSpan={2} className="px-3 md:px-4 py-2 md:py-3 text-right md:hidden">
+                            รวม:
+                          </td>
+                          <td className="px-3 md:px-4 py-2 md:py-3 text-right text-orange-700">
+                            {formatCurrency(statementData.summary.totalPending)}
+                          </td>
+                          <td className="hidden md:table-cell"></td>
+                        </tr>
+                      </tfoot>
+                    )}
+                  </table>
+                  {statementData.pendingPayments.length === 0 && (
+                    <div className="p-8 text-center text-gray-400">
+                      <Clock className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                      <p>ไม่มีรายการรอชำระ</p>
+                    </div>
+                  )}
+                </div>
               </div>
             </>
           ) : null}

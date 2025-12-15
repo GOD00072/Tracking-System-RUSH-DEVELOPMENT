@@ -8,6 +8,7 @@ import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { pageTransition, staggerContainer, staggerItem } from '../../lib/animations';
 import MercariCarousel from '../../components/MercariCarousel';
+import ReviewCarousel from '../../components/ReviewCarousel';
 
 const HomePage = () => {
   const { t } = useTranslation();
@@ -184,52 +185,49 @@ const HomePage = () => {
         </div>
       </section>
 
-      {/* ================= ABOUT SECTION (ORIGINAL) ================= */}
-      <section className="py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div
-            className="max-w-4xl mx-auto"
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-          >
-            <div className="bg-white/70 backdrop-blur-xl rounded-3xl p-8 md:p-12 border border-white/50 shadow-xl">
-              <div className="text-center mb-8">
-                <span className="inline-block px-4 py-1.5 bg-primary-100/80 text-primary-600 rounded-full text-sm font-medium mb-4">
-                  {t('home.about.badge')}
-                </span>
-                <h2 className="text-3xl md:text-4xl font-bold text-gray-900">
-                  {t('home.about.title')}
-                </h2>
-              </div>
-
-              <div className="space-y-6 text-gray-600 leading-relaxed">
-                <p className="text-lg">
-                  <span className="text-2xl font-bold text-primary-500">PakkuNeko</span> {t('home.about.description')}
-                </p>
-
-                <div className="bg-gradient-to-r from-primary-50/80 to-orange-50/80 backdrop-blur-sm p-6 rounded-2xl border-l-4 border-primary-500">
-                  <p className="text-xl font-semibold text-gray-800 mb-2">
-                    "{t('home.about.quote')}"
-                  </p>
-                  <p className="text-gray-600">
-                    {t('home.about.quoteDescription')}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      </section>
+      {/* ================= CUSTOMER REVIEWS ================= */}
+      <ReviewCarousel
+        title="รีวิวจากลูกค้า"
+        subtitle="Customer Reviews"
+      />
 
       {/* ================= MERCARI PRODUCTS CAROUSEL ================= */}
       <MercariCarousel
-        title="สินค้ายอดนิยมจาก Mercari"
-        subtitle="メルカリの人気商品"
+        title="สินค้ายอดนิยม จาก MERCARI "
+        subtitle="人気商品"
         keyword="フィギュア"
         showCategories={true}
+        source="mercari"
       />
+
+      {/* ================= RAKUTEN PRODUCTS CAROUSEL ================= */}
+      <MercariCarousel
+        title="สินค้ายอดนิยมจาก RAKUTEN "
+        subtitle="人気商品"
+        keyword="フィギュア"
+        showCategories={true}
+        source="rakuten"
+      />
+
+      {/* ================= RAKUMA PRODUCTS CAROUSEL ================= */}
+      <MercariCarousel
+        title="สินค้ายอดนิยม จาก RAKUMA"
+        subtitle="中古品・フリマ"
+        keyword="フィギュア"
+        showCategories={true}
+        source="rakuma"
+      />
+
+      {/* ================= YAHOO AUCTION PRODUCTS CAROUSEL ================= */}
+      <MercariCarousel
+        title="สินค้าประมูลจาก Yahoo! Japan"
+        subtitle="オークション"
+        keyword="フィギュア"
+        showCategories={true}
+        source="yahoo"
+      />
+
+
 
       {/* ================= SERVICES SECTION (NEW DESIGN) ================= */}
       <section className="py-20 bg-[#FFFBF2] rounded-[3rem] my-10 mx-2 md:mx-4">
@@ -632,6 +630,46 @@ const HomePage = () => {
           </div>
         </div>
       </section>
+
+      {/* ================= ABOUT SECTION ================= */}
+      <section className="py-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <motion.div
+            className="max-w-4xl mx-auto"
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+          >
+            <div className="bg-white/70 backdrop-blur-xl rounded-3xl p-8 md:p-12 border border-white/50 shadow-xl">
+              <div className="text-center mb-8">
+                <span className="inline-block px-4 py-1.5 bg-primary-100/80 text-primary-600 rounded-full text-sm font-medium mb-4">
+                  About Us
+                </span>
+                <h2 className="text-3xl md:text-4xl font-bold text-gray-900">
+                  เกี่ยวกับเรา
+                </h2>
+              </div>
+
+              <div className="space-y-6 text-gray-600 leading-relaxed">
+                <p className="text-lg">
+                  <span className="text-2xl font-bold text-primary-500">PakkuNeko</span> คือบริการฝากซื้อและฝากส่งสินค้าจากญี่ปุ่นสู่ไทย โดยทีมงานที่อาศัยอยู่ในญี่ปุ่นจริง ช่วยลูกค้าซื้อสินค้าจากเว็บต่างๆ เช่น Mercari, Rakuten, Amazon JP พร้อมตรวจเช็กสินค้า แพ็กอย่างปลอดภัย และส่งตรงถึงมือคุณที่ประเทศไทย
+                </p>
+
+                <div className="bg-gradient-to-r from-primary-50/80 to-orange-50/80 backdrop-blur-sm p-6 rounded-2xl border-l-4 border-primary-500">
+                  <p className="text-xl font-semibold text-gray-800 mb-2">
+                    "การช้อปของจากญี่ปุ่นไม่ควรยุ่งยาก"
+                  </p>
+                  <p className="text-gray-600">
+                    ทุกคนควรเข้าถึงสินค้าคุณภาพดีในราคายุติธรรม ด้วยการบริการที่อบอุ่น เหมือนมีเพื่อนญี่ปุ่นช่วยดูแลทุกขั้นตอน
+                  </p>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
     </motion.div>
   );
 };

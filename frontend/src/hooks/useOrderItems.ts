@@ -50,12 +50,17 @@ export const useOrderItems = (orderId?: string) => {
   });
 };
 
-// Get all order items with pagination
-export const useOrderItemsList = (page = 1, limit = 50, filters?: {
+// Filter options for order items
+export type OrderItemFilters = {
   orderId?: string;
   customerId?: string;
   search?: string;
-}) => {
+  statusStep?: number;
+  shippingMethod?: string;
+};
+
+// Get all order items with pagination
+export const useOrderItemsList = (page = 1, limit = 50, filters?: OrderItemFilters) => {
   return useQuery({
     queryKey: ['order-items-list', page, limit, filters],
     queryFn: async () => {
@@ -67,6 +72,8 @@ export const useOrderItemsList = (page = 1, limit = 50, filters?: {
       if (filters?.orderId) params.append('orderId', filters.orderId);
       if (filters?.customerId) params.append('customerId', filters.customerId);
       if (filters?.search) params.append('search', filters.search);
+      if (filters?.statusStep) params.append('statusStep', filters.statusStep.toString());
+      if (filters?.shippingMethod) params.append('shippingMethod', filters.shippingMethod);
 
       const response = await api.get(`/order-items?${params.toString()}`);
       return response.data;

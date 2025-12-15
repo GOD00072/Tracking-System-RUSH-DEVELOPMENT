@@ -534,7 +534,7 @@ const PaymentTab = ({ orderId, orderNumber, onPendingChangesUpdate, onPaymentSum
           </div>
           <div className="bg-white/10 rounded-lg p-3">
             <p className="text-xs text-gray-400">ค้างชำระ</p>
-            <p className="text-lg font-bold text-yellow-400">฿{Math.ceil(data.summary.remainingBaht).toLocaleString()}</p>
+            <p className="text-lg font-bold text-yellow-400">฿{Math.max(0, Math.ceil(data.summary.remainingBaht)).toLocaleString()}</p>
           </div>
         </div>
       </div>
@@ -587,7 +587,7 @@ const PaymentTab = ({ orderId, orderNumber, onPendingChangesUpdate, onPaymentSum
                           ชำระแล้ว: <span className="font-semibold">฿{Math.ceil(itemSummary.paidBaht).toLocaleString()}</span>
                         </span>
                         <span className="text-orange-600">
-                          ค้างชำระ: <span className="font-semibold">฿{Math.ceil(itemSummary.remainingBaht).toLocaleString()}</span>
+                          ค้างชำระ: <span className="font-semibold">฿{Math.max(0, Math.ceil(itemSummary.remainingBaht)).toLocaleString()}</span>
                         </span>
                       </div>
                       {/* Progress bar */}

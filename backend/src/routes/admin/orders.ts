@@ -71,10 +71,14 @@ async function generateTrackingCode(): Promise<string> {
 router.get('/', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
+    const limit = parseInt(req.query.limit as string) || 50;
     const skip = (page - 1) * limit;
     const search = req.query.search as string;
     const status = req.query.status as string;
+    const shippingMethod = req.query.shippingMethod as string;
+    const dateFrom = req.query.dateFrom as string;
+    const dateTo = req.query.dateTo as string;
+    const tracking = req.query.tracking as string;
 
     // Build where clause for filtering
     const whereClause: any = {};
@@ -95,8 +99,32 @@ router.get('/', authenticateAdmin, async (req: AuthRequest, res) => {
       ];
     }
 
+    // Tracking code filter
+    if (tracking) {
+      whereClause.trackingCode = { contains: tracking, mode: 'insensitive' };
+    }
+
     if (status) {
       whereClause.status = status;
+    }
+
+    // Shipping method filter (sea or air)
+    if (shippingMethod) {
+      whereClause.shippingMethod = shippingMethod;
+    }
+
+    // Date range filter
+    if (dateFrom || dateTo) {
+      whereClause.createdAt = {};
+      if (dateFrom) {
+        whereClause.createdAt.gte = new Date(dateFrom);
+      }
+      if (dateTo) {
+        // Include the entire end date by setting to end of day
+        const endDate = new Date(dateTo);
+        endDate.setHours(23, 59, 59, 999);
+        whereClause.createdAt.lte = endDate;
+      }
     }
 
     const [orders, total] = await Promise.all([

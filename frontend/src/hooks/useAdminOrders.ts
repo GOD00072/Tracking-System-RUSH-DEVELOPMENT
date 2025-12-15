@@ -20,10 +20,23 @@ type CreateOrderInput = {
   notes?: string;
 };
 
-// Get all orders (Admin only - no filtering)
-export const useAdminOrders = (page = 1, limit = 20, search?: string, status?: string) => {
+type OrderFilters = {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: string;
+  shippingMethod?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  tracking?: string;
+};
+
+// Get all orders (Admin only - with filtering)
+export const useAdminOrders = (filters: OrderFilters = {}) => {
+  const { page = 1, limit = 50, search, status, shippingMethod, dateFrom, dateTo, tracking } = filters;
+
   return useQuery({
-    queryKey: ['admin-orders', page, limit, search, status],
+    queryKey: ['admin-orders', page, limit, search, status, shippingMethod, dateFrom, dateTo, tracking],
     queryFn: async () => {
       const params = new URLSearchParams({
         page: page.toString(),
@@ -32,6 +45,10 @@ export const useAdminOrders = (page = 1, limit = 20, search?: string, status?: s
 
       if (search) params.append('search', search);
       if (status) params.append('status', status);
+      if (shippingMethod) params.append('shippingMethod', shippingMethod);
+      if (dateFrom) params.append('dateFrom', dateFrom);
+      if (dateTo) params.append('dateTo', dateTo);
+      if (tracking) params.append('tracking', tracking);
 
       const response = await api.get(`${ADMIN_ORDERS_ENDPOINT}?${params.toString()}`);
       return response.data;

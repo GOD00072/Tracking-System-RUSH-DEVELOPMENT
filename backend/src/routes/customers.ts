@@ -5,6 +5,37 @@ import { Decimal } from '@prisma/client/runtime/library';
 
 const router = express.Router();
 
+// Helper function to generate customer code
+// Format: COMPANY-CONTACT-123456 (6 random digits, English only)
+function generateCustomerCode(companyName?: string | null, contactPerson?: string | null): string {
+  // Generate 6 random digits
+  const randomDigits = Math.floor(100000 + Math.random() * 900000).toString();
+
+  // Remove non-English characters (keep only A-Z, a-z, 0-9)
+  const cleanEnglishOnly = (str: string) => str.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+
+  // Clean and format company name (English only, max 10 chars)
+  const companyPart = companyName
+    ? cleanEnglishOnly(companyName.trim().split(/[\s\/\\-]+/)[0]).substring(0, 10)
+    : '';
+
+  // Clean and format contact person (English only, max 10 chars)
+  const contactPart = contactPerson
+    ? cleanEnglishOnly(contactPerson.trim()).substring(0, 10)
+    : '';
+
+  // Build code based on available info
+  if (companyPart && contactPart) {
+    return `${companyPart}-${contactPart}-${randomDigits}`;
+  } else if (companyPart) {
+    return `${companyPart}-${randomDigits}`;
+  } else if (contactPart) {
+    return `${contactPart}-${randomDigits}`;
+  } else {
+    return `CUST-${randomDigits}`;
+  }
+}
+
 // Helper function to calculate tier from spending
 async function calculateTierFromSpending(totalSpent: number) {
   const tiers = await prisma.customerTier.findMany({
@@ -194,6 +225,7 @@ router.get('/', async (req, res) => {
     if (search && search.trim()) {
       conditions.push({
         OR: [
+          { customerCode: { contains: search, mode: 'insensitive' } },
           { companyName: { contains: search, mode: 'insensitive' } },
           { contactPerson: { contains: search, mode: 'insensitive' } },
           { phone: { contains: search } },
@@ -240,6 +272,7 @@ router.get('/', async (req, res) => {
         take: limit,
         select: {
           id: true,
+          customerCode: true,
           companyName: true,
           contactPerson: true,
           phone: true,
@@ -427,8 +460,12 @@ router.post('/', async (req, res) => {
       ? req.body.userId
       : null;
 
+    // Auto-generate customer code from company name and contact person
+    const customerCode = generateCustomerCode(req.body.companyName, req.body.contactPerson);
+
     const customer = await prisma.customer.create({
       data: {
+        customerCode,
         userId: cleanUserId,
         airtableId: req.body.airtableId || null,
         companyName: req.body.companyName || null,
@@ -952,6 +989,57 @@ router.get('/stats/tier-summary', async (req, res) => {
       error: {
         code: 'FETCH_ERROR',
         message: 'Failed to fetch tier statistics',
+      },
+    });
+  }
+});
+
+// POST /api/v1/customers/generate-codes - Generate customer codes for existing customers without codes
+router.post('/generate-codes', async (req, res) => {
+  try {
+    // Find all customers without a customer code (include companyName and contactPerson)
+    const customersWithoutCode = await prisma.customer.findMany({
+      where: {
+        OR: [
+          { customerCode: null },
+          { customerCode: '' }
+        ]
+      },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, companyName: true, contactPerson: true },
+    });
+
+    if (customersWithoutCode.length === 0) {
+      return res.json({
+        success: true,
+        message: 'All customers already have codes',
+        data: { updated: 0 },
+      });
+    }
+
+    // Generate codes for each customer using their company name and contact person
+    let updatedCount = 0;
+    for (const customer of customersWithoutCode) {
+      const customerCode = generateCustomerCode(customer.companyName, customer.contactPerson);
+      await prisma.customer.update({
+        where: { id: customer.id },
+        data: { customerCode },
+      });
+      updatedCount++;
+    }
+
+    res.json({
+      success: true,
+      message: `Generated codes for ${updatedCount} customers`,
+      data: { updated: updatedCount },
+    });
+  } catch (error) {
+    console.error('Error generating customer codes:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'GENERATE_ERROR',
+        message: 'Failed to generate customer codes',
       },
     });
   }

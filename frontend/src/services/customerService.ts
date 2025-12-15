@@ -2,6 +2,7 @@ import api from '../lib/api';
 
 export interface Customer {
   id: string;
+  customerCode: string | null;
   userId: string | null;
   airtableId: string | null;
   companyName: string | null;

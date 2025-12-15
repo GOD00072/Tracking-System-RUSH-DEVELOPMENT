@@ -46,11 +46,18 @@ interface ItemData {
     statusName: string;
     timestamp: string;
   }>;
+  // For customer results
+  order?: {
+    orderNumber: string;
+    trackingCode?: string;
+    shippingMethod: string;
+    createdAt: string;
+  };
 }
 
-// Result when searching - can be 'order' (multiple items) or 'item' (single item)
+// Result when searching - can be 'order', 'item', or 'customer'
 interface TrackingResult {
-  type: 'order' | 'item';
+  type: 'order' | 'item' | 'customer';
   trackingCode: string;
   // For type === 'order'
   orderNumber?: string;
@@ -63,6 +70,9 @@ interface TrackingResult {
   createdAt: string;
   items?: ItemData[];
   totalItems?: number;
+  // For type === 'customer'
+  customerCode?: string;
+  totalOrders?: number;
   // For type === 'item' (single item result)
   productCode?: string | null;
   productName?: string | null;
@@ -365,6 +375,112 @@ const TrackingPortal = () => {
                       <div className="text-center py-8 text-gray-500">
                         <Package className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                         <p>ยังไม่มีสินค้าในออเดอร์นี้</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Search Again */}
+                  <div className="p-4 text-center border-t border-gray-100">
+                    <button
+                      onClick={() => {
+                        setTrackingResult(null);
+                        setSearchValue('');
+                      }}
+                      className="text-primary-600 hover:text-primary-700 text-sm font-medium"
+                    >
+                      ← ค้นหาใหม่
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Customer Result - แสดงสินค้าทั้งหมดของลูกค้า */}
+              {trackingResult.type === 'customer' && (
+                <motion.div
+                  className="bg-white/70 backdrop-blur-xl rounded-3xl border border-white/50 shadow-xl overflow-hidden"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                >
+                  {/* Customer Header */}
+                  <div className="p-6 bg-gradient-to-r from-blue-500 to-blue-600 text-white">
+                    <div className="flex items-center gap-4">
+                      <div className="w-16 h-16 rounded-xl bg-white/20 flex items-center justify-center">
+                        <Sparkles className="w-8 h-8 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm text-white/80 font-mono">รหัสลูกค้า: {trackingResult.customerCode}</p>
+                        <h3 className="text-xl font-bold mt-1">
+                          {trackingResult.customerName}
+                        </h3>
+                        <p className="text-sm text-white/80 mt-1">
+                          {trackingResult.totalOrders || 0} ออเดอร์ • {trackingResult.totalItems || 0} รายการ
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm text-white/80">สินค้าทั้งหมด</p>
+                        <p className="text-2xl font-bold">{trackingResult.totalItems || 0}</p>
+                        <p className="text-xs text-white/60">รายการ</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Customer Status Overview */}
+                  <div className="p-6 border-b border-gray-100">
+                    <h4 className="text-sm font-semibold text-gray-600 mb-4">สถานะภาพรวม</h4>
+                    <StatusTimeline currentStep={trackingResult.statusStep} />
+                  </div>
+
+                  {/* Items List */}
+                  <div className="p-6">
+                    <h4 className="text-sm font-semibold text-gray-600 mb-4">รายการสินค้าทั้งหมด ({trackingResult.items?.length || 0} รายการ)</h4>
+                    <div className="space-y-3">
+                      {trackingResult.items?.map((item, idx) => (
+                        <div
+                          key={idx}
+                          onClick={() => setSelectedItem(item)}
+                          className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl hover:bg-gray-100 cursor-pointer transition-colors"
+                        >
+                          {item.productImage ? (
+                            <img
+                              src={item.productImage}
+                              alt={item.productName || 'สินค้า'}
+                              className="w-16 h-16 rounded-lg object-cover"
+                            />
+                          ) : (
+                            <div className="w-16 h-16 rounded-lg bg-gray-200 flex items-center justify-center">
+                              <Package className="w-6 h-6 text-gray-400" />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-gray-900 truncate">
+                              {item.productName || 'สินค้า'}
+                            </p>
+                            {item.productCode && (
+                              <p className="text-xs text-gray-500">SKU: {item.productCode}</p>
+                            )}
+                            <p className="text-xs text-gray-400 mt-1">
+                              {item.order?.orderNumber && <span className="bg-gray-200 px-1.5 py-0.5 rounded mr-2">{item.order.orderNumber}</span>}
+                              {item.trackingCode && <span className="font-mono">{item.trackingCode}</span>}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
+                              item.statusStep === 9 ? 'bg-green-100 text-green-700' :
+                              item.statusStep >= 6 ? 'bg-indigo-100 text-indigo-700' :
+                              item.statusStep >= 3 ? 'bg-yellow-100 text-yellow-700' :
+                              'bg-gray-100 text-gray-700'
+                            }`}>
+                              {item.statusName}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {(!trackingResult.items || trackingResult.items.length === 0) && (
+                      <div className="text-center py-8 text-gray-500">
+                        <Package className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                        <p>ยังไม่มีสินค้าสำหรับลูกค้านี้</p>
                       </div>
                     )}
                   </div>

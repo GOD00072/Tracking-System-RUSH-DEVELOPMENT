@@ -40,6 +40,8 @@ import {
   ExternalLink,
   Ship,
   Plane,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { useCustomers, useCustomerStats, useCreateCustomer, useUpdateCustomer, useDeleteCustomer } from '../../hooks/useCustomers';
 import LoadingSpinner from '../../components/LoadingSpinner';
@@ -221,6 +223,17 @@ const AdminCustomersPage = () => {
   const [filterStatus, setFilterStatus] = useState<string>('');
   const [filterHasLine, setFilterHasLine] = useState<string>('');
   const filterRef = useRef<HTMLDivElement>(null);
+
+  // Customer code copy state
+  const [copiedCustomerCode, setCopiedCustomerCode] = useState(false);
+
+  // Copy customer code to clipboard
+  const handleCopyCustomerCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedCustomerCode(true);
+    toast.success(`คัดลอกรหัสลูกค้า ${code} แล้ว`);
+    setTimeout(() => setCopiedCustomerCode(false), 2000);
+  };
 
   // Close filter menu when clicking outside
   useEffect(() => {
@@ -1119,10 +1132,25 @@ const AdminCustomersPage = () => {
 
                   {/* Customer Info - Compact */}
                   <div className="bg-gray-50 rounded-xl p-4 mb-4">
-                    <h3 className="font-semibold mb-3 flex items-center gap-2 text-sm">
-                      <User className="w-4 h-4 text-gray-600" />
-                      ข้อมูลลูกค้า
-                    </h3>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="font-semibold flex items-center gap-2 text-sm">
+                        <User className="w-4 h-4 text-gray-600" />
+                        ข้อมูลลูกค้า
+                      </h3>
+                      {customerDetail.customerCode && (
+                        <button
+                          onClick={() => handleCopyCustomerCode(customerDetail.customerCode)}
+                          className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition-colors text-sm"
+                        >
+                          <span className="font-bold">{customerDetail.customerCode}</span>
+                          {copiedCustomerCode ? (
+                            <Check className="w-3.5 h-3.5 text-green-600" />
+                          ) : (
+                            <Copy className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                      )}
+                    </div>
                     <div className="grid grid-cols-2 gap-3 text-sm">
                       <div><p className="text-gray-500 text-xs">ชื่อ/บริษัท</p><p className="font-medium truncate">{customerDetail.companyName || '-'}</p></div>
                       <div><p className="text-gray-500 text-xs">เบอร์โทร</p><p className="font-medium">{customerDetail.phone || '-'}</p></div>
@@ -1261,10 +1289,25 @@ const AdminCustomersPage = () => {
 
                   {/* Customer Info */}
                   <div className="bg-gray-50 rounded-lg p-4 mb-6">
-                    <h3 className="font-semibold mb-3 flex items-center gap-2">
-                      <User className="w-5 h-5 text-gray-600" />
-                      ข้อมูลลูกค้า
-                    </h3>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="font-semibold flex items-center gap-2">
+                        <User className="w-5 h-5 text-gray-600" />
+                        ข้อมูลลูกค้า
+                      </h3>
+                      {customerDetail.customerCode && (
+                        <button
+                          onClick={() => handleCopyCustomerCode(customerDetail.customerCode)}
+                          className="flex items-center gap-2 px-3 py-1.5 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition-colors"
+                        >
+                          <span className="font-bold">{customerDetail.customerCode}</span>
+                          {copiedCustomerCode ? (
+                            <Check className="w-4 h-4 text-green-600" />
+                          ) : (
+                            <Copy className="w-4 h-4" />
+                          )}
+                        </button>
+                      )}
+                    </div>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                       <div><p className="text-gray-500">ชื่อ/บริษัท</p><p className="font-medium">{customerDetail.companyName || '-'}</p></div>
                       <div><p className="text-gray-500">ผู้ติดต่อ</p><p className="font-medium">{customerDetail.contactPerson || '-'}</p></div>

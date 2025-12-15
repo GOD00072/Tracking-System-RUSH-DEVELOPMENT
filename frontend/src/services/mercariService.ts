@@ -3,6 +3,9 @@ import axios from 'axios';
 // Mercari API base URL - connects through backend proxy
 const MERCARI_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
 
+// Mercapi server URL (Python server for Rakuten, Rakuma, Yahoo)
+const MERCAPI_URL = import.meta.env.VITE_MERCAPI_URL || 'http://localhost:3000';
+
 export interface MercariItem {
   id: string;
   name: string;
@@ -17,6 +20,20 @@ export interface MercariItem {
   shipping_payer_id?: number;
   category_id?: number;
   source?: 'mercari' | 'rakuten';
+  // Rakuten specific
+  item_url?: string;
+  shop_name?: string;
+  review_count?: number;
+  review_average?: number;
+  // Yahoo Auction specific
+  bids?: number;
+  end_time?: string;
+  time_left?: string;
+  buy_now_price?: number;
+  start_price?: number;
+  condition?: string;
+  shipping_free?: boolean;
+  description?: string;
 }
 
 export interface MercariItemDetail {
@@ -78,6 +95,17 @@ export interface MercariItemDetail {
     };
     created: string | null;
   }[];
+}
+
+export interface RakutenItemDetail {
+  url: string;
+  title: string;
+  price: number;
+  images: string[];
+  description: string;
+  shop_name: string;
+  review_count: number;
+  review_average: number;
 }
 
 export interface MercariSearchResponse {
@@ -172,6 +200,109 @@ export const mercariService = {
     const randomKeyword = keywords[Math.floor(Math.random() * keywords.length)];
     const response = await this.search({ keyword: randomKeyword, sort: 'created_desc' });
     return response.items.slice(0, 20);
+  },
+
+  // Get related/recommended items
+  async getRelatedItems(itemId: string, limit: number = 12): Promise<MercariItem[]> {
+    const response = await axios.get(`${MERCAPI_URL}/api/related?id=${itemId}&limit=${limit}`);
+    return response.data.items || [];
+  },
+
+  // Search Rakuten products
+  async searchRakuten(params: {
+    keyword?: string;
+    page?: number;
+    priceMin?: number;
+    priceMax?: number;
+    sort?: string;
+  }): Promise<MercariSearchResponse> {
+    const searchParams = new URLSearchParams();
+
+    if (params.keyword) searchParams.append('q', params.keyword);
+    if (params.page) searchParams.append('page', params.page.toString());
+    if (params.priceMin) searchParams.append('price_min', params.priceMin.toString());
+    if (params.priceMax) searchParams.append('price_max', params.priceMax.toString());
+    if (params.sort) searchParams.append('sort', params.sort);
+
+    const response = await axios.get(`${MERCAPI_URL}/api/rakuten/search?${searchParams.toString()}`);
+    return response.data;
+  },
+
+  // Get Rakuten item details
+  async getRakutenItemDetail(itemUrl: string, baseImage?: string): Promise<RakutenItemDetail | null> {
+    try {
+      let url = `${MERCAPI_URL}/api/rakuten/item?url=${encodeURIComponent(itemUrl)}`;
+      if (baseImage) {
+        url += `&image=${encodeURIComponent(baseImage)}`;
+      }
+      const response = await axios.get(url);
+      return response.data;
+    } catch (err) {
+      console.error('Failed to fetch Rakuten item detail:', err);
+      return null;
+    }
+  },
+
+  // Search Rakuma products
+  async searchRakuma(params: {
+    keyword?: string;
+    page?: number;
+    sort?: string;
+  }): Promise<MercariSearchResponse> {
+    const searchParams = new URLSearchParams();
+
+    if (params.keyword) searchParams.append('q', params.keyword);
+    if (params.page) searchParams.append('page', params.page.toString());
+    if (params.sort) searchParams.append('sort', params.sort);
+
+    const response = await axios.get(`${MERCAPI_URL}/api/rakuma/search?${searchParams.toString()}`);
+    return response.data;
+  },
+
+  // Get Rakuma item details
+  async getRakumaItemDetail(itemUrl: string, baseImage?: string): Promise<RakutenItemDetail | null> {
+    try {
+      let url = `${MERCAPI_URL}/api/rakuma/item?url=${encodeURIComponent(itemUrl)}`;
+      if (baseImage) {
+        url += `&image=${encodeURIComponent(baseImage)}`;
+      }
+      const response = await axios.get(url);
+      return response.data;
+    } catch (err) {
+      console.error('Failed to fetch Rakuma item detail:', err);
+      return null;
+    }
+  },
+
+  // Search Yahoo Auction products
+  async searchYahooAuction(params: {
+    keyword?: string;
+    page?: number;
+    sort?: string;
+  }): Promise<MercariSearchResponse> {
+    const searchParams = new URLSearchParams();
+
+    if (params.keyword) searchParams.append('q', params.keyword);
+    if (params.page) searchParams.append('page', params.page.toString());
+    if (params.sort) searchParams.append('sort', params.sort);
+
+    const response = await axios.get(`${MERCAPI_URL}/api/yahoo/search?${searchParams.toString()}`);
+    return response.data;
+  },
+
+  // Get Yahoo Auction item details
+  async getYahooAuctionItemDetail(itemUrl: string, baseImage?: string): Promise<RakutenItemDetail | null> {
+    try {
+      let url = `${MERCAPI_URL}/api/yahoo/item?url=${encodeURIComponent(itemUrl)}`;
+      if (baseImage) {
+        url += `&image=${encodeURIComponent(baseImage)}`;
+      }
+      const response = await axios.get(url);
+      return response.data;
+    } catch (err) {
+      console.error('Failed to fetch Yahoo Auction item detail:', err);
+      return null;
+    }
   },
 };
 

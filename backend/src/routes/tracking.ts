@@ -7,6 +7,7 @@ const router = express.Router();
 // รองรับทั้ง:
 // 1. Order trackingCode (8 ตัวอักษร เช่น C6CT69YU) - แสดงสินค้าทั้งหมดใน Order
 // 2. OrderItem trackingCode (PKN-ORD001-01) - แสดงสินค้าชิ้นเดียว
+// 3. Customer code (COMPANY-CONTACT-123456, SASIM-123456, etc.) - แสดงสินค้าทั้งหมดของลูกค้า
 router.get('/item/:trackingCode', async (req, res) => {
   try {
     const { trackingCode } = req.params;
@@ -18,6 +19,155 @@ router.get('/item/:trackingCode', async (req, res) => {
           code: 'INVALID_INPUT',
           message: 'กรุณาระบุรหัสติดตาม',
         },
+      });
+    }
+
+    // ตรวจสอบว่าเป็น Customer Code หรือไม่
+    // รูปแบบใหม่: COMPANY-CONTACT-123456, SASIM-123456, CUST-123456
+    // รูปแบบเก่า: C001, C002, C123, etc.
+    const isCustomerCode = /^([A-Z]+-)+\d{6}$/i.test(trackingCode.trim()) || /^C\d{3,}$/i.test(trackingCode.trim());
+
+    if (isCustomerCode) {
+      // ค้นหา Customer โดยใช้ customerCode
+      const customer = await prisma.customer.findFirst({
+        where: {
+          customerCode: {
+            equals: trackingCode.trim().toUpperCase(),
+            mode: 'insensitive',
+          },
+        },
+        select: {
+          id: true,
+          customerCode: true,
+          companyName: true,
+          contactPerson: true,
+          orders: {
+            where: {
+              deletedAt: null,
+            },
+            select: {
+              id: true,
+              orderNumber: true,
+              trackingCode: true,
+              statusStep: true,
+              shippingMethod: true,
+              createdAt: true,
+              orderItems: {
+                where: {
+                  deletedAt: null,
+                  NOT: { productCode: 'FEE' },
+                },
+                select: {
+                  id: true,
+                  sequenceNumber: true,
+                  productCode: true,
+                  trackingCode: true,
+                  productName: true,
+                  productImages: true,
+                  statusStep: true,
+                  itemStatus: true,
+                  trackingNumberJP: true,
+                  trackingNumberTH: true,
+                  trackingNumber: true,
+                  shippingRound: true,
+                  jpOrderNumber: true,
+                  jpOrderDate: true,
+                  warehouseDate: true,
+                  shipmentBatch: true,
+                  exportDate: true,
+                  arrivalDate: true,
+                  courierName: true,
+                  deliveryDate: true,
+                  statusRemarks: true,
+                  statusHistory: {
+                    select: {
+                      statusStep: true,
+                      statusName: true,
+                      timestamp: true,
+                    },
+                    orderBy: { timestamp: 'desc' },
+                    take: 5,
+                  },
+                },
+                orderBy: { sequenceNumber: 'asc' },
+              },
+            },
+            orderBy: { createdAt: 'desc' },
+          },
+        },
+      });
+
+      if (!customer) {
+        return res.status(404).json({
+          success: false,
+          error: {
+            code: 'NOT_FOUND',
+            message: 'ไม่พบรหัสลูกค้านี้ในระบบ',
+          },
+        });
+      }
+
+      // รวม items จากทุก orders
+      const allItems: any[] = [];
+      customer.orders.forEach(order => {
+        order.orderItems.forEach(item => {
+          allItems.push({
+            trackingCode: item.trackingCode,
+            productCode: item.productCode,
+            productName: item.productName,
+            productImage: Array.isArray(item.productImages) && item.productImages.length > 0 ? item.productImages[0] : null,
+            productImages: Array.isArray(item.productImages) ? item.productImages : [],
+            statusStep: item.statusStep || 1,
+            statusName: getStatusName(item.statusStep || 1),
+            trackingNumber: item.trackingNumberTH || item.trackingNumberJP || item.trackingNumber,
+            shippingRound: item.shippingRound,
+            statusDetails: {
+              jpOrderNumber: item.jpOrderNumber,
+              jpOrderDate: item.jpOrderDate,
+              warehouseDate: item.warehouseDate,
+              shipmentBatch: item.shipmentBatch,
+              exportDate: item.exportDate,
+              arrivalDate: item.arrivalDate,
+              courierName: item.courierName,
+              deliveryDate: item.deliveryDate,
+              remarks: item.statusRemarks || {},
+            },
+            statusHistory: item.statusHistory?.map(h => ({
+              statusStep: h.statusStep,
+              statusName: h.statusName,
+              timestamp: h.timestamp,
+            })) || [],
+            order: {
+              orderNumber: order.orderNumber,
+              trackingCode: order.trackingCode,
+              shippingMethod: order.shippingMethod === 'air' ? 'ทางอากาศ' : 'ทางเรือ',
+              createdAt: order.createdAt,
+            },
+          });
+        });
+      });
+
+      // คำนวณ overall status step (ใช้ค่าต่ำสุด)
+      const minStatusStep = allItems.length > 0
+        ? Math.min(...allItems.map(item => item.statusStep))
+        : 1;
+
+      const publicCustomer = {
+        type: 'customer',
+        trackingCode: customer.customerCode,
+        customerCode: customer.customerCode,
+        customerName: customer.companyName || customer.contactPerson || '-',
+        statusStep: minStatusStep,
+        statusName: getStatusName(minStatusStep),
+        shippingMethod: '-',
+        items: allItems,
+        totalItems: allItems.length,
+        totalOrders: customer.orders.length,
+      };
+
+      return res.json({
+        success: true,
+        data: publicCustomer,
       });
     }
 

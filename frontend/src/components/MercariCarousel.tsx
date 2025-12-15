@@ -28,16 +28,77 @@ import {
   Check,
 } from 'lucide-react';
 import { mercariService, POPULAR_CATEGORIES } from '../services/mercariService';
-import type { MercariItem, MercariItemDetail } from '../services/mercariService';
+import type { MercariItem, MercariItemDetail, RakutenItemDetail } from '../services/mercariService';
 
 interface MercariCarouselProps {
   title?: string;
   subtitle?: string;
   keyword?: string;
   showCategories?: boolean;
+  source?: 'mercari' | 'rakuten' | 'rakuma' | 'yahoo';
 }
 
 const JPY_TO_THB = 0.25;
+
+// Countdown Timer Component for Yahoo Auction
+const CountdownTimer = ({ endTime }: { endTime: string }) => {
+  const [timeLeft, setTimeLeft] = useState('');
+
+  useEffect(() => {
+    // Parse end_time format: "MM/DD HH:MM" (e.g., "12/07 20:45")
+    const parseEndTime = (timeStr: string): Date | null => {
+      const match = timeStr.match(/(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})/);
+      if (!match) return null;
+
+      const [, month, day, hour, minute] = match;
+      const now = new Date();
+      const year = now.getFullYear();
+
+      // Create date for this year
+      let endDate = new Date(year, parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute));
+
+      // If the date is in the past, it might be next year
+      if (endDate < now) {
+        endDate = new Date(year + 1, parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute));
+      }
+
+      return endDate;
+    };
+
+    const updateCountdown = () => {
+      const endDate = parseEndTime(endTime);
+      if (!endDate) {
+        setTimeLeft(endTime);
+        return;
+      }
+
+      const now = new Date();
+      const diff = endDate.getTime() - now.getTime();
+
+      if (diff <= 0) {
+        setTimeLeft('จบแล้ว');
+        return;
+      }
+
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+      if (days > 0) {
+        setTimeLeft(`${days}วัน ${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+      } else {
+        setTimeLeft(`${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+      }
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [endTime]);
+
+  return <span>{timeLeft}</span>;
+};
 
 // Japanese to Thai translations
 const CONDITION_MAP: Record<string, string> = {
@@ -147,10 +208,11 @@ const RANDOM_KEYWORDS = [
 ];
 
 const MercariCarousel = ({
-  title = 'สินค้าจาก Mercari',
-  subtitle = 'Mercari Products',
+  title = 'สินค้ายอดนิยม',
+  subtitle = '人気商品',
   keyword,
   showCategories = true,
+  source = 'mercari',
 }: MercariCarouselProps) => {
   const [items, setItems] = useState<MercariItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -160,14 +222,25 @@ const MercariCarousel = ({
   );
   const [selectedItem, setSelectedItem] = useState<MercariItem | null>(null);
   const [itemDetail, setItemDetail] = useState<MercariItemDetail | null>(null);
+  const [rakutenDetail, setRakutenDetail] = useState<RakutenItemDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [relatedItems, setRelatedItems] = useState<MercariItem[]>([]);
+  const [loadingRelated, setLoadingRelated] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<number | null>(null);
+
+  const isMercari = source === 'mercari';
+  const isRakuten = source === 'rakuten';
+  const isRakuma = source === 'rakuma';
+  const isYahoo = source === 'yahoo';
+  const brandLogo = isMercari ? '/brands/mercari.png' : isRakuten ? '/brands/rakuten.png' : isYahoo ? '/brands/yahoo.png' : '/brands/rakuma.png';
+  const brandName = isMercari ? 'Mercari' : isRakuten ? 'Rakuten' : isYahoo ? 'Yahoo! Auction' : 'Rakuma';
+  const brandColor = isMercari ? 'from-orange-500 to-red-500' : isRakuten ? 'from-red-600 to-red-700' : isYahoo ? 'from-red-500 to-purple-600' : 'from-purple-500 to-pink-500';
 
   // Fetch items
   useEffect(() => {
@@ -175,37 +248,87 @@ const MercariCarousel = ({
       setLoading(true);
       setError(null);
       try {
-        const response = await mercariService.search({
-          keyword: selectedCategory,
-          sort: 'created_desc',
-        });
+        let response;
+        if (isMercari) {
+          response = await mercariService.search({
+            keyword: selectedCategory,
+            sort: 'created_desc',
+          });
+        } else if (isRakuten) {
+          response = await mercariService.searchRakuten({
+            keyword: selectedCategory,
+          });
+        } else if (isYahoo) {
+          response = await mercariService.searchYahooAuction({
+            keyword: selectedCategory,
+          });
+        } else {
+          response = await mercariService.searchRakuma({
+            keyword: selectedCategory,
+          });
+        }
         // Shuffle items for variety
         const shuffled = [...response.items].sort(() => Math.random() - 0.5);
         setItems(shuffled.slice(0, 30));
       } catch (err) {
         setError('ไม่สามารถโหลดสินค้าได้');
-        console.error('Failed to fetch Mercari items:', err);
+        console.error(`Failed to fetch ${brandName} items:`, err);
       } finally {
         setLoading(false);
       }
     };
 
     fetchItems();
-  }, [selectedCategory]);
+  }, [selectedCategory, isMercari, isRakuten, isRakuma, isYahoo]);
 
   // Fetch item detail when modal opens
   useEffect(() => {
     if (!selectedItem) {
       setItemDetail(null);
+      setRakutenDetail(null);
       setCurrentImageIndex(0);
+      setRelatedItems([]);
       return;
     }
 
     const fetchDetail = async () => {
       setLoadingDetail(true);
       try {
-        const detail = await mercariService.getItemDetail(selectedItem.id);
-        setItemDetail(detail);
+        if (isMercari) {
+          const detail = await mercariService.getItemDetail(selectedItem.id);
+          setItemDetail(detail);
+          setRakutenDetail(null);
+        } else if (isRakuten) {
+          // Rakuten - fetch from item_url with base image
+          if (selectedItem.item_url) {
+            const detail = await mercariService.getRakutenItemDetail(
+              selectedItem.item_url,
+              selectedItem.thumbnail
+            );
+            setRakutenDetail(detail);
+          }
+          setItemDetail(null);
+        } else if (isYahoo) {
+          // Yahoo Auction - fetch from item_url with base image
+          if (selectedItem.item_url) {
+            const detail = await mercariService.getYahooAuctionItemDetail(
+              selectedItem.item_url,
+              selectedItem.thumbnail
+            );
+            setRakutenDetail(detail); // reuse rakutenDetail state
+          }
+          setItemDetail(null);
+        } else {
+          // Rakuma - fetch from item_url with base image
+          if (selectedItem.item_url) {
+            const detail = await mercariService.getRakumaItemDetail(
+              selectedItem.item_url,
+              selectedItem.thumbnail
+            );
+            setRakutenDetail(detail); // reuse rakutenDetail state
+          }
+          setItemDetail(null);
+        }
       } catch (err) {
         console.error('Failed to fetch item detail:', err);
       } finally {
@@ -213,8 +336,25 @@ const MercariCarousel = ({
       }
     };
 
+    const fetchRelated = async () => {
+      if (!isMercari) {
+        setRelatedItems([]);
+        return;
+      }
+      setLoadingRelated(true);
+      try {
+        const related = await mercariService.getRelatedItems(selectedItem.id);
+        setRelatedItems(related);
+      } catch (err) {
+        console.error('Failed to fetch related items:', err);
+      } finally {
+        setLoadingRelated(false);
+      }
+    };
+
     fetchDetail();
-  }, [selectedItem]);
+    fetchRelated();
+  }, [selectedItem, isMercari, isRakuten, isRakuma, isYahoo]);
 
   // Smooth infinite scroll animation
   useEffect(() => {
@@ -287,30 +427,58 @@ const MercariCarousel = ({
   };
 
   const handleCopyLink = (itemId: string) => {
-    navigator.clipboard.writeText(`https://jp.mercari.com/item/${itemId}`);
+    const url = isMercari
+      ? `https://jp.mercari.com/item/${itemId}`
+      : (selectedItem?.item_url?.split('?')[0] || '');
+    navigator.clipboard.writeText(url);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Get images array
+  // Get images array - filter out empty/invalid URLs
   const getImages = () => {
-    if (itemDetail?.photos && itemDetail.photos.length > 0) {
-      return itemDetail.photos;
+    let images: string[] = [];
+
+    if (isMercari) {
+      // Mercari: prefer photos from detail, then thumbnails
+      if (itemDetail?.photos && itemDetail.photos.length > 0) {
+        images = itemDetail.photos;
+      } else if (itemDetail?.thumbnails && itemDetail.thumbnails.length > 0) {
+        images = itemDetail.thumbnails;
+      }
+    } else {
+      // Rakuten/Yahoo/Rakuma: ใช้รูปจาก detail API เป็นหลัก
+      if (rakutenDetail?.images && rakutenDetail.images.length > 0) {
+        images = rakutenDetail.images;
+      } else if (selectedItem?.thumbnails && selectedItem.thumbnails.length > 0) {
+        // Fallback ไปใช้ thumbnails จาก search ถ้าไม่มี detail
+        images = selectedItem.thumbnails;
+      }
     }
-    if (itemDetail?.thumbnails && itemDetail.thumbnails.length > 0) {
-      return itemDetail.thumbnails;
+
+    // Fallback สุดท้าย
+    if (images.length === 0) {
+      if (selectedItem?.thumbnails && selectedItem.thumbnails.length > 0) {
+        images = selectedItem.thumbnails;
+      } else if (selectedItem?.thumbnail) {
+        images = [selectedItem.thumbnail];
+      }
     }
-    if (selectedItem?.thumbnails && selectedItem.thumbnails.length > 0) {
-      return selectedItem.thumbnails;
-    }
-    return selectedItem?.thumbnail ? [selectedItem.thumbnail] : [];
+
+    // Filter out empty, null, undefined URLs and placeholder images
+    return images.filter(img =>
+      img &&
+      img.trim() !== '' &&
+      !img.includes('na_170x170.png') &&
+      !img.includes('noimage')
+    );
   };
 
   // Duplicate items for seamless infinite scroll
   const displayItems = [...items, ...items];
 
   return (
-    <section className="py-12 bg-gradient-to-br from-orange-50 via-white to-amber-50 rounded-[2rem] mx-2 md:mx-4 my-8 overflow-hidden">
+    <section className={`py-12 bg-gradient-to-br ${isMercari ? 'from-orange-50 via-white to-amber-50' : 'from-red-50 via-white to-rose-50'} rounded-[2rem] mx-2 md:mx-4 my-8 overflow-hidden`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <motion.div
@@ -322,7 +490,7 @@ const MercariCarousel = ({
           <div className="mb-4 md:mb-0">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center shadow-lg overflow-hidden">
-                <img src="/brands/mercari.png" alt="Mercari" className="w-10 h-10 object-contain" />
+                <img src={brandLogo} alt={brandName} className="w-10 h-10 object-contain" />
               </div>
               <div>
                 <h2 className="text-2xl md:text-3xl font-bold text-gray-900">{title}</h2>
@@ -444,7 +612,13 @@ const MercariCarousel = ({
         {/* Error State */}
         {error && !loading && (
           <div className="text-center py-20">
-            <p className="text-gray-500">{error}</p>
+            <ShoppingBag className="w-16 h-16 mx-auto text-gray-300 mb-4" />
+            <p className="text-gray-500 mb-2">{error}</p>
+            {isRakuten && (
+              <p className="text-sm text-gray-400 mb-4">
+                Rakuten กำลังปรับปรุงการเชื่อมต่อ กรุณาลองใหม่ภายหลัง
+              </p>
+            )}
             <button
               onClick={() => setSelectedCategory(selectedCategory)}
               className="mt-4 px-6 py-2 bg-orange-500 text-white rounded-full hover:bg-orange-600 transition"
@@ -458,7 +632,9 @@ const MercariCarousel = ({
         {!loading && !error && items.length > 0 && (
           <div
             ref={scrollRef}
-            className="flex gap-4 overflow-x-hidden pb-4"
+            className={`flex gap-4 pb-4 ${isPaused ? 'overflow-x-auto' : 'overflow-x-hidden'}`}
+            onTouchStart={() => setIsPaused(true)}
+            onMouseDown={() => setIsPaused(true)}
           >
             {displayItems.map((item, index) => (
               <motion.div
@@ -470,14 +646,16 @@ const MercariCarousel = ({
                 whileHover={{ y: -5 }}
                 onClick={() => setSelectedItem(item)}
               >
-                <div className="relative aspect-square bg-gray-100 overflow-hidden">
+                <div className={`relative aspect-square overflow-hidden ${isRakuten || isYahoo ? 'bg-white' : 'bg-gray-100'}`}>
                   {item.thumbnail ? (
-                    <img
-                      src={item.thumbnail}
-                      alt={item.name}
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                      loading="lazy"
-                    />
+                    <div className={`w-full h-full flex items-center justify-center ${isRakuten || isYahoo ? 'bg-white p-2' : ''}`}>
+                      <img
+                        src={item.thumbnail}
+                        alt={item.name}
+                        className={`group-hover:scale-110 transition-transform duration-500 ${isRakuten || isYahoo ? 'w-full h-full object-contain rounded-xl shadow-lg' : 'w-full h-full object-cover'}`}
+                        loading="lazy"
+                      />
+                    </div>
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-gray-300">
                       <ShoppingBag className="w-12 h-12" />
@@ -492,9 +670,9 @@ const MercariCarousel = ({
                     </div>
                   )}
 
-                  <div className="absolute top-2 right-2 px-2 py-1 bg-red-500 text-white text-[10px] font-bold rounded-md flex items-center gap-1">
-                    <img src="/brands/mercari.png" alt="Mercari" className="w-4 h-4 object-contain" />
-                    Mercari
+                  <div className={`absolute top-2 right-2 px-2 py-1 ${isMercari ? 'bg-red-500 text-white' : isRakuten ? 'bg-white text-red-600 shadow-md' : isYahoo ? 'bg-white text-red-500 shadow-md' : 'bg-purple-500 text-white'} text-[10px] font-bold rounded-md flex items-center gap-1`}>
+                    <img src={brandLogo} alt={brandName} className="w-4 h-4 object-contain" />
+                    {brandName}
                   </div>
 
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end justify-center pb-4">
@@ -513,29 +691,27 @@ const MercariCarousel = ({
                     <span className="text-xl font-bold text-orange-600">
                       ¥{formatPrice(item.price)}
                     </span>
+                    {isYahoo && item.bids !== undefined && (
+                      <span className="text-xs text-gray-500">
+                        ({item.bids} bids)
+                      </span>
+                    )}
                   </div>
                   <div className="text-sm text-green-600 font-semibold">
                     ฿{formatPrice(toTHB(item.price))}
                   </div>
+                  {isYahoo && item.end_time && (
+                    <div className="flex items-center gap-1 text-xs text-red-500 mt-1">
+                      <Clock className="w-3 h-3 animate-pulse" />
+                      <CountdownTimer endTime={item.end_time} />
+                    </div>
+                  )}
+                  {isYahoo && item.shipping_free && (
+                    <span className="text-xs text-green-600 font-medium">ส่งฟรี</span>
+                  )}
                 </div>
               </motion.div>
             ))}
-
-            <motion.a
-              href="http://localhost:3000"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex-shrink-0 w-52 md:w-60 bg-gradient-to-br from-orange-500 to-red-500 rounded-2xl overflow-hidden shadow-lg hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-white group min-h-[320px]"
-              whileHover={{ scale: 1.02 }}
-            >
-              <Flame className="w-14 h-14 mb-4 group-hover:scale-110 transition-transform" />
-              <span className="text-xl font-bold">ดูเพิ่มเติม</span>
-              <span className="text-sm text-white/80 mt-1">View More</span>
-              <div className="mt-4 px-6 py-2 bg-white/20 rounded-full text-sm font-medium backdrop-blur-sm">
-                <ExternalLink className="w-4 h-4 inline mr-2" />
-                เปิดหน้าค้นหา
-              </div>
-            </motion.a>
           </div>
         )}
 
@@ -569,8 +745,8 @@ const MercariCarousel = ({
               {/* Header Bar */}
               <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50">
                 <div className="flex items-center gap-2">
-                  <img src="/brands/mercari.png" alt="Mercari" className="w-6 h-6 object-contain" />
-                  <span className="font-bold text-red-500">Mercari</span>
+                  <img src={brandLogo} alt={brandName} className="w-6 h-6 object-contain" />
+                  <span className={`font-bold ${isMercari ? 'text-red-500' : 'text-red-600'}`}>{brandName}</span>
                 </div>
                 <button
                   onClick={() => setSelectedItem(null)}
@@ -589,13 +765,13 @@ const MercariCarousel = ({
                 ) : (
                   <>
                     {/* Image Gallery */}
-                    <div className="relative bg-gray-100">
-                      <div className="aspect-square md:aspect-[4/3] flex items-center justify-center">
+                    <div className={`relative ${isRakuten || isYahoo ? 'bg-white' : 'bg-gray-100'}`}>
+                      <div className={`aspect-square md:aspect-[4/3] flex items-center justify-center ${isRakuten || isYahoo ? 'p-4' : ''}`}>
                         {getImages().length > 0 ? (
                           <img
                             src={getImages()[currentImageIndex]}
                             alt={itemDetail?.name || selectedItem.name}
-                            className="max-w-full max-h-full object-contain"
+                            className={`max-w-full max-h-full object-contain ${isRakuten || isYahoo ? 'rounded-xl shadow-lg' : ''}`}
                           />
                         ) : (
                           <ShoppingBag className="w-24 h-24 text-gray-300" />
@@ -662,25 +838,25 @@ const MercariCarousel = ({
                     <div className="p-5 md:p-6">
                       {/* Title */}
                       <h3 className="text-xl md:text-2xl font-bold text-gray-900 leading-tight mb-4">
-                        {itemDetail?.name || selectedItem.name}
+                        {isMercari ? (itemDetail?.name || selectedItem.name) : (rakutenDetail?.title || selectedItem.name)}
                       </h3>
 
                       {/* Price Card */}
-                      <div className="bg-gradient-to-br from-orange-500 to-red-500 rounded-2xl p-5 mb-5 text-white shadow-lg">
+                      <div className={`bg-gradient-to-br ${isMercari ? 'from-orange-500 to-red-500' : 'from-red-600 to-red-700'} rounded-2xl p-5 mb-5 text-white shadow-lg`}>
                         <div className="flex items-end justify-between">
                           <div>
                             <p className="text-white/70 text-sm mb-1">Price (JPY)</p>
-                            <p className="text-4xl font-bold">¥{formatPrice(itemDetail?.price || selectedItem.price)}</p>
+                            <p className="text-4xl font-bold">¥{formatPrice(isMercari ? (itemDetail?.price || selectedItem.price) : (rakutenDetail?.price || selectedItem.price))}</p>
                           </div>
                           <div className="text-right">
                             <p className="text-white/70 text-sm mb-1">Price (THB)</p>
-                            <p className="text-2xl font-bold text-green-300">฿{formatPrice(toTHB(itemDetail?.price || selectedItem.price))}</p>
+                            <p className="text-2xl font-bold text-green-300">฿{formatPrice(toTHB(isMercari ? (itemDetail?.price || selectedItem.price) : (rakutenDetail?.price || selectedItem.price)))}</p>
                           </div>
                         </div>
                       </div>
 
-                      {/* Item Details Grid */}
-                      {itemDetail && (
+                      {/* Mercari Item Details Grid */}
+                      {isMercari && itemDetail && (
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-5">
                           <div className="bg-gray-50 rounded-xl p-3">
                             <div className="flex items-center gap-2 text-gray-400 mb-1">
@@ -742,8 +918,122 @@ const MercariCarousel = ({
                         </div>
                       )}
 
-                      {/* Description */}
-                      {itemDetail?.description && (
+                      {/* Yahoo Auction Item Details Grid */}
+                      {isYahoo && selectedItem && (
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-5">
+                          <div className="bg-gray-50 rounded-xl p-3">
+                            <div className="flex items-center gap-2 text-gray-400 mb-1">
+                              <Clock className="w-4 h-4" />
+                              <span className="text-xs">เวลาที่เหลือ</span>
+                            </div>
+                            <p className="text-sm font-semibold text-red-600">
+                              {selectedItem.end_time ? <CountdownTimer endTime={selectedItem.end_time} /> : '-'}
+                            </p>
+                          </div>
+                          <div className="bg-gray-50 rounded-xl p-3">
+                            <div className="flex items-center gap-2 text-gray-400 mb-1">
+                              <ShoppingCart className="w-4 h-4" />
+                              <span className="text-xs">จำนวน Bid</span>
+                            </div>
+                            <p className="text-sm font-semibold text-gray-700">
+                              {selectedItem.bids || 0} ครั้ง
+                            </p>
+                          </div>
+                          <div className="bg-gray-50 rounded-xl p-3">
+                            <div className="flex items-center gap-2 text-gray-400 mb-1">
+                              <Star className="w-4 h-4" />
+                              <span className="text-xs">สภาพสินค้า</span>
+                            </div>
+                            <p className="text-sm font-semibold text-gray-700">
+                              {selectedItem.condition === '新品' ? 'ใหม่' : 'มือสอง'}
+                            </p>
+                          </div>
+                          <div className="bg-gray-50 rounded-xl p-3">
+                            <div className="flex items-center gap-2 text-gray-400 mb-1">
+                              <Truck className="w-4 h-4" />
+                              <span className="text-xs">ค่าส่ง</span>
+                            </div>
+                            <p className={`text-sm font-semibold ${selectedItem.shipping_free ? 'text-green-600' : 'text-gray-700'}`}>
+                              {selectedItem.shipping_free ? 'ส่งฟรี' : 'ผู้ซื้อจ่าย'}
+                            </p>
+                          </div>
+                          <div className="bg-gray-50 rounded-xl p-3">
+                            <div className="flex items-center gap-2 text-gray-400 mb-1">
+                              <ShoppingBag className="w-4 h-4" />
+                              <span className="text-xs">ราคาเริ่มต้น</span>
+                            </div>
+                            <p className="text-sm font-semibold text-gray-700">
+                              ¥{formatPrice(selectedItem.start_price || selectedItem.price)}
+                            </p>
+                          </div>
+                          <div className="bg-gray-50 rounded-xl p-3">
+                            <div className="flex items-center gap-2 text-gray-400 mb-1">
+                              <ShoppingBag className="w-4 h-4" />
+                              <span className="text-xs">แหล่งที่มา</span>
+                            </div>
+                            <p className="text-sm font-semibold text-red-500">Yahoo! Auction</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Rakuten/Rakuma Item Details Grid */}
+                      {(isRakuten || isRakuma) && (rakutenDetail || selectedItem) && (
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-5">
+                          <div className="bg-gray-50 rounded-xl p-3">
+                            <div className="flex items-center gap-2 text-gray-400 mb-1">
+                              <User className="w-4 h-4" />
+                              <span className="text-xs">ร้านค้า</span>
+                            </div>
+                            <p className="text-sm font-semibold text-gray-700 truncate">
+                              {rakutenDetail?.shop_name || selectedItem?.shop_name || '-'}
+                            </p>
+                          </div>
+                          <div className="bg-gray-50 rounded-xl p-3">
+                            <div className="flex items-center gap-2 text-gray-400 mb-1">
+                              <Star className="w-4 h-4" />
+                              <span className="text-xs">คะแนนรีวิว</span>
+                            </div>
+                            <p className="text-sm font-semibold text-gray-700">
+                              {(rakutenDetail?.review_average || selectedItem?.review_average || 0).toFixed(1)} / 5.0
+                            </p>
+                          </div>
+                          <div className="bg-gray-50 rounded-xl p-3">
+                            <div className="flex items-center gap-2 text-gray-400 mb-1">
+                              <MessageCircle className="w-4 h-4" />
+                              <span className="text-xs">จำนวนรีวิว</span>
+                            </div>
+                            <p className="text-sm font-semibold text-gray-700">
+                              {rakutenDetail?.review_count || selectedItem?.review_count || 0} รีวิว
+                            </p>
+                          </div>
+                          <div className="bg-gray-50 rounded-xl p-3">
+                            <div className="flex items-center gap-2 text-gray-400 mb-1">
+                              <Truck className="w-4 h-4" />
+                              <span className="text-xs">การจัดส่ง</span>
+                            </div>
+                            <p className="text-sm font-semibold text-gray-700">ส่งจากญี่ปุ่น</p>
+                          </div>
+                          <div className="bg-gray-50 rounded-xl p-3">
+                            <div className="flex items-center gap-2 text-gray-400 mb-1">
+                              <ShoppingCart className="w-4 h-4" />
+                              <span className="text-xs">สถานะ</span>
+                            </div>
+                            <p className="text-sm font-semibold text-green-600">พร้อมส่ง</p>
+                          </div>
+                          <div className="bg-gray-50 rounded-xl p-3">
+                            <div className="flex items-center gap-2 text-gray-400 mb-1">
+                              <ShoppingBag className="w-4 h-4" />
+                              <span className="text-xs">แหล่งที่มา</span>
+                            </div>
+                            <p className={`text-sm font-semibold ${isRakuten ? 'text-red-600' : 'text-purple-600'}`}>
+                              {isRakuten ? 'Rakuten Japan' : 'Rakuma'}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Mercari Description */}
+                      {isMercari && itemDetail?.description && (
                         <div className="mb-5">
                           <h4 className="font-bold text-gray-700 mb-2">รายละเอียดสินค้า</h4>
                           <div className="bg-gray-50 rounded-xl p-4 text-sm text-gray-600 whitespace-pre-wrap max-h-48 overflow-y-auto">
@@ -752,8 +1042,18 @@ const MercariCarousel = ({
                         </div>
                       )}
 
-                      {/* Seller Info */}
-                      {itemDetail?.seller && (
+                      {/* Rakuten Description */}
+                      {!isMercari && (rakutenDetail?.description || selectedItem?.description) && (
+                        <div className="mb-5">
+                          <h4 className="font-bold text-gray-700 mb-2">รายละเอียดสินค้า</h4>
+                          <div className="bg-gray-50 rounded-xl p-4 text-sm text-gray-600 whitespace-pre-wrap max-h-48 overflow-y-auto">
+                            {rakutenDetail?.description || selectedItem?.description}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Mercari Seller Info */}
+                      {isMercari && itemDetail?.seller && (
                         <div className="bg-blue-50 rounded-xl p-4 mb-5">
                           <h4 className="font-bold text-gray-700 mb-3 flex items-center gap-2">
                             <User className="w-4 h-4" />
@@ -782,8 +1082,37 @@ const MercariCarousel = ({
                         </div>
                       )}
 
-                      {/* Comments */}
-                      {itemDetail?.comments && itemDetail.comments.length > 0 && (
+                      {/* Rakuten Shop Info */}
+                      {!isMercari && (rakutenDetail?.shop_name || selectedItem?.shop_name) && (
+                        <div className="bg-red-50 rounded-xl p-4 mb-5">
+                          <h4 className="font-bold text-gray-700 mb-3 flex items-center gap-2">
+                            <User className="w-4 h-4" />
+                            ข้อมูลร้านค้า
+                          </h4>
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+                              <img src="/brands/rakuten.png" alt="Rakuten" className="w-8 h-8 object-contain" />
+                            </div>
+                            <div className="flex-1">
+                              <p className="font-semibold text-gray-800">{rakutenDetail?.shop_name || selectedItem?.shop_name}</p>
+                              <div className="flex flex-wrap items-center gap-2 text-sm text-gray-500 mt-1">
+                                {(rakutenDetail?.review_average || selectedItem?.review_average) ? (
+                                  <span className="flex items-center gap-1 bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">
+                                    <Star className="w-3 h-3" />
+                                    {(rakutenDetail?.review_average || selectedItem?.review_average || 0).toFixed(1)}
+                                  </span>
+                                ) : null}
+                                <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
+                                  Rakuten Official
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Mercari Comments */}
+                      {isMercari && itemDetail?.comments && itemDetail.comments.length > 0 && (
                         <div className="mb-5">
                           <h4 className="font-bold text-gray-700 mb-3 flex items-center gap-2">
                             <MessageCircle className="w-4 h-4" />
@@ -831,13 +1160,13 @@ const MercariCarousel = ({
 
                         <div className="grid grid-cols-2 gap-3">
                           <a
-                            href={`https://jp.mercari.com/item/${selectedItem.id}`}
+                            href={isMercari ? `https://jp.mercari.com/item/${selectedItem.id}` : (selectedItem.item_url?.split('?')[0] || '#')}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition-all"
                           >
                             <ExternalLink className="w-5 h-5" />
-                            ดูใน Mercari
+                            ดูใน {brandName}
                           </a>
                           <button
                             onClick={() => handleCopyLink(selectedItem.id)}
@@ -855,6 +1184,49 @@ const MercariCarousel = ({
                           <strong>วิธีสั่งซื้อ:</strong> กดปุ่ม "สั่งซื้อผ่าน LINE" แล้วส่งลิงก์สินค้าให้เรา ทีมงานจะแจ้งราคารวมค่าบริการและค่าจัดส่งให้ทราบ
                         </p>
                       </div>
+
+                      {/* Related Items Section (Mercari only) */}
+                      {isMercari && (relatedItems.length > 0 || loadingRelated) && (
+                        <div className="mt-6 pt-6 border-t border-gray-100">
+                          <h4 className="font-bold text-gray-800 mb-1">この商品を見ている人におすすめ</h4>
+                          <p className="text-sm text-gray-500 mb-4">สินค้าที่คุณน่าจะชอบ</p>
+
+                          {loadingRelated ? (
+                            <div className="flex items-center justify-center py-8">
+                              <div className="w-8 h-8 border-3 border-orange-200 border-t-orange-500 rounded-full animate-spin"></div>
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-3 md:grid-cols-4 gap-2">
+                              {relatedItems.slice(0, 12).map((item) => (
+                                <div
+                                  key={item.id}
+                                  className="cursor-pointer group"
+                                  onClick={() => {
+                                    setSelectedItem(item);
+                                    setCurrentImageIndex(0);
+                                  }}
+                                >
+                                  <div className="relative aspect-square rounded-lg overflow-hidden bg-gray-100 mb-1">
+                                    <img
+                                      src={item.thumbnail}
+                                      alt={item.name}
+                                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                                    />
+                                    {item.status === 'sold' && (
+                                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                                        <span className="text-white text-[10px] font-bold">SOLD</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-gray-600 line-clamp-2 leading-tight mb-0.5">{item.name}</p>
+                                  <p className="text-sm font-bold text-orange-600">¥{formatPrice(item.price)}</p>
+                                  <p className="text-xs text-green-600">฿{formatPrice(toTHB(item.price))}</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </>
                 )}

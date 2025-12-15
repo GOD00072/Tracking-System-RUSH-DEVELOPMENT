@@ -39,6 +39,7 @@ import AdminSchedulesPage from './pages/Admin/AdminSchedulesPage';
 import AdminCloudinaryPage from './pages/Admin/AdminCloudinaryPage';
 import AdminStatisticsPage from './pages/Admin/AdminStatisticsPage';
 import AdminPortfolioPage from './pages/Admin/AdminPortfolioPage';
+import AdminStatementPage from './pages/Admin/AdminStatementPage';
 import AdminNotFoundPage from './pages/Admin/AdminNotFoundPage';
 
 function App() {
@@ -85,6 +86,7 @@ function App() {
             <Route path="seo" element={<AdminSEOPage />} />
             <Route path="cloudinary" element={<AdminCloudinaryPage />} />
             <Route path="statistics" element={<AdminStatisticsPage />} />
+            <Route path="statement" element={<AdminStatementPage />} />
             <Route path="*" element={<AdminNotFoundPage />} />
           </Route>
           </Routes>

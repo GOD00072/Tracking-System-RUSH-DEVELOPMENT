@@ -36,6 +36,7 @@ router.get('/', authenticateAdmin, async (req: AuthRequest, res) => {
     const orderId = req.query.orderId as string;
     const customerId = req.query.customerId as string;
     const search = req.query.search as string;
+    const shippingMethod = req.query.shippingMethod as string;
 
     const whereClause: any = {};
 
@@ -47,20 +48,35 @@ router.get('/', authenticateAdmin, async (req: AuthRequest, res) => {
     // Filter by customer (through order)
     if (customerId) {
       whereClause.order = {
+        ...whereClause.order,
         customerId: customerId,
       };
     }
 
-    // Search in multiple fields (including new JP/TH tracking)
+    // Filter by shipping method (through order)
+    if (shippingMethod) {
+      whereClause.order = {
+        ...whereClause.order,
+        shippingMethod: shippingMethod,
+      };
+    }
+
+    // Search in multiple fields (including trackingCode and customer code)
     if (search) {
       whereClause.OR = [
+        { trackingCode: { contains: search, mode: 'insensitive' } },
         { productCode: { contains: search, mode: 'insensitive' } },
+        { productName: { contains: search, mode: 'insensitive' } },
         { productUrl: { contains: search, mode: 'insensitive' } },
         { customerName: { contains: search, mode: 'insensitive' } },
         { clickerName: { contains: search, mode: 'insensitive' } },
         { trackingNumber: { contains: search, mode: 'insensitive' } },
         { trackingNumberJP: { contains: search, mode: 'insensitive' } },
         { trackingNumberTH: { contains: search, mode: 'insensitive' } },
+        { order: { orderNumber: { contains: search, mode: 'insensitive' } } },
+        { order: { customer: { customerCode: { contains: search, mode: 'insensitive' } } } },
+        { order: { customer: { companyName: { contains: search, mode: 'insensitive' } } } },
+        { order: { customer: { contactPerson: { contains: search, mode: 'insensitive' } } } },
       ];
     }
 
@@ -81,11 +97,16 @@ router.get('/', authenticateAdmin, async (req: AuthRequest, res) => {
               id: true,
               orderNumber: true,
               status: true,
+              origin: true,
+              destination: true,
+              shippingMethod: true,
               customer: {
                 select: {
                   id: true,
+                  customerCode: true,
                   companyName: true,
                   contactPerson: true,
+                  tier: true,
                 },
               },
             },

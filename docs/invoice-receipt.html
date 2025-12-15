@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ใบเสร็จรับเงิน / ใบแจ้งหนี้ - Ship Tracking System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Sarabun', 'Noto Sans Thai', sans-serif;
+            background: #ffffff;
+            padding: 20px;
+            line-height: 1.6;
+            color: #000000;
+        }
+
+        .invoice-container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border: 1px solid #000000;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 2px solid #000000;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+
+        .company-info h1 {
+            color: #000000;
+            font-size: 28px;
+            margin-bottom: 5px;
+        }
+
+        .company-info p {
+            color: #333333;
+            font-size: 14px;
+        }
+
+        .invoice-title {
+            text-align: right;
+        }
+
+        .invoice-title h2 {
+            color: #000000;
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        .invoice-title p {
+            color: #333333;
+            font-size: 14px;
+        }
+
+        .info-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .info-box {
+            background: #f9f9f9;
+            padding: 20px;
+            border: 1px solid #cccccc;
+        }
+
+        .info-box h3 {
+            color: #000000;
+            font-size: 14px;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #cccccc;
+            padding-bottom: 5px;
+        }
+
+        .info-box p {
+            font-size: 14px;
+            color: #000000;
+            margin-bottom: 5px;
+        }
+
+        .project-summary {
+            background: #f0f0f0;
+            color: #000000;
+            padding: 25px;
+            border: 1px solid #000000;
+            margin-bottom: 30px;
+        }
+
+        .project-summary h3 {
+            font-size: 20px;
+            margin-bottom: 10px;
+        }
+
+        .project-summary p {
+            font-size: 14px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+        }
+
+        th {
+            background: #000000;
+            color: white;
+            padding: 12px 15px;
+            text-align: left;
+            font-size: 14px;
+            border: 1px solid #000000;
+        }
+
+        td {
+            padding: 12px 15px;
+            border: 1px solid #cccccc;
+            font-size: 14px;
+        }
+
+        tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .total-section {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 30px;
+        }
+
+        .total-box {
+            width: 400px;
+        }
+
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #cccccc;
+        }
+
+        .total-row.final {
+            background: #000000;
+            color: white;
+            padding: 15px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .payment-terms {
+            background: #f9f9f9;
+            border: 1px solid #000000;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+
+        .payment-terms h3 {
+            color: #000000;
+            margin-bottom: 15px;
+            font-size: 16px;
+            border-bottom: 1px solid #000000;
+            padding-bottom: 10px;
+        }
+
+        .payment-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background: white;
+            border: 1px solid #cccccc;
+            margin-bottom: 10px;
+        }
+
+        .payment-item.pending {
+            border-left: 4px solid #000000;
+        }
+
+        .payment-item.completed {
+            border-left: 4px solid #000000;
+            background: #f0f0f0;
+        }
+
+        .status-badge {
+            padding: 4px 12px;
+            font-size: 12px;
+            font-weight: bold;
+            border: 1px solid #000000;
+            background: #ffffff;
+        }
+
+        .status-badge.paid {
+            background: #000000;
+            color: #ffffff;
+        }
+
+        .deliverables {
+            margin-bottom: 30px;
+        }
+
+        .deliverables h3 {
+            color: #000000;
+            margin-bottom: 15px;
+            font-size: 18px;
+            border-bottom: 1px solid #000000;
+            padding-bottom: 5px;
+        }
+
+        .deliverable-list {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .deliverable-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            background: #f9f9f9;
+            border: 1px solid #cccccc;
+        }
+
+        .deliverable-item .icon {
+            color: #000000;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .features-section {
+            margin-bottom: 30px;
+        }
+
+        .features-section h3 {
+            color: #000000;
+            margin-bottom: 15px;
+            font-size: 18px;
+            border-bottom: 1px solid #000000;
+            padding-bottom: 5px;
+        }
+
+        .feature-category {
+            margin-bottom: 20px;
+        }
+
+        .feature-category h4 {
+            color: #000000;
+            font-size: 14px;
+            margin-bottom: 10px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #cccccc;
+        }
+
+        .feature-list {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .feature-item {
+            font-size: 13px;
+            color: #000000;
+            padding: 5px 0;
+            padding-left: 20px;
+            position: relative;
+        }
+
+        .feature-item::before {
+            content: "-";
+            position: absolute;
+            left: 5px;
+            color: #000000;
+            font-weight: bold;
+        }
+
+        .warranty-section {
+            background: #f9f9f9;
+            border: 1px solid #000000;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+
+        .warranty-section h3 {
+            color: #000000;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #000000;
+            padding-bottom: 5px;
+        }
+
+        .warranty-list {
+            list-style: none;
+        }
+
+        .warranty-list li {
+            padding: 8px 0;
+            font-size: 14px;
+            color: #000000;
+            padding-left: 25px;
+            position: relative;
+        }
+
+        .warranty-list li::before {
+            content: "-";
+            position: absolute;
+            left: 5px;
+            font-weight: bold;
+        }
+
+        .notes {
+            background: #f9f9f9;
+            padding: 20px;
+            border: 1px solid #cccccc;
+            margin-bottom: 30px;
+        }
+
+        .notes h3 {
+            color: #000000;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #cccccc;
+            padding-bottom: 5px;
+        }
+
+        .notes p {
+            font-size: 13px;
+            color: #333333;
+        }
+
+        .footer {
+            text-align: center;
+            padding-top: 20px;
+            border-top: 2px solid #000000;
+            color: #333333;
+            font-size: 12px;
+        }
+
+        .signature-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 50px;
+            margin-top: 40px;
+            margin-bottom: 30px;
+        }
+
+        .signature-box {
+            text-align: center;
+        }
+
+        .signature-line {
+            border-top: 1px solid #000000;
+            margin-top: 60px;
+            padding-top: 10px;
+        }
+
+        @media print {
+            body {
+                padding: 0;
+                background: white;
+            }
+
+            .invoice-container {
+                border: none;
+                padding: 20px;
+            }
+
+            .no-print {
+                display: none;
+            }
+        }
+
+        .print-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #000000;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .print-btn:hover {
+            background: #333333;
+        }
+    </style>
+</head>
+<body>
+    <div class="invoice-container">
+        <!-- Header -->
+        <div class="header">
+            <div class="company-info">
+                <h1>BINAMON</h1>
+                <p>บริการพัฒนาซอฟต์แวร์และระบบเว็บไซต์</p>
+                <p>ผู้จัดทำ: นายชุติเดช ฐานไชยชู</p>
+            </div>
+            <div class="invoice-title">
+                <h2>ใบเสร็จรับเงิน / ใบแจ้งหนี้</h2>
+                <p><strong>เลขที่:</strong> INV-2025-001</p>
+                <p><strong>วันที่:</strong> 8 ธันวาคม 2568</p>
+            </div>
+        </div>
+
+        <!-- Client & Project Info -->
+        <div class="info-section">
+            <div class="info-box">
+                <h3>ข้อมูลลูกค้า</h3>
+                <p><strong>บริษัท:</strong> บริษัท แพ็คคุเนโกะ จำกัด</p>
+                <p><strong>Company:</strong> PAKKUNEKO CO., LTD.</p>
+            </div>
+            <div class="info-box">
+                <h3>รายละเอียดโครงการ</h3>
+                <p><strong>ชื่อโครงการ:</strong> Ship Tracking System</p>
+                <p><strong>ประเภท:</strong> RUSH DEVELOPMENT (1 เดือน)</p>
+                <p><strong>ระยะเวลา:</strong> 4 สัปดาห์</p>
+            </div>
+        </div>
+
+        <!-- Project Summary -->
+        <div class="project-summary">
+            <h3>ระบบติดตามสินค้าและบริหารจัดการคำสั่งซื้อ (Ship Tracking System)</h3>
+            <p>พัฒนาเว็บไซต์และระบบบริหารจัดการคำสั่งซื้อที่ให้ลูกค้าสามารถตรวจสอบสถานะสินค้าได้ด้วยตนเอง เพื่อให้ทีมงานอัปเดตและจัดการคำสั่งซื้อได้อย่างมีประสิทธิภาพ</p>
+        </div>
+
+        <!-- Main Items Table -->
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 50%;">รายการ</th>
+                    <th style="width: 30%;">รายละเอียด</th>
+                    <th style="width: 20%;" class="text-right">จำนวนเงิน (บาท)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>
+                        <strong>ออกแบบและพัฒนาระบบครบชุด</strong><br>
+                        <small style="color: #666;">หน้าเว็บไซต์ 11 หน้า, ระบบติดตามสินค้า, Admin Dashboard, ระบบสถิติ, Calculator</small>
+                    </td>
+                    <td>พัฒนาระบบทั้งหมด</td>
+                    <td class="text-right">45,000.00</td>
+                </tr>
+                <tr>
+                    <td>
+                        <strong>Rush Development Fee</strong><br>
+                        <small style="color: #666;">ทำงาน Overtime, วันเสาร์-อาทิตย์, Parallel Development, รับประกันส่งมอบตรงเวลา 1 เดือน</small>
+                    </td>
+                    <td>ค่าเร่งงาน</td>
+                    <td class="text-right">70,000.00</td>
+                </tr>
+                <tr>
+                    <td>
+                        <strong>โฮสติ้ง, โดเมน (12 เดือน)</strong><br>
+                        <small style="color: #666;">Vercel/Render + PostgreSQL (250-350 บาท/เดือน), โดเมน (70 บาท/เดือน)</small>
+                    </td>
+                    <td>ค่าบริการรายปี (12 เดือน x 420 บาท)</td>
+                    <td class="text-right">5,040.00</td>
+                </tr>
+                <tr>
+                    <td>
+                        <strong>บำรุงรักษาระบบ Basic (12 เดือน)</strong><br>
+                        <small style="color: #666;">อัปเดตแพตช์, สำรองข้อมูล, แก้ไขเล็กน้อย (2 ชม./เดือน)</small>
+                    </td>
+                    <td>Maintenance ปีแรก (12 เดือน x 300 บาท)</td>
+                    <td class="text-right">3,600.00</td>
+                </tr>
+                <tr>
+                    <td>
+                        <strong>ส่วนลด Package ปีแรก</strong><br>
+                        <small style="color: #666;">ส่วนลดพิเศษสำหรับ Package รวม</small>
+                    </td>
+                    <td>Discount</td>
+                    <td class="text-right">-6,360.00</td>
+                </tr>
+                <tr>
+                    <td>
+                        <strong>ค่าเซิร์ฟเวอร์เพิ่มเติม</strong><br>
+                        <small style="color: #666;">Server Setup และ Configuration</small>
+                    </td>
+                    <td>UAT Phase</td>
+                    <td class="text-right">15,000.00</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- Total Section -->
+        <div class="total-section">
+            <div class="total-box">
+                <div class="total-row">
+                    <span>ค่าพัฒนาระบบ + Rush Fee</span>
+                    <span>115,000.00 บาท</span>
+                </div>
+                <div class="total-row">
+                    <span>โฮสติ้ง, โดเมน (12 เดือน)</span>
+                    <span>5,040.00 บาท</span>
+                </div>
+                <div class="total-row">
+                    <span>Maintenance Basic (12 เดือน)</span>
+                    <span>3,600.00 บาท</span>
+                </div>
+                <div class="total-row">
+                    <span>ค่าเซิร์ฟเวอร์เพิ่มเติม</span>
+                    <span>15,000.00 บาท</span>
+                </div>
+                <div class="total-row">
+                    <span>ส่วนลด Package ปีแรก</span>
+                    <span>-6,360.00 บาท</span>
+                </div>
+                <div class="total-row final">
+                    <span>รวมทั้งสิ้น</span>
+                    <span>145,000.00 บาท</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Payment Terms -->
+        <div class="payment-terms">
+            <h3>เงื่อนไขการชำระเงิน</h3>
+            <div class="payment-item completed">
+                <div>
+                    <strong>งวดที่ 1: มัดจำเริ่มงาน 40%</strong>
+                    <p style="font-size: 13px; color: #666; margin-top: 5px;">ชำระภายใน 3 วัน เพื่อเริ่มงานทันที</p>
+                </div>
+                <div style="text-align: right;">
+                    <strong>52,000.00 บาท</strong><br>
+                    <span class="status-badge paid">ชำระแล้ว</span>
+                </div>
+            </div>
+            <div class="payment-item completed">
+                <div>
+                    <strong>งวดที่ 2: ส่งงานเวอร์ชันทดสอบ (UAT) 30% + ค่าเซิร์ฟเวอร์</strong>
+                    <p style="font-size: 13px; color: #666; margin-top: 5px;">ชำระเมื่อส่งมอบระบบทดสอบ (39,000 + 15,000)</p>
+                </div>
+                <div style="text-align: right;">
+                    <strong>54,000.00 บาท</strong><br>
+                    <span class="status-badge paid">ชำระแล้ว</span>
+                </div>
+            </div>
+            <div class="payment-item completed">
+                <div>
+                    <strong>งวดที่ 3: ส่งมอบงานขึ้นระบบจริง 30%</strong>
+                    <p style="font-size: 13px; color: #666; margin-top: 5px;">ชำระเมื่อระบบ Go-Live</p>
+                </div>
+                <div style="text-align: right;">
+                    <strong>39,000.00 บาท</strong><br>
+                    <span class="status-badge paid">ชำระแล้ว</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Features Section -->
+        <div class="features-section">
+            <h3>ฟีเจอร์และระบบที่พัฒนา</h3>
+
+            <div class="feature-category">
+                <h4>หน้าเว็บไซต์ (11 หน้า)</h4>
+                <div class="feature-list">
+                    <div class="feature-item">Home - หน้าแรกแสดงภาพรวมบริการ</div>
+                    <div class="feature-item">Process - ขั้นตอนการใช้งาน</div>
+                    <div class="feature-item">Portfolio - แสดงผลงานตัวอย่าง</div>
+                    <div class="feature-item">Review - รีวิวจากลูกค้า</div>
+                    <div class="feature-item">Schedule - ตารางรอบเรือ/เครื่องบิน</div>
+                    <div class="feature-item">Ship Tracking - ติดตามสินค้าทางเรือ</div>
+                    <div class="feature-item">Air Tracking - ติดตามสินค้าทางอากาศ</div>
+                    <div class="feature-item">Statistics - สถิติย้อนหลัง</div>
+                    <div class="feature-item">Calculator - คำนวณค่าขนส่ง</div>
+                    <div class="feature-item">About - เกี่ยวกับบริษัท</div>
+                    <div class="feature-item">Contact - ติดต่อเรา</div>
+                </div>
+            </div>
+
+            <div class="feature-category">
+                <h4>ระบบติดตามสินค้า (Customer Tracking)</h4>
+                <div class="feature-list">
+                    <div class="feature-item">ค้นหาด้วยชื่อ/รหัส/Tracking Number</div>
+                    <div class="feature-item">แสดงสถานะและประวัติการจัดส่ง</div>
+                    <div class="feature-item">ลิงก์ไปยังสินค้าใน Mercari</div>
+                    <div class="feature-item">ป้องกันการเข้าถึงข้อมูลผู้อื่น</div>
+                    <div class="feature-item">รองรับทั้งทางเรือและเครื่องบิน</div>
+                </div>
+            </div>
+
+            <div class="feature-category">
+                <h4>ระบบหลังบ้าน (Admin Dashboard)</h4>
+                <div class="feature-list">
+                    <div class="feature-item">ล็อกอิน Google Sign-In / Email</div>
+                    <div class="feature-item">จัดการคำสั่งซื้อ CRUD</div>
+                    <div class="feature-item">นำเข้าจาก Google Sheet/CSV/Excel</div>
+                    <div class="feature-item">ค้นหาและกรองข้อมูล</div>
+                    <div class="feature-item">ตั้งค่ารอบเรือ/เครื่องบิน</div>
+                    <div class="feature-item">จัดการสถานะการชำระเงิน</div>
+                    <div class="feature-item">ส่งออกรายงาน CSV/Excel</div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Deliverables -->
+        <div class="deliverables">
+            <h3>การส่งมอบงาน</h3>
+            <div class="deliverable-list">
+                <div class="deliverable-item">
+                    <span class="icon">-</span>
+                    <span>ซอร์สโค้ดโปรแกรมทั้งหมด</span>
+                </div>
+                <div class="deliverable-item">
+                    <span class="icon">-</span>
+                    <span>คู่มือการใช้งานระบบหลังบ้าน</span>
+                </div>
+                <div class="deliverable-item">
+                    <span class="icon">-</span>
+                    <span>ไฟล์ออกแบบ UI/UX Design Files</span>
+                </div>
+                <div class="deliverable-item">
+                    <span class="icon">-</span>
+                    <span>ข้อมูลการเข้าถึงระบบ (Admin Account)</span>
+                </div>
+                <div class="deliverable-item">
+                    <span class="icon">-</span>
+                    <span>Database Schema & Documentation</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Warranty -->
+        <div class="warranty-section">
+            <h3>การรับประกัน</h3>
+            <ul class="warranty-list">
+                <li>รับประกันการทำงานของระบบ 30 วัน หลังส่งมอบงาน</li>
+                <li>แก้ไข Bug ที่เกิดจากการพัฒนาฟรี (ภายใน 30 วัน)</li>
+                <li>ให้คำปรึกษาการใช้งานเบื้องต้นฟรี</li>
+                <li>การปรับแก้หรือเพิ่มฟีเจอร์ใหม่หลัง 30 วัน คิดค่าใช้จ่ายแยกต่างหาก</li>
+            </ul>
+        </div>
+
+        <!-- Tech Stack -->
+        <div class="notes">
+            <h3>เทคโนโลยีที่ใช้</h3>
+            <p>
+                <strong>Frontend:</strong> React / Next.js |
+                <strong>Backend:</strong> Node.js + PostgreSQL / Supabase |
+                <strong>Hosting:</strong> Vercel + Render / Cloud Run |
+                <strong>Authentication:</strong> Google Sign-In / Email Login |
+                <strong>Data Integration:</strong> Google Sheet API / CSV Import
+            </p>
+        </div>
+
+        <!-- Notes -->
+        <div class="notes">
+            <h3>หมายเหตุสำคัญ</h3>
+            <p>
+                - รวมทั้งสิ้น 145,000.00 บาท ประกอบด้วย: ค่าพัฒนาระบบ 45,000 บาท + Rush Fee 70,000 บาท + โฮสติ้ง/โดเมน 5,040 บาท + Maintenance 3,600 บาท + ค่าเซิร์ฟเวอร์ 15,000 บาท - ส่วนลด 6,360 บาท<br>
+                - ชำระมัดจำ 40% ภายใน 3 วัน เพื่อเริ่มงานทันที<br>
+                - ต้องเตรียมข้อมูลให้พร้อม: ข้อมูลลูกค้าตัวอย่าง, Logo, สีแบรนด์<br>
+                - ตอบกลับ Feedback ภายใน 24 ชั่วโมง ตลอดช่วง 4 สัปดาห์<br>
+                - หากไม่สามารถให้ความร่วมมือตามข้างต้น อาจส่งผลให้ระยะเวลาดำเนินการล่าช้า<br>
+                - ทีมงานจะทำงาน Overtime และวันหยุดสุดสัปดาห์ เพื่อให้ทันกำหนด 1 เดือน
+            </p>
+        </div>
+
+        <!-- Signature Section -->
+        <div class="signature-section">
+            <div class="signature-box">
+                <div class="signature-line">
+                    <p><strong>ผู้ให้บริการ</strong></p>
+                    <p style="font-size: 12px; color: #333;">นายชุติเดช ฐานไชยชู</p>
+                    <p style="font-size: 12px; color: #333;">BINAMON</p>
+                    <p style="font-size: 12px; color: #333;">วันที่: 8 ธันวาคม 2568</p>
+                </div>
+            </div>
+            <div class="signature-box">
+                <div class="signature-line">
+                    <p><strong>ลูกค้า</strong></p>
+                    <p style="font-size: 12px; color: #333;">บริษัท แพ็คคุเนโกะ จำกัด</p>
+                    <p style="font-size: 12px; color: #333;">PAKKUNEKO CO., LTD.</p>
+                    <p style="font-size: 12px; color: #333;">วันที่: 8 ธันวาคม 2568</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>เอกสารนี้จัดทำขึ้นเพื่อแสดงรายละเอียดค่าใช้จ่ายและขอบเขตงานของโครงการ Ship Tracking System</p>
+            <p>BINAMON</p>
+        </div>
+    </div>
+
+    <button class="print-btn no-print" onclick="window.print()">พิมพ์เอกสาร</button>
+</body>
+</html>

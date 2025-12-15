@@ -76,6 +76,276 @@ router.get('/', authenticateAdmin, async (req: AuthRequest, res) => {
   }
 });
 
+// GET /api/v1/payments/statement - Get payment statement with detailed breakdown
+// IMPORTANT: This route must be before /:id to prevent "statement" being treated as an ID
+router.get('/statement', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const startDate = req.query.startDate as string;
+    const endDate = req.query.endDate as string;
+
+    // Default to last 30 days if no dates provided
+    const end = endDate ? new Date(endDate) : new Date();
+    end.setHours(23, 59, 59, 999);
+    const start = startDate ? new Date(startDate) : new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
+    start.setHours(0, 0, 0, 0);
+
+    // Get all verified payments in date range
+    const verifiedPayments = await prisma.payment.findMany({
+      where: {
+        status: 'verified',
+        paidAt: {
+          gte: start,
+          lte: end,
+        },
+      },
+      include: {
+        orderItem: {
+          include: {
+            order: {
+              include: {
+                customer: {
+                  select: {
+                    id: true,
+                    companyName: true,
+                    contactPerson: true,
+                    lineId: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { paidAt: 'desc' },
+    });
+
+    // Get all pending/unverified payments
+    const pendingPayments = await prisma.payment.findMany({
+      where: {
+        status: { in: ['pending', 'paid'] },
+      },
+      include: {
+        orderItem: {
+          include: {
+            order: {
+              include: {
+                customer: {
+                  select: {
+                    id: true,
+                    companyName: true,
+                    contactPerson: true,
+                    lineId: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Calculate totals (Baht and Yen)
+    const totalVerified = verifiedPayments.reduce((sum, p) => sum + (Number(p.amountBaht) || 0), 0);
+    const totalVerifiedYen = verifiedPayments.reduce((sum, p) => sum + (Number(p.amountYen) || 0), 0);
+    const totalPending = pendingPayments.reduce((sum, p) => sum + (Number(p.amountBaht) || 0), 0);
+    const totalPendingYen = pendingPayments.reduce((sum, p) => sum + (Number(p.amountYen) || 0), 0);
+
+    // Group by customer for accumulated totals
+    const customerAccumulated: Record<string, {
+      customerId: string;
+      customerName: string;
+      lineId: string | null;
+      totalPaid: number;
+      totalPaidYen: number;
+      totalPending: number;
+      totalPendingYen: number;
+      pendingItems: number;
+      orders: Array<{
+        orderId: string;
+        orderNumber: string;
+        totalAmount: number;
+        totalAmountYen: number;
+        paidAmount: number;
+        paidAmountYen: number;
+        pendingAmount: number;
+        pendingAmountYen: number;
+        itemsWithoutPayments: number;
+      }>;
+    }> = {};
+
+    // Get all orders with items for complete picture
+    const allOrders = await prisma.order.findMany({
+      include: {
+        customer: {
+          select: {
+            id: true,
+            companyName: true,
+            contactPerson: true,
+            lineId: true,
+          },
+        },
+        orderItems: {
+          include: {
+            payments: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Process orders to build customer accumulated data
+    for (const order of allOrders) {
+      if (!order.customer) continue;
+
+      const customerId = order.customer.id;
+      const customerName = order.customer.companyName || order.customer.contactPerson || 'ไม่ระบุชื่อ';
+
+      if (!customerAccumulated[customerId]) {
+        customerAccumulated[customerId] = {
+          customerId,
+          customerName,
+          lineId: order.customer.lineId,
+          totalPaid: 0,
+          totalPaidYen: 0,
+          totalPending: 0,
+          totalPendingYen: 0,
+          pendingItems: 0,
+          orders: [],
+        };
+      }
+
+      let orderTotalAmount = 0;
+      let orderTotalAmountYen = 0;
+      let orderPaidAmount = 0;
+      let orderPaidAmountYen = 0;
+      let orderPendingAmount = 0;
+      let orderPendingAmountYen = 0;
+      let itemsWithoutPayments = 0;
+
+      for (const item of order.orderItems) {
+        const itemTotal = (Number(item.priceBaht) || 0) + (Number(item.shippingCost) || 0);
+        const itemTotalYen = Number(item.priceYen) || 0;
+        orderTotalAmount += itemTotal;
+        orderTotalAmountYen += itemTotalYen;
+
+        const verifiedPaymentsForItem = item.payments.filter(p => p.status === 'verified');
+        const itemPaid = verifiedPaymentsForItem.reduce((sum, p) => sum + (Number(p.amountBaht) || 0), 0);
+        const itemPaidYen = verifiedPaymentsForItem.reduce((sum, p) => sum + (Number(p.amountYen) || 0), 0);
+
+        const pendingPaymentsForItem = item.payments.filter(p => p.status === 'pending' || p.status === 'paid');
+        const itemPending = pendingPaymentsForItem.reduce((sum, p) => sum + (Number(p.amountBaht) || 0), 0);
+        const itemPendingYen = pendingPaymentsForItem.reduce((sum, p) => sum + (Number(p.amountYen) || 0), 0);
+
+        orderPaidAmount += itemPaid;
+        orderPaidAmountYen += itemPaidYen;
+        orderPendingAmount += itemPending;
+        orderPendingAmountYen += itemPendingYen;
+
+        // Check if item has no payment installments created yet
+        if (item.payments.length === 0 && itemTotal > 0) {
+          itemsWithoutPayments++;
+          customerAccumulated[customerId].pendingItems++;
+        }
+      }
+
+      customerAccumulated[customerId].totalPaid += orderPaidAmount;
+      customerAccumulated[customerId].totalPaidYen += orderPaidAmountYen;
+      customerAccumulated[customerId].totalPending += orderPendingAmount;
+      customerAccumulated[customerId].totalPendingYen += orderPendingAmountYen;
+
+      if (orderTotalAmount > 0) {
+        customerAccumulated[customerId].orders.push({
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          totalAmount: orderTotalAmount,
+          totalAmountYen: orderTotalAmountYen,
+          paidAmount: orderPaidAmount,
+          paidAmountYen: orderPaidAmountYen,
+          pendingAmount: orderTotalAmount - orderPaidAmount,
+          pendingAmountYen: orderTotalAmountYen - orderPaidAmountYen,
+          itemsWithoutPayments,
+        });
+      }
+    }
+
+    // Format verified payments for response
+    const formattedVerified = verifiedPayments.map(p => ({
+      id: p.id,
+      orderNumber: p.orderItem?.order?.orderNumber || '-',
+      orderId: p.orderItem?.order?.id,
+      customerName: p.orderItem?.order?.customer?.companyName ||
+                    p.orderItem?.order?.customer?.contactPerson || 'ไม่ระบุ',
+      customerId: p.orderItem?.order?.customer?.id,
+      productCode: p.orderItem?.productCode,
+      productName: p.orderItem?.productName,
+      priceYen: Number(p.orderItem?.priceYen) || 0,
+      priceBaht: Number(p.orderItem?.priceBaht) || 0,
+      installmentName: p.installmentName || `งวดที่ ${p.installmentNumber}`,
+      amountYen: Number(p.amountYen) || 0,
+      amountBaht: Number(p.amountBaht) || 0,
+      slipAmount: Number(p.slipAmount) || 0,
+      paymentMethod: p.paymentMethod,
+      paidAt: p.paidAt,
+      verifiedAt: p.verifiedAt,
+      proofImageUrl: p.proofImageUrl,
+    }));
+
+    // Format pending payments for response
+    const formattedPending = pendingPayments.map(p => ({
+      id: p.id,
+      orderNumber: p.orderItem?.order?.orderNumber || '-',
+      orderId: p.orderItem?.order?.id,
+      customerName: p.orderItem?.order?.customer?.companyName ||
+                    p.orderItem?.order?.customer?.contactPerson || 'ไม่ระบุ',
+      customerId: p.orderItem?.order?.customer?.id,
+      productCode: p.orderItem?.productCode,
+      productName: p.orderItem?.productName,
+      priceYen: Number(p.orderItem?.priceYen) || 0,
+      priceBaht: Number(p.orderItem?.priceBaht) || 0,
+      installmentName: p.installmentName || `งวดที่ ${p.installmentNumber}`,
+      amountYen: Number(p.amountYen) || 0,
+      amountBaht: Number(p.amountBaht) || 0,
+      status: p.status,
+      dueDate: p.dueDate,
+      createdAt: p.createdAt,
+    }));
+
+    res.json({
+      success: true,
+      data: {
+        period: {
+          start: start.toISOString(),
+          end: end.toISOString(),
+        },
+        summary: {
+          totalVerified,
+          totalVerifiedYen,
+          totalVerifiedCount: verifiedPayments.length,
+          totalPending,
+          totalPendingYen,
+          totalPendingCount: pendingPayments.length,
+        },
+        verifiedPayments: formattedVerified,
+        pendingPayments: formattedPending,
+        customerAccumulated: Object.values(customerAccumulated)
+          .filter(c => c.totalPaid > 0 || c.totalPending > 0 || c.pendingItems > 0)
+          .sort((a, b) => (b.totalPending + b.pendingItems * 1000) - (a.totalPending + a.pendingItems * 1000)),
+      },
+    });
+  } catch (error: any) {
+    console.error('Error fetching payment statement:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'STATEMENT_ERROR',
+        message: 'Failed to fetch payment statement',
+        details: error.message,
+      },
+    });
+  }
+});
+
 // GET /api/v1/payments/:id - Get single payment
 router.get('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
@@ -263,9 +533,10 @@ router.patch('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
       const newPaymentAmount = req.body.amountBaht ? parseFloat(req.body.amountBaht) : 0;
       const newTotal = otherPaymentsTotal + newPaymentAmount;
 
-      // Validate: total payments should not exceed item total
-      if (newTotal > itemTotal) {
-        const remainingBalance = itemTotal - otherPaymentsTotal;
+      // Validate: total payments should not exceed item total (allow ±5 baht tolerance)
+      const tolerance = 5;
+      if (newTotal > itemTotal + tolerance) {
+        const remainingBalance = Math.ceil(itemTotal - otherPaymentsTotal + tolerance);
         return res.status(400).json({
           success: false,
           error: {

@@ -484,7 +484,7 @@ const NotifyStatusModal = ({ isOpen, onClose, orderId, orderNumber }: NotifyStat
                       </div>
                       <div className="bg-amber-50 rounded-lg p-3 text-center">
                         <p className="text-xs text-amber-600">ค้างชำระ</p>
-                        <p className="text-sm font-bold text-amber-700">฿{paymentSummary.remainingBaht.toLocaleString()}</p>
+                        <p className="text-sm font-bold text-amber-700">฿{Math.max(0, Math.ceil(paymentSummary.remainingBaht)).toLocaleString()}</p>
                       </div>
                     </div>
                   )}
